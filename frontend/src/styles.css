@@ -357,15 +357,46 @@ button:hover:not(:disabled) {
   padding-bottom: 4px;
 }
 
+.md-page-jumpbar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+}
+
+.md-page-jump-chip {
+  border: 1px solid var(--md-outline);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: var(--md-surface-soft);
+  color: var(--md-on-surface);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+
+.md-page-jump-chip.active {
+  border-color: var(--md-outline-strong);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
 .md-feedback-card {
   gap: 10px;
 }
 
+.md-feedback-summary,
 .md-feedback-text {
   margin: 0;
   white-space: pre-wrap;
   font-family: inherit;
   line-height: 1.55;
+}
+
+.md-feedback-summary {
+  color: var(--md-on-surface);
 }
 
 .md-summary-grid,

@@ -61,12 +61,20 @@ const appVersion = __APP_VERSION__
 const previewFallbackLocation = { lat: 31.2304, lng: 121.4737, accuracy: 12 }
 const freshLocationThresholdMs = 30 * 1000
 const staleLocationThresholdMs = 2 * 60 * 1000
+const defaultPageId = 'overview'
+const primaryPageIds = ['overview', 'tracking', 'config', 'contacts', 'sos', 'history']
 const pageCatalog = [
   {
     id: 'overview',
     label: '总览',
     title: '状态总览',
     description: '先看当前状态，再进入具体功能页。',
+  },
+  {
+    id: 'tracking',
+    label: '守护',
+    title: '轨迹守护',
+    description: '独立查看周期采样、待补发与同步状态。',
   },
   {
     id: 'theme',
@@ -111,6 +119,22 @@ const drawerDragActivatePx = 10
 const drawerPreviewCommitRatio = 0.35
 const drawerEdgeFallbackPx = 48
 const drawerScrimMaxOpacity = 0.32
+
+function readPageIdFromHash() {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return window.location.hash.replace(/^#/, '').trim()
+}
+
+function resolvePageId(pageId, pageItems, fallback = defaultPageId) {
+  const nextPageId = typeof pageId === 'string' ? pageId.trim() : ''
+  const fallbackPage = pageItems.find((page) => page.id === fallback) || pageItems[0]
+  if (!nextPageId) {
+    return fallbackPage?.id || fallback
+  }
+  return pageItems.some((page) => page.id === nextPageId) ? nextPageId : fallbackPage?.id || fallback
+}
 
 function readJsonCache(key) {
   return readStoredJson(key)
@@ -530,6 +554,33 @@ function buildTrackingResultMessage({ captured, sentCount, snapshot, skippedReas
   return parts.join('；') || '轨迹状态已刷新'
 }
 
+function summarizeResultText(text) {
+  const raw = typeof text === 'string' ? text.trim() : ''
+  if (!raw) {
+    return '等待操作...'
+  }
+  const [firstLine] = raw.split('\n')
+  return firstLine || raw
+}
+
+function FeedbackCard({ expanded, resultText, onToggle }) {
+  return (
+    <section className="md-feedback-card">
+      <div className="md-section-head">
+        <h3>最新操作结果</h3>
+        <button type="button" className="md-chip subtle md-chip-button" onClick={onToggle}>
+          {expanded ? '收起详情' : '展开详情'}
+        </button>
+      </div>
+      {expanded ? (
+        <pre className="md-feedback-text">{resultText}</pre>
+      ) : (
+        <p className="md-feedback-summary">{summarizeResultText(resultText)}</p>
+      )}
+    </section>
+  )
+}
+
 function SummaryCard({ label, value, hint }) {
   return (
     <article className="md-summary-card">
@@ -546,6 +597,27 @@ function PageButton({ page, active, onClick }) {
       <strong>{page.label}</strong>
       <span>{page.description}</span>
     </button>
+  )
+}
+
+function PageJumpBar({ activePageId, pageItems, onNavigate }) {
+  const jumpPages = pageItems.filter(
+    (page) => primaryPageIds.includes(page.id) || page.id === activePageId
+  )
+
+  return (
+    <nav className="md-page-jumpbar" aria-label="页面跳转">
+      {jumpPages.map((page) => (
+        <button
+          key={page.id}
+          type="button"
+          className={`md-page-jump-chip ${page.id === activePageId ? 'active' : ''}`}
+          onClick={() => onNavigate(page.id)}
+        >
+          {page.label}
+        </button>
+      ))}
+    </nav>
   )
 }
 
@@ -704,30 +776,17 @@ function TrackingGuardSection({
 
 function OverviewPage({
   contactsList,
-  deviceId,
   form,
-  healthText,
   latestLocation,
-  localPanel,
   locationAccuracy,
   locationFreshness,
   locationRefreshing,
   onboardingDone,
   pages,
-  permissionText,
   sosHistory,
-  storageDriver,
-  themeState,
-  trackingBusy,
   trackingSnapshot,
-  onCheckHealth,
   onNavigate,
   onRefreshLocation,
-  onResetOnboarding,
-  onRunTrackingNow,
-  onToggleTracking,
-  onTrackingIntervalChange,
-  showToolsPage,
 }) {
   const latestSosEvent = sosHistory[0] || null
 
@@ -755,49 +814,187 @@ function OverviewPage({
           hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无事件'}
         />
         <SummaryCard
-          label="位置新鲜度"
-          value={locationFreshness.label}
-          hint={locationFreshness.hint}
+          label="轨迹守护"
+          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
+          hint={buildTrackingStatusHint(trackingSnapshot)}
         />
         <SummaryCard
           label="定位精度"
           value={locationAccuracy.label}
           hint={locationAccuracy.hint}
         />
-        <SummaryCard
-          label="轨迹守护"
-          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
-          hint={buildTrackingStatusHint(trackingSnapshot)}
-        />
+      </section>
+
+      <section className="md-section-card">
+        <div className="md-section-head">
+          <h3>功能跳转</h3>
+          <span className="md-chip">分页面使用</span>
+        </div>
+        <p className="md-section-hint">每个核心功能都单独放到独立页面；总览只保留摘要和跳转，不再塞满长内容。</p>
+        <div className="md-quick-grid">
+          {pages
+            .filter((page) => page.id !== 'overview')
+            .map((page) => (
+              <button
+                key={page.id}
+                type="button"
+                className="md-quick-card"
+                onClick={() => onNavigate(page.id)}
+              >
+                <strong>{page.label}</strong>
+                <span>{page.description}</span>
+              </button>
+            ))}
+        </div>
       </section>
 
       <div className="md-overview-grid">
         <section className="md-section-card">
           <div className="md-section-head">
-            <h3>快捷入口</h3>
-            <span className="md-chip">多页面导航</span>
+            <h3>当前位置速览</h3>
+            <span className="md-chip subtle">进入 SOS 前建议先看这里</span>
           </div>
-          <p className="md-section-hint">已按配置、联系人、SOS、历史、自检拆分页面，减少单页堆叠。</p>
-          <div className="md-quick-grid">
-            {pages
-              .filter((page) => page.id !== 'overview')
-              .map((page) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  className="md-quick-card"
-                  onClick={() => onNavigate(page.id)}
-                >
-                  <strong>{page.label}</strong>
-                  <span>{page.description}</span>
-                </button>
-              ))}
+          <div className="md-kv-list">
+            <div className="md-kv-item">
+              <span>当前位置</span>
+              <strong>{formatLocationText(latestLocation)}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>位置新鲜度</span>
+              <strong>{locationFreshness.label}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>定位精度</span>
+              <strong>{locationAccuracy.hint}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>最近 SOS</span>
+              <strong>{latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无'}</strong>
+            </div>
+          </div>
+          <div className="md-row-actions">
+            <button
+              type="button"
+              className="md-btn tonal"
+              onClick={onRefreshLocation}
+              disabled={locationRefreshing}
+            >
+              {locationRefreshing ? '刷新位置中...' : '刷新当前位置'}
+            </button>
+            <button type="button" className="md-btn" onClick={() => onNavigate('sos')}>
+              前往 SOS
+            </button>
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('tracking')}>
+              前往守护页
+            </button>
           </div>
         </section>
 
         <section className="md-section-card">
           <div className="md-section-head">
-            <h3>设备状态</h3>
+            <h3>主流程入口</h3>
+            <span className="md-chip subtle">轻量导航</span>
+          </div>
+          <div className="md-kv-list">
+            <div className="md-kv-item">
+              <span>通知配置</span>
+              <strong>{form.callNumber.trim() || form.smsNumber.trim() ? '已填写' : '待填写'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>联系人</span>
+              <strong>{contactsList.length > 0 ? `已维护 ${contactsList.length} 人` : '待添加'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>守护状态</span>
+              <strong>{trackingSnapshot.enabled ? '运行中' : '未开启'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>历史记录</span>
+              <strong>{sosHistory.length > 0 ? `最近 ${sosHistory.length} 条` : '暂无记录'}</strong>
+            </div>
+          </div>
+          <div className="md-row-actions">
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('config')}>
+              通知配置
+            </button>
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('contacts')}>
+              联系人管理
+            </button>
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('history')}>
+              查看历史
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function TrackingPage({
+  healthText,
+  latestLocation,
+  localPanel,
+  locationAccuracy,
+  locationFreshness,
+  locationRefreshing,
+  permissionText,
+  showToolsPage,
+  trackingBusy,
+  trackingSnapshot,
+  onCheckHealth,
+  onNavigate,
+  onRefreshLocation,
+  onRunTrackingNow,
+  onToggleTracking,
+  onTrackingIntervalChange,
+}) {
+  return (
+    <div className="md-page-stack">
+      <section className="md-summary-grid">
+        <SummaryCard
+          label="守护状态"
+          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
+          hint={buildTrackingStatusHint(trackingSnapshot)}
+        />
+        <SummaryCard
+          label="采样周期"
+          value={`${trackingSnapshot.intervalSeconds} 秒`}
+          hint="前台存活期间自动采样"
+        />
+        <SummaryCard
+          label="待补发"
+          value={`${trackingSnapshot.pendingCount} 条`}
+          hint={trackingSnapshot.nextRetryAt ? `下一次 ${formatPanelTime(trackingSnapshot.nextRetryAt)}` : '当前无积压'}
+        />
+        <SummaryCard
+          label="最近采样"
+          value={formatPanelTime(trackingSnapshot.lastCapturedAt)}
+          hint="用于判断守护是否在工作"
+        />
+        <SummaryCard
+          label="最近同步"
+          value={formatPanelTime(trackingSnapshot.lastSyncedAt)}
+          hint="写入后端成功时间"
+        />
+        <SummaryCard
+          label="定位精度"
+          value={locationAccuracy.label}
+          hint={locationAccuracy.hint}
+        />
+      </section>
+
+      <div className="md-overview-grid">
+        <TrackingGuardSection
+          trackingBusy={trackingBusy}
+          trackingSnapshot={trackingSnapshot}
+          onRunTrackingNow={onRunTrackingNow}
+          onToggleTracking={onToggleTracking}
+          onTrackingIntervalChange={onTrackingIntervalChange}
+        />
+
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>设备与运行状态</h3>
             <span className={`md-chip ${showToolsPage ? 'subtle' : ''}`}>
               {showToolsPage ? '本地后端' : '远端后端'}
             </span>
@@ -820,20 +1017,12 @@ function OverviewPage({
               <strong>{locationFreshness.label}</strong>
             </div>
             <div className="md-kv-item">
-              <span>定位精度</span>
-              <strong>{locationAccuracy.hint}</strong>
-            </div>
-            <div className="md-kv-item">
               <span>最近刷新</span>
               <strong>{locationFreshness.updatedAt}</strong>
             </div>
             <div className="md-kv-item">
-              <span>最近 SOS</span>
-              <strong>{latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无'}</strong>
-            </div>
-            <div className="md-kv-item">
-              <span>持久化存储</span>
-              <strong>{storageDriver}</strong>
+              <span>本地数据</span>
+              <strong>{localPanel ? `SOS ${localPanel.sosCount} / 轨迹 ${localPanel.trackingCount}` : '未启用'}</strong>
             </div>
           </div>
           <div className="md-row-actions">
@@ -848,59 +1037,15 @@ function OverviewPage({
             <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
               检查后端
             </button>
-            <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
-              重置引导
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('overview')}>
+              返回总览
             </button>
           </div>
-        </section>
-
-        <TrackingGuardSection
-          trackingBusy={trackingBusy}
-          trackingSnapshot={trackingSnapshot}
-          onRunTrackingNow={onRunTrackingNow}
-          onToggleTracking={onToggleTracking}
-          onTrackingIntervalChange={onTrackingIntervalChange}
-        />
-
-        <section className="md-section-card">
-          <div className="md-section-head">
-            <h3>当前配置摘要</h3>
-            <span className="md-chip subtle">{form.userId}</span>
-          </div>
-          <div className="md-kv-list">
-            <div className="md-kv-item">
-              <span>电话号码</span>
-              <strong>{form.callNumber.trim() || '未设置'}</strong>
+          {showToolsPage && (
+            <div className="md-helper">
+              <p>需要看本地快照、导入导出或 mock 工具时，请进入“工具”页面。</p>
             </div>
-            <div className="md-kv-item">
-              <span>短信号码</span>
-              <strong>{form.smsNumber.trim() || '未设置'}</strong>
-            </div>
-            <div className="md-kv-item">
-              <span>模板长度</span>
-              <strong>{(form.smsTemplate || defaultTemplate).length} 字符</strong>
-            </div>
-            <div className="md-kv-item">
-              <span>本地数据</span>
-              <strong>{localPanel ? `SOS ${localPanel.sosCount} / 轨迹 ${localPanel.trackingCount}` : '未启用'}</strong>
-            </div>
-            <div className="md-kv-item">
-              <span>设备标识</span>
-              <strong>{deviceId}</strong>
-            </div>
-          </div>
-          <div className="md-row-actions">
-            <button
-              type="button"
-              className="md-btn"
-              onClick={() => onNavigate(onboardingDone ? 'sos' : 'config')}
-            >
-              {onboardingDone ? '前往 SOS' : '完成配置'}
-            </button>
-            <button type="button" className="md-btn tonal" onClick={() => onNavigate('history')}>
-              查看历史
-            </button>
-          </div>
+          )}
         </section>
       </div>
     </div>
@@ -1735,6 +1880,7 @@ function ToolsPage({
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
+  const [feedbackExpanded, setFeedbackExpanded] = useState(false)
   const [permissionText, setPermissionText] = useState('首次启动将自动申请定位')
   const [latestLocation, setLatestLocation] = useState(null)
   const [locationRefreshPending, setLocationRefreshPending] = useState(false)
@@ -1745,7 +1891,7 @@ function App() {
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(
     () => import.meta.env.DEV || readStoredString(developerModeKey) === 'enabled'
   )
-  const [activePage, setActivePage] = useState('overview')
+  const [activePage, setActivePage] = useState(() => readPageIdFromHash() || defaultPageId)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerOffset, setDrawerOffset] = useState(null)
   const [drawerWidth, setDrawerWidth] = useState(320)
@@ -1852,7 +1998,23 @@ function App() {
   useEffect(() => {
     setDrawerOpen(false)
     setDrawerOffset(null)
+    setFeedbackExpanded(false)
+    mainPanelRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (typeof window !== 'undefined' && window.location.hash !== `#${activePage}`) {
+      window.history.replaceState(null, '', `#${activePage}`)
+    }
   }, [activePage])
+
+  useEffect(() => {
+    function handleHashChange() {
+      const nextPageId = resolvePageId(readPageIdFromHash(), pageItems, onboardingDone ? defaultPageId : 'config')
+      setActivePage((current) => (current === nextPageId ? current : nextPageId))
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [onboardingDone, pageItems])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -2054,7 +2216,7 @@ function App() {
   }
 
   function navigateToPage(pageId) {
-    setActivePage(pageId)
+    setActivePage(resolvePageId(pageId, pageItems, onboardingDone ? defaultPageId : 'config'))
     setDrawerOpen(false)
     setDrawerOffset(null)
   }
@@ -2216,7 +2378,7 @@ function App() {
       const done = readStoredString(onboardingKey) === 'done'
       if (!ignore) {
         setOnboardingDone(done)
-        setActivePage(done ? 'overview' : 'config')
+        setActivePage(resolvePageId(readPageIdFromHash(), pageItems, done ? defaultPageId : 'config'))
       }
 
       const cached = readJsonCache(cacheKey)
@@ -2841,6 +3003,27 @@ function App() {
 
   function renderPageContent() {
     switch (currentPage.id) {
+      case 'tracking':
+        return (
+          <TrackingPage
+            healthText={healthText}
+            latestLocation={latestLocation}
+            localPanel={localPanel}
+            locationAccuracy={locationAccuracy}
+            locationFreshness={locationFreshness}
+            locationRefreshing={locationRefreshPending}
+            permissionText={permissionText}
+            showToolsPage={showToolsPage}
+            trackingBusy={trackingBusy}
+            trackingSnapshot={trackingSnapshot}
+            onCheckHealth={onCheckHealth}
+            onNavigate={navigateToPage}
+            onRefreshLocation={onRefreshLocation}
+            onRunTrackingNow={onRunTrackingNow}
+            onToggleTracking={onToggleTracking}
+            onTrackingIntervalChange={onTrackingIntervalChange}
+          />
+        )
       case 'theme':
         return (
           <ThemePage
@@ -2936,30 +3119,17 @@ function App() {
         return (
           <OverviewPage
             contactsList={contactsList}
-            deviceId={identity.deviceId}
             form={form}
-            healthText={healthText}
             latestLocation={latestLocation}
-            localPanel={localPanel}
             locationAccuracy={locationAccuracy}
             locationFreshness={locationFreshness}
             locationRefreshing={locationRefreshPending}
             onboardingDone={onboardingDone}
             pages={pageItems}
-            permissionText={permissionText}
             sosHistory={sosHistory}
-            storageDriver={storageDriver}
-            themeState={themeState}
-            trackingBusy={trackingBusy}
             trackingSnapshot={trackingSnapshot}
-            onCheckHealth={onCheckHealth}
             onNavigate={navigateToPage}
             onRefreshLocation={onRefreshLocation}
-            onResetOnboarding={onResetOnboarding}
-            onRunTrackingNow={onRunTrackingNow}
-            onToggleTracking={onToggleTracking}
-            onTrackingIntervalChange={onTrackingIntervalChange}
-            showToolsPage={showToolsPage}
           />
         )
     }
@@ -3027,16 +3197,16 @@ function App() {
                 <p>{currentPage.description}</p>
               </div>
             </div>
-            <span className="md-chip subtle">抽屉导航</span>
+            <span className="md-chip subtle">分页面导航</span>
           </header>
 
-          <section className="md-feedback-card">
-            <div className="md-section-head">
-              <h3>最新操作结果</h3>
-              <span className="md-chip subtle">实时反馈</span>
-            </div>
-            <pre className="md-feedback-text">{resultText}</pre>
-          </section>
+          <PageJumpBar activePageId={currentPage.id} pageItems={pageItems} onNavigate={navigateToPage} />
+
+          <FeedbackCard
+            expanded={feedbackExpanded}
+            resultText={resultText}
+            onToggle={() => setFeedbackExpanded((current) => !current)}
+          />
 
           {renderPageContent()}
 
