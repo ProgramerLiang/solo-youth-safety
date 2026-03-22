@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   checkHealth,
+  clearLocalBackendData,
   DEFAULT_USER,
   getEmergencyConfig,
+  getLocalBackendSnapshot,
+  isLocalBackendMode,
   saveEmergencyConfig,
   triggerSos,
 } from './api'
@@ -124,6 +127,23 @@ function buildDiffHints(current, incoming) {
   return hints
 }
 
+function createEmptyForm() {
+  return {
+    userId: DEFAULT_USER,
+    callNumber: '',
+    smsNumber: '',
+    smsTemplate: defaultTemplate,
+  }
+}
+
+function formatPanelTime(value) {
+  if (!value) {
+    return '暂无'
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -137,12 +157,8 @@ function App() {
   const [pendingImport, setPendingImport] = useState(null)
   const [pendingImportSummary, setPendingImportSummary] = useState(null)
   const [pendingImportDiffs, setPendingImportDiffs] = useState([])
-  const [form, setForm] = useState({
-    userId: DEFAULT_USER,
-    callNumber: '',
-    smsNumber: '',
-    smsTemplate: defaultTemplate,
-  })
+  const [localPanel, setLocalPanel] = useState(null)
+  const [form, setForm] = useState(createEmptyForm)
   const importInputRef = useRef(null)
 
   const envText = useMemo(
@@ -161,6 +177,15 @@ function App() {
   )
 
   const validationHints = useMemo(() => getValidationHints(form), [form])
+
+  async function refreshLocalPanel(userId = form.userId || DEFAULT_USER) {
+    if (!isLocalBackendMode()) {
+      setLocalPanel(null)
+      return
+    }
+    const snapshot = await getLocalBackendSnapshot(userId)
+    setLocalPanel(snapshot)
+  }
 
   useEffect(() => {
     let ignore = false
@@ -193,6 +218,7 @@ function App() {
         }
         setForm(merged)
         writeJsonCache(cacheKey, merged)
+        await refreshLocalPanel(merged.userId)
       } finally {
         if (!ignore) {
           setLoadingInit(false)
@@ -215,6 +241,10 @@ function App() {
     const timer = setTimeout(() => setCountdown((v) => v - 1), 1000)
     return () => clearTimeout(timer)
   }, [arming, countdown])
+
+  useEffect(() => {
+    void refreshLocalPanel(form.userId || DEFAULT_USER)
+  }, [form.userId])
 
   function onChange(event) {
     const { name, value } = event.target
@@ -248,6 +278,7 @@ function App() {
       }
       setForm(next)
       writeJsonCache(cacheKey, next)
+      await refreshLocalPanel(next.userId)
       setResultText('配置保存成功，已完成引导，可切换到 SOS 页')
     } catch (error) {
       setResultText(`后端保存失败，已本地保存: ${error.message}`)
@@ -323,12 +354,13 @@ function App() {
     }
   }
 
-  function onConfirmImport() {
+  async function onConfirmImport() {
     if (!pendingImport) {
       return
     }
     setForm(pendingImport)
     writeJsonCache(cacheKey, pendingImport)
+    await refreshLocalPanel(pendingImport.userId)
     setOnboardingDone(false)
     setPendingImport(null)
     setPendingImportSummary(null)
@@ -348,6 +380,24 @@ function App() {
     setForm((prev) => ({ ...prev, smsTemplate: template }))
   }
 
+  async function onClearLocalPanel() {
+    try {
+      await clearLocalBackendData(form.userId || DEFAULT_USER)
+      localStorage.removeItem(cacheKey)
+      localStorage.removeItem(onboardingKey)
+      setForm(createEmptyForm())
+      setOnboardingDone(false)
+      setPendingImport(null)
+      setPendingImportSummary(null)
+      setPendingImportDiffs([])
+      setActiveTab('setup')
+      await refreshLocalPanel(DEFAULT_USER)
+      setResultText('已清空当前用户本地后端数据，并重置引导')
+    } catch (error) {
+      setResultText(`清空本地数据失败: ${error.message}`)
+    }
+  }
+
   async function executeSos() {
     setArming(false)
     setCountdown(5)
@@ -357,6 +407,7 @@ function App() {
         triggerSos(payload),
         triggerNativeEmergency(form, payload),
       ])
+      await refreshLocalPanel(payload.userId)
       setResultText(formatLogs(serverData, nativeLogs))
     } catch (error) {
       setResultText(`SOS 上报失败: ${error.message}`)
@@ -427,6 +478,48 @@ function App() {
             />
           </div>
         </div>
+
+        {localPanel && (
+          <section className="md-local-panel">
+            <div className="md-local-panel-header">
+              <h3>本地后端数据面板</h3>
+              <span className="md-chip">当前用户 {localPanel.userId}</span>
+            </div>
+            <div className="md-local-panel-grid">
+              <div className="md-stat-card">
+                <span>配置</span>
+                <strong>{localPanel.hasConfig ? '已保存' : '未保存'}</strong>
+              </div>
+              <div className="md-stat-card">
+                <span>SOS 记录</span>
+                <strong>{localPanel.sosCount}</strong>
+              </div>
+              <div className="md-stat-card">
+                <span>联系人</span>
+                <strong>{localPanel.contactsCount}</strong>
+              </div>
+              <div className="md-stat-card">
+                <span>轨迹点</span>
+                <strong>{localPanel.trackingCount}</strong>
+              </div>
+            </div>
+            <p className="md-local-panel-time">
+              最近 SOS：{formatPanelTime(localPanel.latestSos)}
+            </p>
+            <div className="md-row-actions">
+              <button
+                type="button"
+                className="md-btn tonal"
+                onClick={() => refreshLocalPanel(localPanel.userId)}
+              >
+                刷新面板
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onClearLocalPanel}>
+                清空本地数据
+              </button>
+            </div>
+          </section>
+        )}
 
         {pendingImportSummary && (
           <section className="md-import-card">

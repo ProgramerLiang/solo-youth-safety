@@ -10,6 +10,15 @@ function isLocalBackendEnabled() {
   return isNativePlatform() || forced
 }
 
+function createEmptyLocalDb() {
+  return {
+    emergencyConfigByUser: {},
+    sosEvents: [],
+    contactsByUser: {},
+    trackingPoints: [],
+  }
+}
+
 function renderTemplate(template, payload) {
   return template
     .replaceAll('{userId}', payload.userId)
@@ -23,12 +32,7 @@ function loadLocalDb() {
   try {
     const raw = localStorage.getItem(localDbKey)
     if (!raw) {
-      return {
-        emergencyConfigByUser: {},
-        sosEvents: [],
-        contactsByUser: {},
-        trackingPoints: [],
-      }
+      return createEmptyLocalDb()
     }
     const parsed = JSON.parse(raw)
     return {
@@ -38,12 +42,7 @@ function loadLocalDb() {
       trackingPoints: parsed.trackingPoints || [],
     }
   } catch {
-    return {
-      emergencyConfigByUser: {},
-      sosEvents: [],
-      contactsByUser: {},
-      trackingPoints: [],
-    }
+    return createEmptyLocalDb()
   }
 }
 
@@ -221,6 +220,38 @@ async function createContactLocal(payload) {
   db.contactsByUser[payload.userId] = existing
   saveLocalDb(db)
   return { message: 'contact added', count: existing.length }
+}
+
+export function isLocalBackendMode() {
+  return isLocalBackendEnabled()
+}
+
+export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
+  const db = loadLocalDb()
+  const contacts = db.contactsByUser[userId] || []
+  const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
+  const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
+  const latestSos = sosEvents.at(-1)?.timestamp || null
+
+  return {
+    enabled: isLocalBackendEnabled(),
+    userId,
+    hasConfig: Boolean(db.emergencyConfigByUser[userId]),
+    contactsCount: contacts.length,
+    trackingCount: trackingPoints.length,
+    sosCount: sosEvents.length,
+    latestSos,
+  }
+}
+
+export async function clearLocalBackendData(userId = DEFAULT_USER) {
+  const db = loadLocalDb()
+  delete db.emergencyConfigByUser[userId]
+  delete db.contactsByUser[userId]
+  db.sosEvents = db.sosEvents.filter((item) => item.userId !== userId)
+  db.trackingPoints = db.trackingPoints.filter((item) => item.userId !== userId)
+  saveLocalDb(db)
+  return getLocalBackendSnapshot(userId)
 }
 
 export async function checkHealth() {

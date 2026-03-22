@@ -58,6 +58,7 @@ APK 本地后端已覆盖 MVP API：
 - 数据存储在本地 `localStorage`（key: `safety_local_backend_v1`）
 - `tracking/timeline` 同样校验时间范围（`from <= to`）
 - `contacts` 支持按 `userId` 读写
+- App 内新增“本地后端数据面板”，可查看配置/SOS/联系人/轨迹点计数并支持清空当前用户本地数据
 
 ## 7) 真机行为说明
 - 在 Android App 内点击“触发 SOS”时会：

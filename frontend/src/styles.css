@@ -113,6 +113,54 @@ body {
   display: none;
 }
 
+.md-local-panel {
+  margin-top: 14px;
+  border-radius: 14px;
+  background: #f4f0ff;
+  border: 1px solid #ddd0ff;
+  padding: 12px;
+}
+
+.md-local-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.md-local-panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.md-local-panel-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.md-stat-card {
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.md-stat-card span,
+.md-local-panel-time {
+  color: var(--md-on-surface-variant);
+}
+
+.md-stat-card strong {
+  font-size: 20px;
+}
+
+.md-local-panel-time {
+  margin: 10px 0;
+}
+
 .md-import-card {
   margin-top: 14px;
   border-radius: 14px;
