@@ -5,6 +5,7 @@ import {
   createContact,
   createTrackingPoints,
   DEFAULT_USER,
+  exportLocalBackendBundle,
   getEmergencyConfig,
   getLocalBackendSnapshot,
   getTrackingTimeline,
@@ -33,6 +34,18 @@ function readJsonCache(key) {
 
 function writeJsonCache(key, value) {
   localStorage.setItem(key, JSON.stringify(value))
+}
+
+function downloadJsonFile(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function createSosPayload(userId, location) {
@@ -389,15 +402,7 @@ function App() {
       exportedAt: new Date().toISOString(),
       onboardingDone,
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'safety-config.json'
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadJsonFile('safety-config.json', payload)
     setResultText('已导出当前配置 JSON')
   }
 
@@ -470,6 +475,17 @@ function App() {
       setResultText('已清空当前用户本地后端数据，并重置引导')
     } catch (error) {
       setResultText(`清空本地数据失败: ${error.message}`)
+    }
+  }
+
+  async function onExportLocalBundle() {
+    try {
+      const userId = form.userId || DEFAULT_USER
+      const payload = await exportLocalBackendBundle(userId)
+      downloadJsonFile(`safety-local-backup-${userId}.json`, payload)
+      setResultText('已导出当前用户本地后端快照 JSON')
+    } catch (error) {
+      setResultText(`导出本地快照失败: ${error.message}`)
     }
   }
 
@@ -643,6 +659,9 @@ function App() {
                 onClick={() => refreshLocalPanel(localPanel.userId)}
               >
                 刷新面板
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onExportLocalBundle}>
+                导出本地快照
               </button>
               <button type="button" className="md-btn tonal" onClick={onAddMockContact}>
                 添加模拟联系人

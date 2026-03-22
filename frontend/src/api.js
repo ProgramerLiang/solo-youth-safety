@@ -244,6 +244,29 @@ export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
   }
 }
 
+export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
+  const db = loadLocalDb()
+  const contacts = db.contactsByUser[userId] || []
+  const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
+  const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
+
+  return {
+    mode: 'local',
+    exportedAt: new Date().toISOString(),
+    userId,
+    config: db.emergencyConfigByUser[userId] || null,
+    contacts,
+    trackingPoints,
+    sosEvents,
+    summary: {
+      hasConfig: Boolean(db.emergencyConfigByUser[userId]),
+      contactsCount: contacts.length,
+      trackingCount: trackingPoints.length,
+      sosCount: sosEvents.length,
+    },
+  }
+}
+
 export async function clearLocalBackendData(userId = DEFAULT_USER) {
   const db = loadLocalDb()
   delete db.emergencyConfigByUser[userId]
