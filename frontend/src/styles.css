@@ -56,6 +56,30 @@ body {
   font-size: 13px;
 }
 
+.md-stepper {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.md-stepper li {
+  padding: 8px 10px;
+  border-radius: 999px;
+  text-align: center;
+  background: #ece7f2;
+  color: #655f6f;
+  font-size: 13px;
+}
+
+.md-stepper li.active {
+  background: var(--md-primary-container);
+  color: #381e72;
+  font-weight: 600;
+}
+
 .md-status-grid {
   margin-top: 14px;
   display: grid;
@@ -139,6 +163,12 @@ textarea:focus {
 .md-helper p {
   margin: 0 0 8px;
   color: var(--md-on-surface-variant);
+}
+
+.md-warn-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: #8a4a00;
 }
 
 .md-preview {

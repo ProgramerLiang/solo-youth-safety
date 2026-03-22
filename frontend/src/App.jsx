@@ -55,6 +55,23 @@ function formatLogs(serverData, nativeLogs) {
   return ['SOS 已上报', ...serverLines, ...nativeLines].join('\n')
 }
 
+function getValidationHints(form) {
+  const hints = []
+  const callEmpty = !form.callNumber.trim()
+  const smsEmpty = !form.smsNumber.trim()
+
+  if (callEmpty && smsEmpty) {
+    hints.push('当前电话与短信号码都为空：SOS 仅会上报后端，不会拉起拨号或短信。')
+  }
+  if (!form.smsTemplate.trim()) {
+    hints.push('短信模板为空时将自动回退默认模板。')
+  }
+  if (!form.smsTemplate.includes('{time}')) {
+    hints.push('建议模板包含 {time}，方便联系人判断警情时刻。')
+  }
+  return hints
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -63,6 +80,7 @@ function App() {
   const [loadingInit, setLoadingInit] = useState(true)
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
+  const [configSaved, setConfigSaved] = useState(false)
   const [form, setForm] = useState({
     userId: DEFAULT_USER,
     callNumber: '',
@@ -84,6 +102,15 @@ function App() {
     () => renderTemplate(form.smsTemplate || defaultTemplate, previewPayload),
     [form.smsTemplate, previewPayload]
   )
+
+  const validationHints = useMemo(() => getValidationHints(form), [form])
+
+  const stepState = useMemo(() => {
+    if (loadingInit) {
+      return 1
+    }
+    return configSaved ? 3 : 2
+  }, [loadingInit, configSaved])
 
   useEffect(() => {
     let ignore = false
@@ -110,7 +137,7 @@ function App() {
         }
         setForm(merged)
         cacheConfig(merged)
-        setResultText('首次引导完成：请检查并保存紧急通知配置')
+        setResultText('步骤 2：请检查并保存紧急通知配置')
       } catch {
         if (!ignore) {
           setResultText('后端不可用，已使用本地配置，可继续配置与测试')
@@ -140,6 +167,7 @@ function App() {
 
   function onChange(event) {
     const { name, value } = event.target
+    setConfigSaved(false)
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -154,19 +182,25 @@ function App() {
 
   async function onSaveConfig(event) {
     event.preventDefault()
-    cacheConfig(form)
+    const safeForm = {
+      ...form,
+      smsTemplate: form.smsTemplate.trim() ? form.smsTemplate : defaultTemplate,
+    }
+    cacheConfig(safeForm)
     try {
-      const data = await saveEmergencyConfig(form)
+      const data = await saveEmergencyConfig(safeForm)
       const next = {
-        ...form,
+        ...safeForm,
         callNumber: data.callNumber ?? '',
         smsNumber: data.smsNumber ?? '',
         smsTemplate: data.smsTemplate,
       }
       setForm(next)
       cacheConfig(next)
-      setResultText('配置保存成功，已可触发 SOS')
+      setConfigSaved(true)
+      setResultText('步骤 3：配置完成，已可触发 SOS')
     } catch (error) {
+      setConfigSaved(true)
       setResultText(`后端保存失败，已本地保存: ${error.message}`)
     }
   }
@@ -207,6 +241,12 @@ function App() {
           <span className="md-chip">{envText}</span>
         </header>
 
+        <ol className="md-stepper">
+          <li className={stepState >= 1 ? 'active' : ''}>1. 权限申请</li>
+          <li className={stepState >= 2 ? 'active' : ''}>2. 紧急配置</li>
+          <li className={stepState >= 3 ? 'active' : ''}>3. 完成引导</li>
+        </ol>
+
         <div className="md-status-grid">
           <p>权限状态：{permissionText}</p>
           <p>后端健康：{healthText}</p>
@@ -216,7 +256,7 @@ function App() {
         </div>
 
         <form className="md-form" onSubmit={onSaveConfig}>
-          <h2>首次引导：紧急通知配置</h2>
+          <h2>步骤 2：紧急通知配置</h2>
           <label htmlFor="callNumber">电话号码（可留空）</label>
           <input
             id="callNumber"
@@ -246,12 +286,19 @@ function App() {
 
           <div className="md-helper">
             <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+            {validationHints.length > 0 && (
+              <ul className="md-warn-list">
+                {validationHints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            )}
             <p>短信预览：</p>
             <pre className="md-preview">{smsPreview}</pre>
           </div>
 
           <button type="submit" className="md-btn" disabled={loadingInit}>
-            保存配置
+            保存配置并完成引导
           </button>
         </form>
 
