@@ -93,7 +93,10 @@ const pageCatalog = [
 ]
 const drawerOpenSwipeThreshold = 72
 const drawerCloseSwipeThreshold = 56
+const drawerDragActivatePx = 10
+const drawerPreviewCommitRatio = 0.35
 const drawerEdgeFallbackPx = 48
+const drawerScrimMaxOpacity = 0.32
 
 function readJsonCache(key) {
   return readStoredJson(key)
@@ -133,6 +136,33 @@ function canStartDrawerOpenGesture(touch, mainElement) {
     return true
   }
   return touch.clientX <= Math.max(drawerEdgeFallbackPx, window.innerWidth * 0.12)
+}
+
+function isDrawerGestureBlockedTarget(target) {
+  if (!(target instanceof Element)) {
+    return false
+  }
+  return Boolean(
+    target.closest(
+      'button, input, textarea, select, a, label, summary, [role="button"], [data-no-drawer-swipe="true"]'
+    )
+  )
+}
+
+function getDrawerWidth(element) {
+  const width = element?.getBoundingClientRect?.().width
+  return Number.isFinite(width) && width > 0 ? Math.max(280, Math.round(width)) : 320
+}
+
+function clampDrawerOffset(offset, drawerWidth) {
+  return Math.min(0, Math.max(offset, -drawerWidth))
+}
+
+function getDrawerProgress(offset, drawerWidth) {
+  if (!drawerWidth) {
+    return 0
+  }
+  return 1 - Math.min(Math.abs(offset) / drawerWidth, 1)
 }
 
 function toPayloadLocation(location) {
@@ -1522,6 +1552,8 @@ function App() {
   )
   const [activePage, setActivePage] = useState('overview')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerOffset, setDrawerOffset] = useState(null)
+  const [drawerWidth, setDrawerWidth] = useState(320)
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
   const [pendingImport, setPendingImport] = useState(null)
@@ -1590,6 +1622,11 @@ function App() {
     () => sosHistory.find((item) => item.id === selectedSosId) || sosHistory[0] || null,
     [selectedSosId, sosHistory]
   )
+  const drawerVisible = drawerOpen || drawerOffset !== null
+  const drawerTransformX = drawerOffset ?? (drawerOpen ? 0 : -drawerWidth)
+  const drawerScrimOpacity = drawerVisible
+    ? drawerScrimMaxOpacity * getDrawerProgress(drawerTransformX, drawerWidth)
+    : 0
 
   useEffect(() => {
     if (!latestLocation?.capturedAt) {
@@ -1603,18 +1640,29 @@ function App() {
   }, [latestLocation?.capturedAt])
 
   useEffect(() => {
+    function syncDrawerWidth() {
+      setDrawerWidth(getDrawerWidth(drawerPanelRef.current))
+    }
+
+    syncDrawerWidth()
+    window.addEventListener('resize', syncDrawerWidth)
+    return () => window.removeEventListener('resize', syncDrawerWidth)
+  }, [])
+
+  useEffect(() => {
     setDrawerOpen(false)
+    setDrawerOffset(null)
   }, [activePage])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
-    if (drawerOpen) {
+    if (drawerVisible) {
       document.body.style.overflow = 'hidden'
     }
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [drawerOpen])
+  }, [drawerVisible])
 
   useEffect(() => {
     applyThemeState(themeState)
@@ -1717,14 +1765,40 @@ function App() {
   function navigateToPage(pageId) {
     setActivePage(pageId)
     setDrawerOpen(false)
+    setDrawerOffset(null)
   }
 
   function openDrawer() {
+    touchSessionRef.current = null
+    setDrawerWidth(getDrawerWidth(drawerPanelRef.current))
+    setDrawerOffset(null)
     setDrawerOpen(true)
   }
 
   function closeDrawer() {
+    touchSessionRef.current = null
+    setDrawerOffset(null)
     setDrawerOpen(false)
+  }
+
+  function finishDrawerGesture(lastX = null) {
+    const session = touchSessionRef.current
+    if (!session) {
+      return
+    }
+    const finalX = lastX ?? session.lastX ?? session.startX
+    const dx = finalX - session.startX
+    const distance = session.mode === 'open' ? Math.max(dx, 0) : Math.max(-dx, 0)
+    const commitThreshold = session.mode === 'open'
+      ? drawerOpenSwipeThreshold
+      : drawerCloseSwipeThreshold
+    const shouldCommit =
+      session.dragging &&
+      (distance >= commitThreshold || distance / session.drawerWidth >= drawerPreviewCommitRatio)
+
+    setDrawerOffset(null)
+    setDrawerOpen(session.mode === 'open' ? shouldCommit : !shouldCommit)
+    touchSessionRef.current = null
   }
 
   function onPageTouchStart(event) {
@@ -1732,11 +1806,37 @@ function App() {
     if (!touch) {
       return
     }
+
+    const gestureBlocked = isDrawerGestureBlockedTarget(event.target)
+    const measuredDrawerWidth = getDrawerWidth(drawerPanelRef.current)
+    setDrawerWidth(measuredDrawerWidth)
+
+    if (drawerOpen) {
+      touchSessionRef.current = gestureBlocked
+        ? null
+        : {
+            startX: touch.clientX,
+            startY: touch.clientY,
+            lastX: touch.clientX,
+            mode: 'close',
+            dragging: false,
+            drawerWidth: measuredDrawerWidth,
+          }
+      return
+    }
+
+    if (gestureBlocked || !canStartDrawerOpenGesture(touch, mainPanelRef.current)) {
+      touchSessionRef.current = null
+      return
+    }
+
     touchSessionRef.current = {
       startX: touch.clientX,
       startY: touch.clientY,
-      canOpen: !drawerOpen && canStartDrawerOpenGesture(touch, mainPanelRef.current),
-      canClose: drawerOpen && isPointInsideElement(touch.clientX, touch.clientY, drawerPanelRef.current),
+      lastX: touch.clientX,
+      mode: 'open',
+      dragging: false,
+      drawerWidth: measuredDrawerWidth,
     }
   }
 
@@ -1746,25 +1846,48 @@ function App() {
     if (!touch || !session) {
       return
     }
+
     const dx = touch.clientX - session.startX
     const dy = touch.clientY - session.startY
-    if (Math.abs(dy) > 24 && Math.abs(dy) > Math.abs(dx)) {
+    const absDx = Math.abs(dx)
+    const absDy = Math.abs(dy)
+    session.lastX = touch.clientX
+
+    if (absDy > 18 && absDy > absDx * 1.15) {
       touchSessionRef.current = null
+      setDrawerOffset(null)
       return
     }
-    if (session.canOpen && dx >= drawerOpenSwipeThreshold && Math.abs(dx) > Math.abs(dy)) {
-      setDrawerOpen(true)
-      touchSessionRef.current = null
+
+    if (absDx < drawerDragActivatePx || absDx <= absDy) {
       return
     }
-    if (session.canClose && dx <= -drawerCloseSwipeThreshold && Math.abs(dx) > Math.abs(dy)) {
-      setDrawerOpen(false)
-      touchSessionRef.current = null
+
+    if (session.mode === 'open') {
+      if (dx <= 0) {
+        if (session.dragging) {
+          setDrawerOffset(-session.drawerWidth)
+        }
+        return
+      }
+      event.preventDefault()
+      session.dragging = true
+      setDrawerOffset(clampDrawerOffset(dx - session.drawerWidth, session.drawerWidth))
+      return
     }
+
+    event.preventDefault()
+    session.dragging = true
+    setDrawerOffset(clampDrawerOffset(Math.min(dx, 0), session.drawerWidth))
   }
 
-  function onPageTouchEnd() {
-    touchSessionRef.current = null
+  function onPageTouchEnd(event) {
+    const touch = event.changedTouches?.[0]
+    finishDrawerGesture(touch?.clientX)
+  }
+
+  function onPageTouchCancel() {
+    finishDrawerGesture()
   }
 
   async function onVersionChipClick() {
@@ -2475,17 +2598,23 @@ function App() {
   return (
     <main
       className="md-page"
+      onTouchCancel={onPageTouchCancel}
       onTouchEnd={onPageTouchEnd}
       onTouchMove={onPageTouchMove}
       onTouchStart={onPageTouchStart}
     >
       <div
-        className={`md-drawer-scrim ${drawerOpen ? 'open' : ''}`}
+        className={`md-drawer-scrim ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
+        style={drawerVisible ? { opacity: drawerScrimOpacity } : undefined}
         onClick={closeDrawer}
-        aria-hidden={!drawerOpen}
+        aria-hidden={!drawerVisible}
       />
 
-      <aside className={`md-drawer ${drawerOpen ? 'open' : ''}`} aria-hidden={!drawerOpen}>
+      <aside
+        className={`md-drawer ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
+        style={drawerVisible ? { transform: `translateX(${drawerTransformX}px)` } : undefined}
+        aria-hidden={!drawerVisible}
+      >
         <div ref={drawerPanelRef} className="md-sidebar">
           <SidebarContent
             currentPage={currentPage}

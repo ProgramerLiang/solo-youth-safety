@@ -73,12 +73,17 @@ button:hover:not(:disabled) {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.22s ease;
+  will-change: opacity;
   z-index: 20;
 }
 
 .md-drawer-scrim.open {
   opacity: 1;
   pointer-events: auto;
+}
+
+.md-drawer-scrim.dragging {
+  transition: none;
 }
 
 .md-drawer {
@@ -88,6 +93,7 @@ button:hover:not(:disabled) {
   padding: 16px;
   transform: translateX(-110%);
   transition: transform 0.24s ease;
+  will-change: transform;
   z-index: 24;
   pointer-events: none;
 }
@@ -95,6 +101,10 @@ button:hover:not(:disabled) {
 .md-drawer.open {
   transform: translateX(0);
   pointer-events: auto;
+}
+
+.md-drawer.dragging {
+  transition: none;
 }
 
 .md-sidebar,

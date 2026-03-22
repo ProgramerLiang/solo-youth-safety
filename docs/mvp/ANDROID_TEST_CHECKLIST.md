@@ -9,6 +9,7 @@
 - [ ] 默认仅显示“总览 / 主题 / 通知配置 / 联系人 / SOS / 历史”主流程页面
 - [ ] 点击左上角菜单按钮可呼出侧边栏，并可切换不同页面
 - [ ] 在页面空白处从左向右滑动可呼出侧边栏
+- [ ] 侧边栏打开后可左滑收起，且拖拽过程跟手、无明显误触
 - [ ] 当前页面主体宽度约为 80%~90% 屏宽，左右保留可操作空白区
 - [ ] 连续点击版本号 5 次后可开启开发者模式并显示“工具”页
 - [ ] 窄屏下导航不遮挡主要操作，页面可正常滚动
@@ -53,9 +54,9 @@
 - [ ] `npm run android:apk` 成功
 - [ ] `npm run android:release:setup-signing` 成功
 - [ ] `npm run android:release` 成功
-- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.3-debug.apk`
-- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.3-release.apk`
-- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.3-release.aab`
+- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-debug.apk`
+- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-release.apk`
+- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-release.aab`
 - [ ] 项目外签名主目录存在：`/home/crp/.solo-youth-safety/signing`
 - [ ] 项目外签名备份目录存在：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 - [ ] 安装生成的版本化 APK 后可正常打开运行
