@@ -18,7 +18,7 @@ import {
   updateContact,
 } from './api'
 import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
-import { requestInitialPermissions } from './permissions'
+import { refreshCurrentLocation, requestInitialPermissions } from './permissions'
 import {
   applyThemeState,
   buildThemeState,
@@ -44,6 +44,9 @@ const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
 const developerModeKey = 'safety_developer_mode_v1'
 const appVersion = __APP_VERSION__
+const previewFallbackLocation = { lat: 31.2304, lng: 121.4737, accuracy: 12 }
+const freshLocationThresholdMs = 30 * 1000
+const staleLocationThresholdMs = 2 * 60 * 1000
 const pageCatalog = [
   {
     id: 'overview',
@@ -109,8 +112,22 @@ function downloadJsonFile(filename, payload) {
   URL.revokeObjectURL(url)
 }
 
+function toPayloadLocation(location) {
+  if (!location) {
+    return null
+  }
+  return {
+    lat: Number(location.lat),
+    lng: Number(location.lng),
+    accuracy: Number.isFinite(Number(location.accuracy)) ? Number(location.accuracy) : 12,
+  }
+}
+
 function createSosPayload(userId, deviceId, location) {
-  const safeLocation = location ?? { lat: 31.2304, lng: 121.4737, accuracy: 12 }
+  const safeLocation = toPayloadLocation(location)
+  if (!safeLocation) {
+    return null
+  }
   return {
     userId,
     deviceId,
@@ -118,6 +135,13 @@ function createSosPayload(userId, deviceId, location) {
     timestamp: new Date().toISOString(),
     location: safeLocation,
   }
+}
+
+function createPreviewSosPayload(userId, deviceId, location) {
+  return (
+    createSosPayload(userId, deviceId, location) ||
+    createSosPayload(userId, deviceId, previewFallbackLocation)
+  )
 }
 
 function renderTemplate(template, payload) {
@@ -236,6 +260,76 @@ function formatLocationText(location) {
   return `${location.lat}, ${location.lng} / ±${location.accuracy ?? 12}m`
 }
 
+function formatRelativeDuration(ms) {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) {
+    return `${seconds} 秒`
+  }
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) {
+    return `${minutes} 分钟`
+  }
+  const hours = Math.round(minutes / 60)
+  return `${hours} 小时`
+}
+
+function buildLocationFreshness(location, now = Date.now()) {
+  if (!location?.capturedAt) {
+    return {
+      label: '未获取',
+      hint: '建议先刷新当前位置',
+      updatedAt: '暂无',
+      needsRefresh: true,
+      canUse: false,
+      banner: '当前位置尚未获取，SOS 倒计时结束时会先尝试刷新；若仍失败，将取消上报。',
+    }
+  }
+
+  const capturedAt = new Date(location.capturedAt)
+  if (Number.isNaN(capturedAt.getTime())) {
+    return {
+      label: '时间未知',
+      hint: '已获取位置，但刷新时间不可用',
+      updatedAt: location.capturedAt,
+      needsRefresh: false,
+      canUse: true,
+      banner: '',
+    }
+  }
+
+  const ageMs = Math.max(0, now - capturedAt.getTime())
+  if (ageMs <= freshLocationThresholdMs) {
+    return {
+      label: '刚刷新',
+      hint: `${formatRelativeDuration(ageMs)}前更新，可直接用于 SOS`,
+      updatedAt: formatPanelTime(location.capturedAt),
+      needsRefresh: false,
+      canUse: true,
+      banner: '',
+    }
+  }
+
+  if (ageMs <= staleLocationThresholdMs) {
+    return {
+      label: '较新',
+      hint: `${formatRelativeDuration(ageMs)}前更新，仍可使用`,
+      updatedAt: formatPanelTime(location.capturedAt),
+      needsRefresh: false,
+      canUse: true,
+      banner: '',
+    }
+  }
+
+  return {
+    label: '偏旧',
+    hint: `已超过 ${formatRelativeDuration(ageMs)} 未刷新，建议先更新位置`,
+    updatedAt: formatPanelTime(location.capturedAt),
+    needsRefresh: true,
+    canUse: true,
+    banner: '当前位置已偏旧，SOS 倒计时结束时会先尝试刷新；若刷新失败，将继续使用这次旧位置。',
+  }
+}
+
 function createMockContactPayload(userId, count) {
   const index = count + 1
   return {
@@ -320,6 +414,8 @@ function OverviewPage({
   healthText,
   latestLocation,
   localPanel,
+  locationFreshness,
+  locationRefreshing,
   onboardingDone,
   pages,
   permissionText,
@@ -328,6 +424,7 @@ function OverviewPage({
   themeState,
   onCheckHealth,
   onNavigate,
+  onRefreshLocation,
   onResetOnboarding,
   showToolsPage,
 }) {
@@ -355,6 +452,11 @@ function OverviewPage({
           label="SOS 历史"
           value={`${sosHistory.length} 条`}
           hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无事件'}
+        />
+        <SummaryCard
+          label="位置新鲜度"
+          value={locationFreshness.label}
+          hint={locationFreshness.hint}
         />
         <SummaryCard label="当前主题" value={themeState.label} hint={`版本 ${appVersion}`} />
       </section>
@@ -392,7 +494,7 @@ function OverviewPage({
           </div>
           <div className="md-kv-list">
             <div className="md-kv-item">
-              <span>权限状态</span>
+              <span>定位状态</span>
               <strong>{permissionText}</strong>
             </div>
             <div className="md-kv-item">
@@ -404,6 +506,14 @@ function OverviewPage({
               <strong>{formatLocationText(latestLocation)}</strong>
             </div>
             <div className="md-kv-item">
+              <span>位置新鲜度</span>
+              <strong>{locationFreshness.label}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>最近刷新</span>
+              <strong>{locationFreshness.updatedAt}</strong>
+            </div>
+            <div className="md-kv-item">
               <span>最近 SOS</span>
               <strong>{latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无'}</strong>
             </div>
@@ -413,6 +523,14 @@ function OverviewPage({
             </div>
           </div>
           <div className="md-row-actions">
+            <button
+              type="button"
+              className="md-btn tonal"
+              onClick={onRefreshLocation}
+              disabled={locationRefreshing}
+            >
+              {locationRefreshing ? '刷新位置中...' : '刷新当前位置'}
+            </button>
             <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
               检查后端
             </button>
@@ -915,16 +1033,21 @@ function SosPage({
   countdown,
   form,
   historyCount,
+  latestLocation,
   latestSosEvent,
   loadingInit,
+  locationFreshness,
+  locationRefreshing,
   onboardingDone,
   onArmSos,
   onCancelSos,
   onNavigate,
+  onRefreshLocation,
 }) {
   return (
     <div className="md-page-stack">
       {!onboardingDone && <div className="md-banner">建议先在“通知配置”页面完成保存，再进入 SOS 流程。</div>}
+      {locationFreshness.banner && <div className="md-banner">{locationFreshness.banner}</div>}
 
       <section className="md-summary-grid">
         <SummaryCard
@@ -946,6 +1069,11 @@ function SosPage({
           label="历史记录"
           value={`${historyCount} 条`}
           hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无历史'}
+        />
+        <SummaryCard
+          label="位置新鲜度"
+          value={locationFreshness.label}
+          hint={locationFreshness.hint}
         />
       </section>
 
@@ -970,7 +1098,38 @@ function SosPage({
               取消 SOS（剩余 {countdown}s）
             </button>
           )}
+        </section>
+
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>位置确认与触发说明</h3>
+            <span className="md-chip subtle">SOS 前建议先确认位置</span>
+          </div>
+
+          <div className="md-kv-list">
+            <div className="md-kv-item">
+              <span>当前位置</span>
+              <strong>{formatLocationText(latestLocation)}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>位置新鲜度</span>
+              <strong>{locationFreshness.label}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>最近刷新</span>
+              <strong>{locationFreshness.updatedAt}</strong>
+            </div>
+          </div>
+
           <div className="md-row-actions">
+            <button
+              type="button"
+              className="md-btn tonal"
+              onClick={onRefreshLocation}
+              disabled={locationRefreshing}
+            >
+              {locationRefreshing ? '刷新位置中...' : '刷新当前位置'}
+            </button>
             <button type="button" className="md-btn tonal" onClick={() => onNavigate('config')}>
               检查配置
             </button>
@@ -978,16 +1137,11 @@ function SosPage({
               查看历史
             </button>
           </div>
-        </section>
 
-        <section className="md-section-card">
-          <div className="md-section-head">
-            <h3>触发说明</h3>
-            <span className="md-chip subtle">Android 原生动作</span>
-          </div>
           <ul className="md-bullet-list">
             <li>电话与短信号码都可留空，空值会显示为 skipped。</li>
             <li>短信内容按当前模板与实时位置变量渲染。</li>
+            <li>倒计时结束时若位置缺失或偏旧，会优先尝试刷新当前位置。</li>
             <li>触发完成后，可前往“历史”页面查看事件详情。</li>
           </ul>
 
@@ -1246,8 +1400,10 @@ function ToolsPage({
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
-  const [permissionText, setPermissionText] = useState('首次启动将自动申请权限')
+  const [permissionText, setPermissionText] = useState('首次启动将自动申请定位')
   const [latestLocation, setLatestLocation] = useState(null)
+  const [locationRefreshPending, setLocationRefreshPending] = useState(false)
+  const [locationNow, setLocationNow] = useState(() => Date.now())
   const [loadingInit, setLoadingInit] = useState(true)
   const [identity, setIdentity] = useState(getPersistedIdentity)
   const [onboardingDone, setOnboardingDone] = useState(false)
@@ -1300,9 +1456,13 @@ function App() {
     [dynamicThemeInfo, themePreferences]
   )
   const latestSosEvent = useMemo(() => sosHistory[0] || null, [sosHistory])
+  const locationFreshness = useMemo(
+    () => buildLocationFreshness(latestLocation, locationNow),
+    [latestLocation, locationNow]
+  )
 
   const previewPayload = useMemo(
-    () => createSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation),
+    () => createPreviewSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation),
     [form.userId, identity.deviceId, identity.userId, latestLocation]
   )
 
@@ -1316,6 +1476,17 @@ function App() {
     () => sosHistory.find((item) => item.id === selectedSosId) || sosHistory[0] || null,
     [selectedSosId, sosHistory]
   )
+
+  useEffect(() => {
+    if (!latestLocation?.capturedAt) {
+      return undefined
+    }
+    setLocationNow(Date.now())
+    const timer = setInterval(() => {
+      setLocationNow(Date.now())
+    }, 15000)
+    return () => clearInterval(timer)
+  }, [latestLocation?.capturedAt])
 
   useEffect(() => {
     applyThemeState(themeState)
@@ -1462,6 +1633,9 @@ function App() {
       if (ignore) return
       setPermissionText(permissionResult.message)
       setLatestLocation(permissionResult.location)
+      if (permissionResult.location) {
+        setLocationNow(Date.now())
+      }
 
       try {
         const remote = await getEmergencyConfig(identity.userId)
@@ -1539,6 +1713,65 @@ function App() {
     }
   }
 
+  async function onRefreshLocation(options = {}) {
+    const { reason = 'manual', silent = false } = options
+    setLocationRefreshPending(true)
+    try {
+      const result = await refreshCurrentLocation({ reason, requestIfNeeded: true, force: true })
+      setPermissionText(result.message)
+      if (result.location) {
+        setLatestLocation(result.location)
+        setLocationNow(Date.now())
+      }
+      if (!silent) {
+        setResultText(
+          result.location ? `${result.message}：${formatLocationText(result.location)}` : result.message
+        )
+      }
+      return result
+    } catch (error) {
+      const message = `定位刷新失败: ${error.message}`
+      setPermissionText(message)
+      if (!silent) {
+        setResultText(message)
+      }
+      return {
+        platform: isNativePlatform() ? 'native' : 'web',
+        locationPermission: 'error',
+        location: null,
+        message,
+      }
+    } finally {
+      setLocationRefreshPending(false)
+    }
+  }
+
+  async function resolveSosLocation() {
+    if (latestLocation && !locationFreshness.needsRefresh) {
+      return { location: latestLocation, note: '' }
+    }
+
+    const refreshed = await onRefreshLocation({ reason: 'sos', silent: true })
+    if (refreshed.location) {
+      return {
+        location: refreshed.location,
+        note: 'SOS 前已自动刷新当前位置。',
+      }
+    }
+
+    if (latestLocation) {
+      return {
+        location: latestLocation,
+        note: '位置刷新失败，已继续使用上次记录的位置。',
+      }
+    }
+
+    return {
+      location: null,
+      note: '无法获取当前位置，已取消 SOS；请先点击“刷新当前位置”并确认定位权限。',
+    }
+  }
+
   async function onSaveConfig(event) {
     event.preventDefault()
     const safeForm = {
@@ -1571,6 +1804,14 @@ function App() {
     if (loadingInit) return
     setCountdown(5)
     setArming(true)
+    if (!locationFreshness.canUse) {
+      setResultText('SOS 倒计时开始；当前尚未获取位置，倒计时结束时会先尝试刷新，若仍失败将取消上报。')
+      return
+    }
+    if (locationFreshness.needsRefresh) {
+      setResultText('SOS 倒计时开始；当前位置已偏旧，倒计时结束时会先尝试刷新位置。')
+      return
+    }
     setResultText('SOS 倒计时开始，5 秒后触发，可取消')
   }
 
@@ -1906,14 +2147,26 @@ function App() {
   async function executeSos() {
     setArming(false)
     setCountdown(5)
-    const payload = createSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation)
+
+    const { location, note } = await resolveSosLocation()
+    if (!location) {
+      setResultText(note)
+      return
+    }
+
+    const payload = createSosPayload(form.userId || identity.userId, identity.deviceId, location)
+    if (!payload) {
+      setResultText('SOS 上报失败：当前位置无效，请先刷新位置')
+      return
+    }
+
     try {
       const [serverData, nativeLogs] = await Promise.all([
         triggerSos(payload),
         triggerNativeEmergency(form, payload),
       ])
       await Promise.all([refreshLocalPanel(payload.userId), loadSosHistory(payload.userId)])
-      setResultText(formatLogs(serverData, nativeLogs))
+      setResultText(note ? `${note}\n${formatLogs(serverData, nativeLogs)}` : formatLogs(serverData, nativeLogs))
     } catch (error) {
       setResultText(`SOS 上报失败: ${error.message}`)
     }
@@ -1972,12 +2225,16 @@ function App() {
             countdown={countdown}
             form={form}
             historyCount={sosHistory.length}
+            latestLocation={latestLocation}
             latestSosEvent={latestSosEvent}
             loadingInit={loadingInit}
+            locationFreshness={locationFreshness}
+            locationRefreshing={locationRefreshPending}
             onboardingDone={onboardingDone}
             onArmSos={onArmSos}
             onCancelSos={onCancelSos}
             onNavigate={setActivePage}
+            onRefreshLocation={onRefreshLocation}
           />
         )
       case 'history':
@@ -2016,6 +2273,8 @@ function App() {
             healthText={healthText}
             latestLocation={latestLocation}
             localPanel={localPanel}
+            locationFreshness={locationFreshness}
+            locationRefreshing={locationRefreshPending}
             onboardingDone={onboardingDone}
             pages={pageItems}
             permissionText={permissionText}
@@ -2024,6 +2283,7 @@ function App() {
             themeState={themeState}
             onCheckHealth={onCheckHealth}
             onNavigate={setActivePage}
+            onRefreshLocation={onRefreshLocation}
             onResetOnboarding={onResetOnboarding}
             showToolsPage={showToolsPage}
           />
@@ -2072,7 +2332,7 @@ function App() {
                 <strong>{onboardingDone ? '已完成' : '待完成'}</strong>
               </div>
               <div className="md-status-item">
-                <span>权限</span>
+                <span>定位状态</span>
                 <strong>{permissionText}</strong>
               </div>
               <div className="md-status-item">
@@ -2082,6 +2342,14 @@ function App() {
               <div className="md-status-item">
                 <span>位置</span>
                 <strong>{formatLocationText(latestLocation)}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>新鲜度</span>
+                <strong>{locationFreshness.label}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>最近刷新</span>
+                <strong>{locationFreshness.updatedAt}</strong>
               </div>
               <div className="md-status-item">
                 <span>主题</span>
