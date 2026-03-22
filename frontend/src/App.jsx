@@ -18,7 +18,11 @@ import {
   updateContact,
 } from './api'
 import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
-import { refreshCurrentLocation, requestInitialPermissions } from './permissions'
+import {
+  describeLocationAccuracy,
+  refreshCurrentLocation,
+  requestInitialPermissions,
+} from './permissions'
 import {
   applyThemeState,
   buildThemeState,
@@ -316,11 +320,53 @@ function formatPanelTime(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
+function formatLocationAccuracy(location) {
+  if (!location) {
+    return '未获取'
+  }
+  const accuracy = Number(location.accuracy)
+  const info = describeLocationAccuracy(accuracy)
+  if (!Number.isFinite(accuracy) || accuracy <= 0) {
+    return `精度未知（${info.label}）`
+  }
+  return `±${Math.round(accuracy)}m（${info.label}）`
+}
+
 function formatLocationText(location) {
   if (!location) {
     return '未获取'
   }
-  return `${location.lat}, ${location.lng} / ±${location.accuracy ?? 12}m`
+  return `${location.lat}, ${location.lng} / ${formatLocationAccuracy(location)}`
+}
+
+function buildLocationAccuracyState(location) {
+  if (!location) {
+    return {
+      label: '未获取',
+      hint: '建议先刷新当前位置',
+      banner: '',
+      note: '',
+    }
+  }
+
+  const info = describeLocationAccuracy(location.accuracy)
+  const accuracyText = formatLocationAccuracy(location)
+  const banner =
+    info.level === 'weak'
+      ? `当前位置精度偏弱（${accuracyText}），建议移动到空旷区域、窗口附近或室外后再次刷新。`
+      : ''
+  const note = info.level === 'weak' ? `当前位置精度偏弱（${accuracyText}），请结合现场情况判断。` : ''
+
+  return {
+    label: info.label,
+    hint: `${accuracyText}，${info.hint}`,
+    banner,
+    note,
+  }
+}
+
+function mergeLocationNotes(...notes) {
+  return notes.filter(Boolean).join(' ')
 }
 
 function formatRelativeDuration(ms) {
@@ -510,6 +556,7 @@ function SidebarContent({
   healthText,
   identity,
   latestLocation,
+  locationAccuracy,
   locationFreshness,
   onboardingDone,
   pageItems,
@@ -526,6 +573,7 @@ function SidebarContent({
     ['定位状态', permissionText],
     ['后端', healthText],
     ['位置', formatLocationText(latestLocation)],
+    ['精度', locationAccuracy.hint],
     ['新鲜度', locationFreshness.label],
     ['最近刷新', locationFreshness.updatedAt],
     ['当前页面', currentPage.label],
@@ -661,6 +709,7 @@ function OverviewPage({
   healthText,
   latestLocation,
   localPanel,
+  locationAccuracy,
   locationFreshness,
   locationRefreshing,
   onboardingDone,
@@ -709,6 +758,11 @@ function OverviewPage({
           label="位置新鲜度"
           value={locationFreshness.label}
           hint={locationFreshness.hint}
+        />
+        <SummaryCard
+          label="定位精度"
+          value={locationAccuracy.label}
+          hint={locationAccuracy.hint}
         />
         <SummaryCard
           label="轨迹守护"
@@ -764,6 +818,10 @@ function OverviewPage({
             <div className="md-kv-item">
               <span>位置新鲜度</span>
               <strong>{locationFreshness.label}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>定位精度</span>
+              <strong>{locationAccuracy.hint}</strong>
             </div>
             <div className="md-kv-item">
               <span>最近刷新</span>
@@ -1300,6 +1358,7 @@ function SosPage({
   latestLocation,
   latestSosEvent,
   loadingInit,
+  locationAccuracy,
   locationFreshness,
   locationRefreshing,
   onboardingDone,
@@ -1312,6 +1371,7 @@ function SosPage({
     <div className="md-page-stack">
       {!onboardingDone && <div className="md-banner">建议先在“通知配置”页面完成保存，再进入 SOS 流程。</div>}
       {locationFreshness.banner && <div className="md-banner">{locationFreshness.banner}</div>}
+      {locationAccuracy.banner && <div className="md-banner">{locationAccuracy.banner}</div>}
 
       <section className="md-summary-grid">
         <SummaryCard
@@ -1338,6 +1398,11 @@ function SosPage({
           label="位置新鲜度"
           value={locationFreshness.label}
           hint={locationFreshness.hint}
+        />
+        <SummaryCard
+          label="定位精度"
+          value={locationAccuracy.label}
+          hint={locationAccuracy.hint}
         />
       </section>
 
@@ -1380,6 +1445,10 @@ function SosPage({
               <strong>{locationFreshness.label}</strong>
             </div>
             <div className="md-kv-item">
+              <span>定位精度</span>
+              <strong>{locationAccuracy.hint}</strong>
+            </div>
+            <div className="md-kv-item">
               <span>最近刷新</span>
               <strong>{locationFreshness.updatedAt}</strong>
             </div>
@@ -1405,6 +1474,7 @@ function SosPage({
           <ul className="md-bullet-list">
             <li>电话与短信号码都可留空，空值会显示为 skipped。</li>
             <li>首次触发原生动作时会按需申请短信 / 电话权限。</li>
+            <li>手动刷新和 SOS 前刷新会进行 2~3 次采样，并自动采用精度最佳结果。</li>
             <li>短信内容按当前模板与实时位置变量渲染，并直接发送。</li>
             <li>倒计时结束时若位置缺失或偏旧，会优先尝试刷新当前位置。</li>
             <li>触发完成后，可前往“历史”页面查看事件详情。</li>
@@ -1490,7 +1560,7 @@ function HistoryPage({ onRefreshSosHistory, selectedSosEvent, setSelectedSosId, 
                   </p>
                   <p>
                     <strong>精度：</strong>
-                    {selectedSosEvent.location.accuracy}
+                    {formatLocationAccuracy(selectedSosEvent.location)}
                   </p>
                 </div>
 
@@ -1735,6 +1805,7 @@ function App() {
     () => buildLocationFreshness(latestLocation, locationNow),
     [latestLocation, locationNow]
   )
+  const locationAccuracy = useMemo(() => buildLocationAccuracyState(latestLocation), [latestLocation])
 
   const previewPayload = useMemo(
     () => createPreviewSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation),
@@ -2329,21 +2400,27 @@ function App() {
 
   async function resolveSosLocation() {
     if (latestLocation && !locationFreshness.needsRefresh) {
-      return { location: latestLocation, note: '' }
+      return {
+        location: latestLocation,
+        note: mergeLocationNotes('', buildLocationAccuracyState(latestLocation).note),
+      }
     }
 
     const refreshed = await onRefreshLocation({ reason: 'sos', silent: true })
     if (refreshed.location) {
       return {
         location: refreshed.location,
-        note: 'SOS 前已自动刷新当前位置。',
+        note: mergeLocationNotes('SOS 前已自动刷新当前位置。', buildLocationAccuracyState(refreshed.location).note),
       }
     }
 
     if (latestLocation) {
       return {
         location: latestLocation,
-        note: '位置刷新失败，已继续使用上次记录的位置。',
+        note: mergeLocationNotes(
+          '位置刷新失败，已继续使用上次记录的位置。',
+          buildLocationAccuracyState(latestLocation).note
+        ),
       }
     }
 
@@ -2391,6 +2468,10 @@ function App() {
     }
     if (locationFreshness.needsRefresh) {
       setResultText('SOS 倒计时开始；当前位置已偏旧，倒计时结束时会先尝试刷新位置。')
+      return
+    }
+    if (locationAccuracy.note) {
+      setResultText(`SOS 倒计时开始；${locationAccuracy.note}`)
       return
     }
     setResultText('SOS 倒计时开始，5 秒后触发，可取消')
@@ -2814,6 +2895,7 @@ function App() {
             latestLocation={latestLocation}
             latestSosEvent={latestSosEvent}
             loadingInit={loadingInit}
+            locationAccuracy={locationAccuracy}
             locationFreshness={locationFreshness}
             locationRefreshing={locationRefreshPending}
             onboardingDone={onboardingDone}
@@ -2859,6 +2941,7 @@ function App() {
             healthText={healthText}
             latestLocation={latestLocation}
             localPanel={localPanel}
+            locationAccuracy={locationAccuracy}
             locationFreshness={locationFreshness}
             locationRefreshing={locationRefreshPending}
             onboardingDone={onboardingDone}
@@ -2910,6 +2993,7 @@ function App() {
             healthText={healthText}
             identity={identity}
             latestLocation={latestLocation}
+            locationAccuracy={locationAccuracy}
             locationFreshness={locationFreshness}
             onboardingDone={onboardingDone}
             pageItems={pageItems}

@@ -4,8 +4,9 @@
 - [ ] 首次打开 App 自动弹出定位权限请求
 - [ ] 点击“允许”后页面显示“已获取当前位置”
 - [ ] 点击“拒绝”后页面显示“定位权限未授予”且 App 不崩溃
-- [ ] 进入“总览”页后可看到当前位置、新鲜度、最近刷新时间
-- [ ] 点击“刷新当前位置”后状态文案与最近刷新时间会更新
+- [ ] 进入“总览”页后可看到当前位置、新鲜度、定位精度、最近刷新时间
+- [ ] 点击“刷新当前位置”后状态文案、定位精度与最近刷新时间会更新
+- [ ] 手动刷新时会进行 2~3 次采样，并自动采用精度最佳结果
 - [ ] 默认仅显示“总览 / 主题 / 通知配置 / 联系人 / SOS / 历史”主流程页面
 - [ ] 点击左上角菜单按钮可呼出侧边栏，并可切换不同页面
 - [ ] 在页面空白处从左向右滑动可呼出侧边栏
@@ -45,7 +46,9 @@
 - [ ] 点击“触发 SOS”进入 5 秒倒计时
 - [ ] 倒计时中点击“取消 SOS”可中断发送
 - [ ] 位置偏旧或缺失时，SOS 页会显示位置提醒 banner
+- [ ] 定位精度较弱时，SOS 页会显示精度提醒 banner
 - [ ] 倒计时结束后会先尝试刷新旧位置 / 缺失位置，再触发 SOS
+- [ ] SOS 前自动刷新时会进行 2~3 次采样，并自动采用精度最佳结果
 
 ## F. SOS 触发结果
 - [ ] 后端收到 SOS（日志/接口返回成功）
@@ -64,9 +67,9 @@
 - [ ] `npm run android:apk` 成功
 - [ ] `npm run android:release:setup-signing` 成功
 - [ ] `npm run android:release` 成功
-- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-debug.apk`
-- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-release.apk`
-- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-release.aab`
+- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.7-debug.apk`
+- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.7-release.apk`
+- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.7-release.aab`
 - [ ] 项目外签名主目录存在：`/home/crp/.solo-youth-safety/signing`
 - [ ] 项目外签名备份目录存在：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 - [ ] 安装生成的版本化 APK 后可正常打开运行
