@@ -28,7 +28,11 @@ export async function openDialer(phone) {
     await AppLauncher.openUrl({ url: `tel:${number}` })
     return { channel: 'call', status: 'sent', detail: `dialer opened: ${number}` }
   } catch (error) {
-    return { channel: 'call', status: 'failed', detail: `dialer failed: ${error.message}` }
+    return {
+      channel: 'call',
+      status: 'failed',
+      detail: `dialer failed: ${error.message}`,
+    }
   }
 }
 
@@ -45,7 +49,11 @@ export async function openSms(smsNumber, smsTemplate, payload) {
     await AppLauncher.openUrl({ url: `sms:${number}?body=${body}` })
     return { channel: 'sms', status: 'sent', detail: `sms app opened: ${number}` }
   } catch (error) {
-    return { channel: 'sms', status: 'failed', detail: `sms failed: ${error.message}` }
+    return {
+      channel: 'sms',
+      status: 'failed',
+      detail: `sms failed: ${error.message}`,
+    }
   }
 }
 

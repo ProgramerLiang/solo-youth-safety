@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   checkHealth,
   DEFAULT_USER,
@@ -7,58 +7,79 @@ import {
   triggerSos,
 } from './api'
 import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
+import { requestInitialPermissions } from './permissions'
 
-function buildSosPayload(userId) {
+const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
+
+function createSosPayload(userId, location) {
+  const safeLocation = location ?? { lat: 31.2304, lng: 121.4737, accuracy: 12 }
   return {
     userId,
     deviceId: 'android-device-001',
     triggerType: 'manual',
     timestamp: new Date().toISOString(),
-    location: {
-      lat: 31.2304,
-      lng: 121.4737,
-      accuracy: 12,
-    },
+    location: safeLocation,
   }
 }
 
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('')
+  const [permissionText, setPermissionText] = useState('首次启动将自动申请权限')
+  const [latestLocation, setLatestLocation] = useState(null)
+  const [loadingInit, setLoadingInit] = useState(true)
   const [form, setForm] = useState({
     userId: DEFAULT_USER,
     callNumber: '',
     smsNumber: '',
-    smsTemplate: '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}',
+    smsTemplate: defaultTemplate,
   })
+
+  const envText = useMemo(
+    () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
+    []
+  )
 
   useEffect(() => {
     let ignore = false
 
-    async function loadConfig() {
+    async function bootstrap() {
+      const permissionResult = await requestInitialPermissions()
+      if (ignore) return
+      setPermissionText(permissionResult.message)
+      setLatestLocation(permissionResult.location)
+
       try {
         const data = await getEmergencyConfig(DEFAULT_USER)
-        if (ignore) {
-          return
-        }
+        if (ignore) return
         setForm({
           userId: data.userId,
           callNumber: data.callNumber ?? '',
           smsNumber: data.smsNumber ?? '',
-          smsTemplate: data.smsTemplate,
+          smsTemplate: data.smsTemplate || defaultTemplate,
         })
+        setResultText('请先完成紧急通知配置，然后可触发 SOS')
       } catch {
         if (!ignore) {
           setResultText('加载配置失败，请先启动后端服务')
         }
+      } finally {
+        if (!ignore) {
+          setLoadingInit(false)
+        }
       }
     }
 
-    loadConfig()
+    bootstrap()
     return () => {
       ignore = true
     }
   }, [])
+
+  function onChange(event) {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
 
   async function onCheckHealth() {
     try {
@@ -67,11 +88,6 @@ function App() {
     } catch (error) {
       setHealthText(`失败: ${error.message}`)
     }
-  }
-
-  function onChange(event) {
-    const { name, value } = event.target
-    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
   async function onSaveConfig(event) {
@@ -84,15 +100,14 @@ function App() {
         smsNumber: data.smsNumber ?? '',
         smsTemplate: data.smsTemplate,
       }))
-      setResultText('配置保存成功（号码可留空）')
+      setResultText('配置保存成功，已可触发 SOS')
     } catch (error) {
       setResultText(`保存失败: ${error.message}`)
     }
   }
 
   async function onTriggerSos() {
-    const payload = buildSosPayload(form.userId)
-
+    const payload = createSosPayload(form.userId, latestLocation)
     try {
       const [serverData, nativeLogs] = await Promise.all([
         triggerSos(payload),
@@ -114,14 +129,18 @@ function App() {
     <main className="page">
       <section className="card">
         <h1>独行青年安全守护（Android MVP）</h1>
-        <p>运行环境：{isNativePlatform() ? 'Android App' : 'Web 浏览器'}</p>
+        <p>运行环境：{envText}</p>
+        <p>权限状态：{permissionText}</p>
         <p>后端健康状态：{healthText}</p>
-        <button type="button" onClick={onCheckHealth}>
-          检查后端
-        </button>
+
+        <div className="actions">
+          <button type="button" onClick={onCheckHealth}>
+            检查后端
+          </button>
+        </div>
 
         <form className="form" onSubmit={onSaveConfig}>
-          <h2>紧急通知配置</h2>
+          <h2>首次引导：紧急通知配置</h2>
 
           <label htmlFor="callNumber">电话号码（可留空）</label>
           <input
@@ -150,12 +169,19 @@ function App() {
             rows={4}
           />
 
-          <button type="submit">保存配置</button>
+          <button type="submit" disabled={loadingInit}>
+            保存配置
+          </button>
         </form>
 
         <div className="actions">
-          <button type="button" className="danger" onClick={onTriggerSos}>
-            触发 SOS（服务端模拟 + Android 拨号/短信）
+          <button
+            type="button"
+            className="danger"
+            onClick={onTriggerSos}
+            disabled={loadingInit}
+          >
+            触发 SOS（服务端 + Android）
           </button>
         </div>
 

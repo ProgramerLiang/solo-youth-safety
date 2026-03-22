@@ -17,6 +17,7 @@
     "@capacitor/cli": "^6.1.2",
     "@capacitor/core": "^6.1.2",
     "@capacitor/app-launcher": "^6.0.1",
+    "@capacitor/geolocation": "^6.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
