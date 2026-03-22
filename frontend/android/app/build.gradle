@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.util.Properties
 
 apply plugin: 'com.android.application'
 
@@ -11,12 +12,53 @@ while (versionTokens.size() < 3) {
     versionTokens << 0
 }
 def appVersionCode = (versionTokens[0] * 10000) + (versionTokens[1] * 100) + versionTokens[2]
-
 def apkBaseName = "solo-youth-safety-v${appVersionName}"
+def defaultSigningDir = new File(System.getProperty('user.home'), '.solo-youth-safety/signing')
+def signingPropertiesPath = System.getenv('SAFETY_SIGNING_PROPERTIES_FILE') ?: new File(defaultSigningDir, 'release-signing.properties').absolutePath
+
+def signingPropertiesFile = file(signingPropertiesPath)
+def releaseSigning = new Properties()
+def hasReleaseSigning = signingPropertiesFile.exists()
+def releaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('release')
+}
+
+def requireSigningProperty = { String key ->
+    def value = releaseSigning.getProperty(key)
+    if (!value) {
+        throw new GradleException("Missing signing property '${key}' in ${signingPropertiesFile}")
+    }
+    value
+}
+
+if (hasReleaseSigning) {
+    signingPropertiesFile.withInputStream { stream ->
+        releaseSigning.load(stream)
+    }
+}
+
+if (releaseTaskRequested && !hasReleaseSigning) {
+    throw new GradleException(
+        "Release signing config not found at ${signingPropertiesFile}. " +
+        "Run 'npm run android:release:setup-signing' in frontend first, or set SAFETY_SIGNING_PROPERTIES_FILE."
+    )
+}
 
 android {
     namespace "com.solo.youth.safety"
     compileSdk rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(requireSigningProperty('storeFile'))
+                storePassword requireSigningProperty('storePassword')
+                keyAlias requireSigningProperty('keyAlias')
+                keyPassword requireSigningProperty('keyPassword')
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.solo.youth.safety"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -30,12 +72,17 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
+
     applicationVariants.all { variant ->
         variant.outputs.all {
             outputFileName = "${apkBaseName}-${variant.name}.apk"

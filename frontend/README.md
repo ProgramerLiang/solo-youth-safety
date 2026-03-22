@@ -26,7 +26,36 @@ npm run android:apk
 产物路径（按版本号命名）：
 `frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
 
-## 4) 首次启动引导、主题与页面结构（已实现）
+## 4) 生成 release APK / AAB（已支持）
+首次生成项目外签名资产：
+```bash
+cd frontend
+npm run android:release:setup-signing
+```
+
+生成 release APK + AAB：
+```bash
+cd frontend
+npm run android:release
+```
+
+也可分别生成：
+```bash
+cd frontend
+npm run android:apk:release
+npm run android:aab:release
+```
+
+产物路径：
+- `frontend/android/app/build/outputs/apk/release/solo-youth-safety-v<version>-release.apk`
+- `frontend/android/app/build/outputs/bundle/release/solo-youth-safety-v<version>-release.aab`
+
+默认签名资产位置（均在项目外）：
+- 主目录：`/home/crp/.solo-youth-safety/signing`
+- 备份目录：`/home/crp/Desktop/solo-youth-safety-signing-backup`
+- 可通过环境变量覆盖：`SAFETY_SIGNING_PROPERTIES_FILE`
+
+## 5) 首次启动引导、主题与页面结构（已实现）
 - App 首次打开会自动申请定位权限
 - 权限申请后自动进入“通知配置”页面引导
 - 当前 UI 已拆分为自适应多页面：
@@ -53,7 +82,7 @@ npm run android:apk
   - 删除联系人
   - 一键将联系人号码填入电话 / 短信字段
 
-## 5) 运行模式（已支持 APK 内前后端一体）
+## 6) 运行模式（已支持 APK 内前后端一体）
 - **Android APK 内默认启用本地后端模式（local backend）**：
   - 不依赖外部 FastAPI 进程
   - 紧急配置、主题、身份、本地后端数据已升级为 **Capacitor Preferences** 持久化
@@ -64,7 +93,7 @@ npm run android:apk
   localStorage.setItem('safety_force_local_backend', '1')
   ```
 
-## 6) 本地后端接口覆盖范围
+## 7) 本地后端接口覆盖范围
 APK 本地后端已覆盖 MVP API：
 - `GET /health`
 - `GET/POST /emergency/config`
@@ -87,7 +116,7 @@ APK 本地后端已覆盖 MVP API：
 - 本地快照会导出当前用户的配置、联系人、轨迹点、SOS 事件与汇总信息
 - 导入本地快照时会先提示覆盖确认，然后按快照内 `userId` 恢复该用户的数据
 
-## 7) 真机行为说明
+## 8) 真机行为说明
 - 在 Android App 内点击“触发 SOS”时会：
   1. 调用 APK 内本地后端记录 SOS 与通知日志
   2. 尝试打开系统拨号（`tel:`）
@@ -95,7 +124,7 @@ APK 本地后端已覆盖 MVP API：
 - 若号码留空，会自动跳过对应动作
 - SOS 事件详情已独立到“历史”页面，可查看最近事件的时间、位置、通知结果
 
-## 8) 打开 Android Studio（可选）
+## 9) 打开 Android Studio（可选）
 ```bash
 cd frontend
 npm run android:open

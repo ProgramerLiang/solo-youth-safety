@@ -19,7 +19,8 @@
 - [x] 完成 Material 动态主题（壁纸吸色 / 预设 / 自定义调色板）
 - [x] 完成开发者模式隐藏入口（五连击版本号显示工具页）
 - [x] 完成远端后端 SQLite 持久化
-- [x] 完成 debug APK 构建链路
+- [x] 完成 release 签名配置（签名资产与备份均在项目外）
+- [x] 完成 debug / release / AAB 构建链路
 
 ## P0（下一阶段必须）
 - [x] 正式联系人管理 UI（新增 / 编辑 / 删除）
@@ -27,7 +28,7 @@
 - [x] 用户 / 设备标识持久化（移除硬编码）
 - [x] 本地持久化升级（Android `localStorage` → Capacitor Preferences）
 - [x] 远端后端数据库持久化（FastAPI → SQLite）
-- [ ] Release APK / AAB 与签名配置
+- [x] Release APK / AAB 与签名配置
 - [ ] 前后端基础自动化测试与 CI
 - [ ] 位置新鲜度判断与提示
 

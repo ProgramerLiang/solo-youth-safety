@@ -1,7 +1,7 @@
 {
   "name": "solo-youth-safety-frontend",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,12 @@
     "android:init": "npx cap add android",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
-    "android:apk": "cd android && ./gradlew assembleDebug"
+    "android:apk": "cd android && ./gradlew assembleDebug",
+    "android:apk:debug": "cd android && ./gradlew assembleDebug",
+    "android:release:setup-signing": "bash ./scripts/setup-release-signing.sh",
+    "android:apk:release": "bash ./scripts/build-release-artifacts.sh apk",
+    "android:aab:release": "bash ./scripts/build-release-artifacts.sh aab",
+    "android:release": "bash ./scripts/build-release-artifacts.sh both"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",

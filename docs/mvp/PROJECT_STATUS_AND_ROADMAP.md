@@ -45,8 +45,11 @@
 - 已支持开发者模式隐藏入口（五连击版本号后显示工具页）
 
 ### Android 交付
-- 已多次成功构建 debug APK
-- APK 路径：`frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
+- 已成功构建 debug APK、signed release APK、release AAB
+- debug APK 路径：`frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
+- release APK 路径：`frontend/android/app/build/outputs/apk/release/solo-youth-safety-v<version>-release.apk`
+- release AAB 路径：`frontend/android/app/build/outputs/bundle/release/solo-youth-safety-v<version>-release.aab`
+- release 签名资产主目录与备份目录均已放在项目外
 
 ---
 
@@ -91,11 +94,11 @@
 - 快照导入导出含联系人、轨迹、SOS 数据
 - 调试能力和正式能力尚未隔离
 
-## 2.6 发布能力仍停留在 debug
-- 仅完成 debug APK
-- 尚未完成 release 签名配置
-- 尚未生成正式发布包（release APK / AAB）
-- 应用图标、启动图、版本号策略仍需收口
+## 2.6 发布能力仍需继续收口
+- 已完成 release 签名配置
+- 已生成 signed release APK / AAB
+- 签名资产已放在项目外，并额外备份一份到项目外目录
+- 仍缺少应用图标、启动图、正式发布清单与渠道分发策略
 
 ## 2.7 测试与文档同步不足
 - 缺少前端单元测试
@@ -130,11 +133,11 @@
 - 本地：从 `Capacitor Preferences` 继续升级为更适合复杂数据的结构化存储（如 SQLite）
 - 远端：在 SQLite 基础上补齐迁移、索引、备份与后续 PostgreSQL 演进路径
 
-### 3.5 Android Release 化
-- release build
-- 签名配置
+### 3.5 Android 发布收口
 - 图标 / 启动图 / 包名 / 版本号整理
-- 区分 debug 与 release 行为
+- 渠道分发与安装说明
+- 发布前核对清单
+- 后续视需要再细化 debug 与 release 行为差异
 
 ### 3.6 SOS 可靠性补强
 - 位置刷新入口
@@ -177,17 +180,17 @@
 目标：让非开发人员也能稳定试用。
 
 建议内容：
-1. Release APK 构建
-2. 位置刷新入口与位置新鲜度提示
-3. 周期轨迹写入 / 弱网补偿
-4. 联系人角色与通知策略补强
-5. SOS 历史筛选与地图化增强
+1. 位置刷新入口与位置新鲜度提示
+2. 周期轨迹写入 / 弱网补偿
+3. 联系人角色与通知策略补强
+4. SOS 历史筛选与地图化增强
+5. 发布素材与分发说明收口
 
 ### 阶段 A 验收标准
 - 不依赖 mock 按钮也能完整操作主要流程
 - 普通用户可以管理联系人并完成 SOS 触发
 - 可以查看历史 SOS 事件
-- 能生成 release 包并稳定安装
+- 能生成 signed release 包并稳定安装
 
 ## 阶段 B：从“试用版”到“可靠版”
 目标：提高数据可靠性与真实场景可用性。
@@ -217,12 +220,12 @@
 ## 7. 当前最推荐的下一步组合
 
 如果只做一轮迭代，建议优先做这 6 件事：
-1. Release APK / 签名
-2. 位置刷新入口与位置新鲜度提示
-3. 周期轨迹写入 / 弱网补偿
-4. 联系人角色 / 通知策略补强
-5. SOS 历史筛选 / 地图化增强
-6. README / TASKS / 测试清单同步更新
+1. 位置刷新入口与位置新鲜度提示
+2. 周期轨迹写入 / 弱网补偿
+3. 联系人角色 / 通知策略补强
+4. SOS 历史筛选 / 地图化增强
+5. README / TASKS / 测试清单同步更新
+6. 远端身份 / 鉴权补强
 
 ---
 

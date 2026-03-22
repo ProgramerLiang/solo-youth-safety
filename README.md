@@ -10,9 +10,10 @@
 ## 当前阶段
 当前项目已完成 **MVP 演示闭环**：
 - `frontend`：React + Vite
-- `backend`：FastAPI
+- `backend`：FastAPI + SQLite
 - `android`：Capacitor 6
-- 已支持 debug APK 构建与安装验证
+- 已支持 debug / release APK 构建与安装验证
+- 已支持 release AAB 构建
 - 已支持 APK 内本地后端模式，无需手机内运行 Python 服务
 
 ## 当前能力概览
@@ -24,6 +25,7 @@
 - 用户 / 设备标识持久化
 - Android 端使用 Native Preferences 持久化关键本地数据
 - FastAPI 远端后端已接入 SQLite 持久化
+- Android release 签名配置已完成，签名资产主目录与备份目录均在项目外
 - 正式联系人管理（新增 / 编辑 / 删除 / 一键填入号码）
 - SOS 5 秒倒计时与取消
 - SOS 历史记录与通知详情查看
@@ -65,13 +67,34 @@ npm run android:apk
 APK 输出路径（按版本命名）：
 `frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
 
+### Android release APK / AAB
+首次生成签名资产（仅需一次）：
+```bash
+cd frontend
+npm run android:release:setup-signing
+```
+
+生成 release APK + AAB：
+```bash
+cd frontend
+npm run android:release
+```
+
+Release 输出路径：
+- `frontend/android/app/build/outputs/apk/release/solo-youth-safety-v<version>-release.apk`
+- `frontend/android/app/build/outputs/bundle/release/solo-youth-safety-v<version>-release.aab`
+
+当前默认签名文件位置（项目外）：
+- 主目录：`/home/crp/.solo-youth-safety/signing`
+- 备份目录：`/home/crp/Desktop/solo-youth-safety-signing-backup`
+
 ## 下一阶段重点
 详见：`docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
 
 当前最优先的方向是：
-1. Release APK / 签名
-2. 位置刷新入口与状态展示
-3. 周期轨迹写入 / 弱网补偿策略
-4. 联系人角色 / 通知策略补强
-5. SOS 历史筛选与地图化增强
-6. 测试与 CI
+1. 位置刷新入口与状态展示
+2. 周期轨迹写入 / 弱网补偿策略
+3. 联系人角色 / 通知策略补强
+4. SOS 历史筛选与地图化增强
+5. 测试与 CI
+6. 远端身份 / 鉴权模型补强
