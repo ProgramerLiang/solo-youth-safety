@@ -33,13 +33,21 @@
 - [ ] 在“主题”页修改自定义颜色后界面主色会立即变化
 - [ ] 重新打开 App 后主题选择仍会保留
 
-## D. SOS 倒计时流程
+## D. 轨迹守护与补发
+- [ ] 在“总览”页可看到“轨迹守护”区块、周期、待补发数量、最近采样/同步时间
+- [ ] 点击“开启周期轨迹”后，App 会按设定周期自动采样并写入轨迹
+- [ ] 可切换采样周期（30 / 60 / 180 / 300 秒）并立即持久化
+- [ ] 点击“立即采样并补发”后，待补发队列数量会正确变化
+- [ ] 在远端后端不可用时，轨迹写入失败会进入本地待补发队列
+- [ ] 恢复网络或重新回到前台后，待补发队列可自动继续补发
+
+## E. SOS 倒计时流程
 - [ ] 点击“触发 SOS”进入 5 秒倒计时
 - [ ] 倒计时中点击“取消 SOS”可中断发送
 - [ ] 位置偏旧或缺失时，SOS 页会显示位置提醒 banner
 - [ ] 倒计时结束后会先尝试刷新旧位置 / 缺失位置，再触发 SOS
 
-## E. SOS 触发结果
+## F. SOS 触发结果
 - [ ] 后端收到 SOS（日志/接口返回成功）
 - [ ] 电话号码不为空时可拉起拨号界面
 - [ ] 短信号码不为空时可拉起短信界面并带入模板内容
@@ -48,15 +56,15 @@
 - [ ] 杀掉 App 后重新打开，历史 / 联系人 / 本地后端数据仍存在
 - [ ] 点击历史记录后可查看时间、位置、通知结果详情
 
-## F. 构建与安装
+## G. 构建与安装
 - [ ] `npm run build` 成功
 - [ ] `npm run android:sync` 成功
 - [ ] `npm run android:apk` 成功
 - [ ] `npm run android:release:setup-signing` 成功
 - [ ] `npm run android:release` 成功
-- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-debug.apk`
-- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-release.apk`
-- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.4-release.aab`
+- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-debug.apk`
+- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-release.apk`
+- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-release.aab`
 - [ ] 项目外签名主目录存在：`/home/crp/.solo-youth-safety/signing`
 - [ ] 项目外签名备份目录存在：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 - [ ] 安装生成的版本化 APK 后可正常打开运行

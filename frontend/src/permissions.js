@@ -26,6 +26,8 @@ function buildLocation(position, source) {
     lat: position.coords.latitude,
     lng: position.coords.longitude,
     accuracy: position.coords.accuracy,
+    speed: Number.isFinite(Number(position.coords.speed)) ? Number(position.coords.speed) : 0,
+    heading: Number.isFinite(Number(position.coords.heading)) ? Number(position.coords.heading) : 0,
     capturedAt: new Date(position.timestamp ?? Date.now()).toISOString(),
     source,
   }

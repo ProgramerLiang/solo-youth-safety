@@ -86,6 +86,12 @@ npm run android:aab:release
   - 位置新鲜度提示
   - 最近刷新时间展示
   - SOS 倒计时结束前自动尝试刷新旧位置 / 缺失位置
+- 总览页已支持“轨迹守护”：
+  - 可开启 / 停止周期轨迹写入
+  - 可配置自动采样周期（30 / 60 / 180 / 300 秒）
+  - 可立即手动采样并触发补发
+  - 弱网或写入失败时会进入本地待补发队列
+  - App 回到前台、网络恢复后会自动继续补发
 - 联系人已独立为单独页面，支持：
   - 新增联系人
   - 编辑联系人
@@ -115,7 +121,7 @@ APK 本地后端已覆盖 MVP API：
 - `PUT/DELETE /contacts/{contactId}`
 
 说明：
-- Android 端数据优先存储在 **Capacitor Preferences**（key 如 `safety_local_backend_v1`）
+- Android 端数据优先存储在 **Capacitor Preferences**（key 如 `safety_local_backend_v1`、`safety_tracking_state_v1`）
 - Web 端仍使用 `localStorage` 作为浏览器开发存储
 - `tracking/timeline` 同样校验时间范围（`from <= to`）
 - `contacts` 支持按 `userId` 读写

@@ -8,6 +8,7 @@ const managedKeys = [
   'safety_onboarding_done_v1',
   'safety_local_backend_v1',
   'safety_developer_mode_v1',
+  'safety_tracking_state_v1',
 ]
 
 const storageCache = new Map()

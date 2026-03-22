@@ -33,7 +33,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -419,7 +420,8 @@ button:hover:not(:disabled) {
 }
 
 .md-theme-section,
-.md-theme-preview-card {
+.md-theme-preview-card,
+.md-tracking-section {
   display: grid;
   gap: 14px;
 }
@@ -507,6 +509,17 @@ button:hover:not(:disabled) {
   margin-bottom: 4px;
 }
 
+.md-inline-field {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.md-inline-field span {
+  color: var(--md-on-surface-variant);
+  font-weight: 500;
+}
+
 .md-form {
   display: grid;
   gap: 10px;
@@ -517,7 +530,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--md-outline);
   border-radius: 16px;
@@ -527,7 +541,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   outline: 2px solid var(--md-primary-container);
   border-color: var(--md-primary);
 }

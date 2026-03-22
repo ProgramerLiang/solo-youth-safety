@@ -29,6 +29,16 @@ import {
 } from './theme'
 import { getPersistedIdentity, savePersistedIdentity } from './identity'
 import {
+  clearTrackingData,
+  createTrackingPointFromLocation,
+  enqueueTrackingPoint,
+  flushPendingTracking,
+  getTrackingSnapshot,
+  recordTrackingError,
+  trackingIntervalOptions,
+  updateTrackingPreferences,
+} from './tracking'
+import {
   getStorageDriverLabel,
   readStoredJson,
   readStoredString,
@@ -441,6 +451,39 @@ function summarizeNotifications(notifications = []) {
   return notifications.map((item) => `${item.channel}:${item.status}`).join(' / ') || '暂无通知记录'
 }
 
+function buildTrackingStatusHint(snapshot) {
+  if (snapshot.lastError) {
+    return `最近失败：${snapshot.lastError}`
+  }
+  if (snapshot.pendingCount > 0) {
+    return `待补发 ${snapshot.pendingCount} 条，下一次重试 ${formatPanelTime(snapshot.nextRetryAt)}`
+  }
+  if (snapshot.lastSyncedAt) {
+    return `最近同步 ${formatPanelTime(snapshot.lastSyncedAt)}`
+  }
+  return '开启后会按周期采样位置，并在弱网恢复后自动补发。'
+}
+
+function buildTrackingResultMessage({ captured, sentCount, snapshot, skippedReason = '' }) {
+  const parts = []
+  if (captured) {
+    parts.push('已采样 1 个位置点')
+  }
+  if (sentCount > 0) {
+    parts.push(`已成功写入 ${sentCount} 条轨迹`)
+  }
+  if (!captured && skippedReason) {
+    parts.push(skippedReason)
+  }
+  if (snapshot.pendingCount > 0) {
+    parts.push(`仍有 ${snapshot.pendingCount} 条待补发`)
+  }
+  if (snapshot.lastError) {
+    parts.push(`最近失败：${snapshot.lastError}`)
+  }
+  return parts.join('；') || '轨迹状态已刷新'
+}
+
 function SummaryCard({ label, value, hint }) {
   return (
     <article className="md-summary-card">
@@ -547,6 +590,70 @@ function SidebarContent({
   )
 }
 
+function TrackingGuardSection({
+  trackingBusy,
+  trackingSnapshot,
+  onRunTrackingNow,
+  onToggleTracking,
+  onTrackingIntervalChange,
+}) {
+  return (
+    <section className="md-section-card md-tracking-section">
+      <div className="md-section-head">
+        <h3>轨迹守护</h3>
+        <span className={`md-chip ${trackingSnapshot.enabled ? '' : 'subtle'}`}>
+          {trackingSnapshot.enabled ? '已开启' : '已关闭'}
+        </span>
+      </div>
+      <p className="md-section-hint">开启后会按设定周期采样当前位置并写入轨迹；若写入失败，将进入本地队列并在稍后自动补发。</p>
+      <div className="md-summary-grid">
+        <div className="md-kv-item">
+          <span>采样周期</span>
+          <strong>{trackingSnapshot.intervalSeconds} 秒</strong>
+        </div>
+        <div className="md-kv-item">
+          <span>待补发</span>
+          <strong>{trackingSnapshot.pendingCount} 条</strong>
+        </div>
+        <div className="md-kv-item">
+          <span>最近采样</span>
+          <strong>{formatPanelTime(trackingSnapshot.lastCapturedAt)}</strong>
+        </div>
+        <div className="md-kv-item">
+          <span>最近同步</span>
+          <strong>{formatPanelTime(trackingSnapshot.lastSyncedAt)}</strong>
+        </div>
+      </div>
+      <label className="md-inline-field">
+        <span>自动采样周期</span>
+        <select value={trackingSnapshot.intervalSeconds} onChange={onTrackingIntervalChange}>
+          {trackingIntervalOptions.map((seconds) => (
+            <option key={seconds} value={seconds}>
+              {seconds} 秒
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="md-row-actions">
+        <button type="button" className="md-btn" onClick={onToggleTracking} disabled={trackingBusy}>
+          {trackingSnapshot.enabled ? '停止周期轨迹' : '开启周期轨迹'}
+        </button>
+        <button
+          type="button"
+          className="md-btn tonal"
+          onClick={onRunTrackingNow}
+          disabled={trackingBusy}
+        >
+          {trackingBusy ? '轨迹处理中...' : '立即采样并补发'}
+        </button>
+      </div>
+      <div className="md-helper">
+        <p>{buildTrackingStatusHint(trackingSnapshot)}</p>
+      </div>
+    </section>
+  )
+}
+
 function OverviewPage({
   contactsList,
   deviceId,
@@ -562,10 +669,15 @@ function OverviewPage({
   sosHistory,
   storageDriver,
   themeState,
+  trackingBusy,
+  trackingSnapshot,
   onCheckHealth,
   onNavigate,
   onRefreshLocation,
   onResetOnboarding,
+  onRunTrackingNow,
+  onToggleTracking,
+  onTrackingIntervalChange,
   showToolsPage,
 }) {
   const latestSosEvent = sosHistory[0] || null
@@ -598,7 +710,11 @@ function OverviewPage({
           value={locationFreshness.label}
           hint={locationFreshness.hint}
         />
-        <SummaryCard label="当前主题" value={themeState.label} hint={`版本 ${appVersion}`} />
+        <SummaryCard
+          label="轨迹守护"
+          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
+          hint={buildTrackingStatusHint(trackingSnapshot)}
+        />
       </section>
 
       <div className="md-overview-grid">
@@ -679,6 +795,14 @@ function OverviewPage({
             </button>
           </div>
         </section>
+
+        <TrackingGuardSection
+          trackingBusy={trackingBusy}
+          trackingSnapshot={trackingSnapshot}
+          onRunTrackingNow={onRunTrackingNow}
+          onToggleTracking={onToggleTracking}
+          onTrackingIntervalChange={onTrackingIntervalChange}
+        />
 
         <section className="md-section-card">
           <div className="md-section-head">
@@ -1570,6 +1694,8 @@ function App() {
   const [contactsList, setContactsList] = useState([])
   const [contactsPreview, setContactsPreview] = useState(null)
   const [trackingPreview, setTrackingPreview] = useState(null)
+  const [trackingSnapshot, setTrackingSnapshot] = useState(() => getTrackingSnapshot(identity.userId))
+  const [trackingBusy, setTrackingBusy] = useState(false)
   const [sosHistory, setSosHistory] = useState([])
   const [selectedSosId, setSelectedSosId] = useState(null)
   const [contactForm, setContactForm] = useState(createEmptyContactForm)
@@ -1582,12 +1708,14 @@ function App() {
   const mainPanelRef = useRef(null)
   const drawerPanelRef = useRef(null)
   const touchSessionRef = useRef(null)
+  const trackingJobRef = useRef(false)
 
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
     []
   )
   const storageDriver = getStorageDriverLabel()
+  const currentUserId = form.userId || identity.userId
   const showToolsPage = isLocalBackendMode() && developerModeEnabled
   const pageItems = useMemo(
     () => pageCatalog.filter((page) => page.id !== 'tools' || showToolsPage),
@@ -1690,7 +1818,7 @@ function App() {
     }
   }, [])
 
-  async function refreshLocalPanel(userId = form.userId || identity.userId) {
+  async function refreshLocalPanel(userId = currentUserId) {
     if (!isLocalBackendMode()) {
       setLocalPanel(null)
       return
@@ -1699,14 +1827,105 @@ function App() {
     setLocalPanel(snapshot)
   }
 
-  async function loadContactsPreview(userId = form.userId || identity.userId) {
+  function syncLatestLocation(location) {
+    if (!location) {
+      return
+    }
+    setLatestLocation(location)
+    setLocationNow(Date.now())
+  }
+
+  function refreshTrackingPanel(userId = currentUserId) {
+    setTrackingSnapshot(getTrackingSnapshot(userId))
+  }
+
+  async function flushQueuedTracking(userId = currentUserId) {
+    return flushPendingTracking((payload) => createTrackingPoints(payload), { userId })
+  }
+
+  async function runTrackingCycle({ capturePoint = true, silent = false } = {}) {
+    const userId = currentUserId
+    if (!userId) {
+      return null
+    }
+    if (trackingJobRef.current) {
+      if (!silent) {
+        setResultText('轨迹任务进行中，请稍后再试')
+      }
+      return null
+    }
+
+    trackingJobRef.current = true
+    setTrackingBusy(true)
+    let captured = false
+    let skippedReason = ''
+
+    try {
+      if (capturePoint) {
+        const locationResult = await refreshCurrentLocation({
+          reason: 'tracking',
+          requestIfNeeded: false,
+          force: true,
+        })
+        if (locationResult.location) {
+          syncLatestLocation(locationResult.location)
+          const point = createTrackingPointFromLocation(locationResult.location)
+          if (!point) {
+            skippedReason = '位置点格式无效，未写入轨迹队列'
+            await recordTrackingError(userId, skippedReason)
+          } else {
+            await enqueueTrackingPoint({
+              userId,
+              deviceId: identity.deviceId,
+              point,
+              reason: 'periodic',
+            })
+            captured = true
+          }
+        } else {
+          skippedReason = `本次未采样成功：${locationResult.message}`
+          await recordTrackingError(userId, skippedReason)
+        }
+      }
+
+      const flushResult = await flushQueuedTracking(userId)
+      setTrackingSnapshot(flushResult.snapshot)
+      if (isLocalBackendMode() && (captured || flushResult.sentCount > 0)) {
+        await refreshLocalPanel(userId)
+      }
+      if (!silent) {
+        setResultText(
+          buildTrackingResultMessage({
+            captured,
+            sentCount: flushResult.sentCount,
+            snapshot: flushResult.snapshot,
+            skippedReason,
+          })
+        )
+      }
+      return flushResult
+    } catch (error) {
+      const message = `轨迹同步失败: ${error.message}`
+      const snapshot = await recordTrackingError(userId, message)
+      setTrackingSnapshot(snapshot)
+      if (!silent) {
+        setResultText(message)
+      }
+      return { sentCount: 0, error: message, snapshot }
+    } finally {
+      trackingJobRef.current = false
+      setTrackingBusy(false)
+    }
+  }
+
+  async function loadContactsPreview(userId = currentUserId) {
     const data = await listContacts(userId)
     setContactsList(data.contacts)
     setContactsPreview(buildContactsPreview(data))
     return data
   }
 
-  async function loadTrackingPreview(userId = form.userId || identity.userId) {
+  async function loadTrackingPreview(userId = currentUserId) {
     const to = new Date()
     const from = new Date(to.getTime() - 60 * 60 * 1000)
     const data = await getTrackingTimeline({
@@ -1718,7 +1937,7 @@ function App() {
     return data
   }
 
-  async function loadSosHistory(userId = form.userId || identity.userId) {
+  async function loadSosHistory(userId = currentUserId) {
     const data = await listSosEvents(userId)
     setSosHistory(data.items)
     setSelectedSosId((current) =>
@@ -1958,6 +2177,7 @@ function App() {
           loadContactsPreview(merged.userId),
           loadSosHistory(merged.userId),
         ])
+        refreshTrackingPanel(merged.userId)
       } finally {
         if (!ignore) {
           setLoadingInit(false)
@@ -1993,12 +2213,45 @@ function App() {
     resetDataPreviews()
     resetContactManager()
     resetSosHistory()
+    refreshTrackingPanel(currentUserId)
     void Promise.all([
-      refreshLocalPanel(form.userId || identity.userId),
-      loadContactsPreview(form.userId || identity.userId),
-      loadSosHistory(form.userId || identity.userId),
+      refreshLocalPanel(currentUserId),
+      loadContactsPreview(currentUserId),
+      loadSosHistory(currentUserId),
     ])
-  }, [form.userId])
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (!trackingSnapshot.enabled || loadingInit) {
+      return undefined
+    }
+    const timer = setInterval(() => {
+      void runTrackingCycle({ capturePoint: true, silent: true })
+    }, trackingSnapshot.intervalSeconds * 1000)
+    return () => clearInterval(timer)
+  }, [currentUserId, identity.deviceId, loadingInit, trackingSnapshot.enabled, trackingSnapshot.intervalSeconds])
+
+  useEffect(() => {
+    function retryQueuedTracking() {
+      if (trackingSnapshot.pendingCount <= 0) {
+        return
+      }
+      void runTrackingCycle({ capturePoint: false, silent: true })
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        retryQueuedTracking()
+      }
+    }
+
+    window.addEventListener('online', retryQueuedTracking)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('online', retryQueuedTracking)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [trackingSnapshot.pendingCount, currentUserId, identity.deviceId])
 
   function onChange(event) {
     const { name, value } = event.target
@@ -2048,6 +2301,29 @@ function App() {
     } finally {
       setLocationRefreshPending(false)
     }
+  }
+
+  async function onRunTrackingNow() {
+    await runTrackingCycle({ capturePoint: true, silent: false })
+  }
+
+  async function onToggleTracking() {
+    const nextEnabled = !trackingSnapshot.enabled
+    await updateTrackingPreferences({ enabled: nextEnabled })
+    refreshTrackingPanel(currentUserId)
+    if (!nextEnabled) {
+      setResultText('已停止周期轨迹；当前待补发队列会保留，可稍后手动继续同步')
+      return
+    }
+    await runTrackingCycle({ capturePoint: true, silent: false })
+  }
+
+  async function onTrackingIntervalChange(event) {
+    const intervalSeconds = Number(event.target.value)
+    await updateTrackingPreferences({ intervalSeconds })
+    const snapshot = getTrackingSnapshot(currentUserId)
+    setTrackingSnapshot(snapshot)
+    setResultText(`已将轨迹采样周期调整为 ${snapshot.intervalSeconds} 秒`)
   }
 
   async function resolveSosLocation() {
@@ -2178,6 +2454,7 @@ function App() {
     updateIdentityUserId(pendingImport.userId)
     await writeJsonCache(cacheKey, pendingImport)
     await refreshLocalPanel(pendingImport.userId)
+    refreshTrackingPanel(pendingImport.userId)
     setOnboardingDone(false)
     setPendingImport(null)
     setPendingImportSummary(null)
@@ -2293,7 +2570,8 @@ function App() {
 
   async function onClearLocalPanel() {
     try {
-      await clearLocalBackendData(form.userId || identity.userId)
+      await clearLocalBackendData(currentUserId)
+      await clearTrackingData(currentUserId)
       await removeStoredValue(cacheKey)
       await removeStoredValue(onboardingKey)
       setForm(createEmptyForm(identity.userId))
@@ -2306,7 +2584,8 @@ function App() {
       resetSosHistory()
       setActivePage('config')
       await refreshLocalPanel(identity.userId)
-      setResultText('已清空当前用户本地后端数据，并重置引导')
+      refreshTrackingPanel(identity.userId)
+      setResultText('已清空当前用户本地后端数据、轨迹补发队列，并重置引导')
     } catch (error) {
       setResultText(`清空本地数据失败: ${error.message}`)
     }
@@ -2343,6 +2622,7 @@ function App() {
         setResultText('已取消本地快照导入')
         return
       }
+      await clearTrackingData(summary.userId)
       const { bundle } = await importLocalBackendBundle(payload)
       const nextForm = bundle.config
         ? {
@@ -2369,6 +2649,7 @@ function App() {
       resetSosHistory()
       setActivePage(bundle.config ? 'overview' : 'config')
       await refreshLocalPanel(bundle.userId)
+      refreshTrackingPanel(bundle.userId)
       await Promise.all([
         loadContactsPreview(bundle.userId),
         loadTrackingPreview(bundle.userId),
@@ -2585,10 +2866,15 @@ function App() {
             sosHistory={sosHistory}
             storageDriver={storageDriver}
             themeState={themeState}
+            trackingBusy={trackingBusy}
+            trackingSnapshot={trackingSnapshot}
             onCheckHealth={onCheckHealth}
             onNavigate={navigateToPage}
             onRefreshLocation={onRefreshLocation}
             onResetOnboarding={onResetOnboarding}
+            onRunTrackingNow={onRunTrackingNow}
+            onToggleTracking={onToggleTracking}
+            onTrackingIntervalChange={onTrackingIntervalChange}
             showToolsPage={showToolsPage}
           />
         )
