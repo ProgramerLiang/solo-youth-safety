@@ -105,6 +105,25 @@ function buildImportSummary(config) {
   }
 }
 
+function buildDiffHints(current, incoming) {
+  const hints = []
+  if (current.userId !== incoming.userId) {
+    hints.push(`userId: ${current.userId} → ${incoming.userId}`)
+  }
+  if (current.callNumber !== incoming.callNumber) {
+    hints.push(`callNumber: ${current.callNumber || '空'} → ${incoming.callNumber || '空'}`)
+  }
+  if (current.smsNumber !== incoming.smsNumber) {
+    hints.push(`smsNumber: ${current.smsNumber || '空'} → ${incoming.smsNumber || '空'}`)
+  }
+  if (current.smsTemplate !== incoming.smsTemplate) {
+    hints.push(
+      `smsTemplate 长度: ${current.smsTemplate.length} → ${incoming.smsTemplate.length}`
+    )
+  }
+  return hints
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -116,6 +135,8 @@ function App() {
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
   const [pendingImport, setPendingImport] = useState(null)
+  const [pendingImportSummary, setPendingImportSummary] = useState(null)
+  const [pendingImportDiffs, setPendingImportDiffs] = useState([])
   const [form, setForm] = useState({
     userId: DEFAULT_USER,
     callNumber: '',
@@ -288,12 +309,14 @@ function App() {
       const text = await file.text()
       const imported = parseImportedConfig(text)
       setPendingImport(imported)
-      const summary = buildImportSummary(imported)
-      setResultText(
-        `导入预览：userId=${summary.userId}, 电话=${summary.hasCallNumber ? '已填' : '空'}, 短信=${summary.hasSmsNumber ? '已填' : '空'}, 模板长度=${summary.templateLength}。请点击“确认导入”。`
-      )
+      setPendingImportSummary(buildImportSummary(imported))
+      setPendingImportDiffs(buildDiffHints(form, imported))
+      setResultText('已读取导入文件，请查看预览卡片并确认是否覆盖当前配置。')
       setActiveTab('setup')
     } catch (error) {
+      setPendingImport(null)
+      setPendingImportSummary(null)
+      setPendingImportDiffs([])
       setResultText(`配置导入失败: ${error.message}`)
     } finally {
       event.target.value = ''
@@ -308,11 +331,15 @@ function App() {
     writeJsonCache(cacheKey, pendingImport)
     setOnboardingDone(false)
     setPendingImport(null)
+    setPendingImportSummary(null)
+    setPendingImportDiffs([])
     setResultText('配置导入成功，请检查后点击“保存配置”同步到后端')
   }
 
   function onCancelImport() {
     setPendingImport(null)
+    setPendingImportSummary(null)
+    setPendingImportDiffs([])
     setResultText('已取消导入')
   }
 
@@ -400,6 +427,40 @@ function App() {
             />
           </div>
         </div>
+
+        {pendingImportSummary && (
+          <section className="md-import-card">
+            <h3>导入预览</h3>
+            <div className="md-import-meta">
+              <p>
+                <strong>userId：</strong>
+                {pendingImportSummary.userId}
+              </p>
+              <p>
+                <strong>电话号码：</strong>
+                {pendingImportSummary.hasCallNumber ? '已填写' : '留空'}
+              </p>
+              <p>
+                <strong>短信号码：</strong>
+                {pendingImportSummary.hasSmsNumber ? '已填写' : '留空'}
+              </p>
+              <p>
+                <strong>模板长度：</strong>
+                {pendingImportSummary.templateLength}
+              </p>
+            </div>
+            <p className="md-import-diff-title">差异提示：</p>
+            {pendingImportDiffs.length > 0 ? (
+              <ul className="md-import-diff-list">
+                {pendingImportDiffs.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="md-import-no-diff">与当前配置一致，无变更项。</p>
+            )}
+          </section>
+        )}
 
         {activeTab === 'setup' ? (
           <form className="md-form" onSubmit={onSaveConfig}>
