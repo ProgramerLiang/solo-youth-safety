@@ -2,10 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   checkHealth,
   clearLocalBackendData,
+  createContact,
+  createTrackingPoints,
   DEFAULT_USER,
   getEmergencyConfig,
   getLocalBackendSnapshot,
+  getTrackingTimeline,
   isLocalBackendMode,
+  listContacts,
   saveEmergencyConfig,
   triggerSos,
 } from './api'
@@ -142,6 +146,36 @@ function formatPanelTime(value) {
   }
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function createMockContactPayload(userId, count) {
+  const index = count + 1
+  return {
+    userId,
+    contact: {
+      name: `测试联系人${index}`,
+      phone: `1380000${String(index).padStart(4, '0')}`,
+    },
+  }
+}
+
+function createMockTrackingPayload(userId, location, count) {
+  const base = location ?? { lat: 31.2304, lng: 121.4737, accuracy: 12 }
+  const offset = (count + 1) * 0.0005
+  return {
+    userId,
+    deviceId: 'android-device-001',
+    points: [
+      {
+        lat: Number((base.lat + offset).toFixed(6)),
+        lng: Number((base.lng + offset).toFixed(6)),
+        accuracy: base.accuracy ?? 12,
+        speed: 0.8,
+        heading: 90,
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  }
 }
 
 function App() {
@@ -398,6 +432,78 @@ function App() {
     }
   }
 
+  async function onAddMockContact() {
+    try {
+      const payload = createMockContactPayload(
+        form.userId || DEFAULT_USER,
+        localPanel?.contactsCount ?? 0
+      )
+      const data = await createContact(payload)
+      await refreshLocalPanel(payload.userId)
+      setResultText(
+        `已写入模拟联系人：${payload.contact.name} / ${payload.contact.phone}（当前 ${data.count} 个）`
+      )
+    } catch (error) {
+      setResultText(`写入模拟联系人失败: ${error.message}`)
+    }
+  }
+
+  async function onAddMockTracking() {
+    try {
+      const payload = createMockTrackingPayload(
+        form.userId || DEFAULT_USER,
+        latestLocation,
+        localPanel?.trackingCount ?? 0
+      )
+      const data = await createTrackingPoints(payload)
+      const point = payload.points[0]
+      await refreshLocalPanel(payload.userId)
+      setResultText(
+        `已写入模拟轨迹点：(${point.lat}, ${point.lng}) @ ${point.timestamp}（本次 ${data.count} 条）`
+      )
+    } catch (error) {
+      setResultText(`写入模拟轨迹失败: ${error.message}`)
+    }
+  }
+
+  async function onInspectContacts() {
+    try {
+      const data = await listContacts(form.userId || DEFAULT_USER)
+      const preview = data.contacts
+        .slice(-3)
+        .map((item, index) => `${index + 1}. ${item.name} / ${item.phone}`)
+      setResultText([
+        `联系人总数：${data.contacts.length}`,
+        preview.length > 0 ? '最近 3 条：' : '暂无联系人',
+        ...preview,
+      ].join('\n'))
+    } catch (error) {
+      setResultText(`读取联系人失败: ${error.message}`)
+    }
+  }
+
+  async function onInspectTracking() {
+    try {
+      const to = new Date()
+      const from = new Date(to.getTime() - 60 * 60 * 1000)
+      const data = await getTrackingTimeline({
+        userId: form.userId || DEFAULT_USER,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      })
+      const preview = data.points
+        .slice(-3)
+        .map((point, index) => `${index + 1}. (${point.lat}, ${point.lng}) @ ${point.timestamp}`)
+      setResultText([
+        `最近 1 小时轨迹点：${data.count}`,
+        preview.length > 0 ? '最近 3 条：' : '暂无轨迹点',
+        ...preview,
+      ].join('\n'))
+    } catch (error) {
+      setResultText(`读取轨迹失败: ${error.message}`)
+    }
+  }
+
   async function executeSos() {
     setArming(false)
     setCountdown(5)
@@ -506,6 +612,7 @@ function App() {
             <p className="md-local-panel-time">
               最近 SOS：{formatPanelTime(localPanel.latestSos)}
             </p>
+            <p className="md-local-panel-note">可用下面的模拟按钮快速验证 contacts / tracking 流程。</p>
             <div className="md-row-actions">
               <button
                 type="button"
@@ -513,6 +620,18 @@ function App() {
                 onClick={() => refreshLocalPanel(localPanel.userId)}
               >
                 刷新面板
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onAddMockContact}>
+                添加模拟联系人
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onAddMockTracking}>
+                写入模拟轨迹
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onInspectContacts}>
+                查看联系人
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onInspectTracking}>
+                查看轨迹
               </button>
               <button type="button" className="md-btn tonal" onClick={onClearLocalPanel}>
                 清空本地数据
