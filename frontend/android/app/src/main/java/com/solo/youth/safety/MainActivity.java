@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MaterialThemeBridgePlugin.class);
+        registerPlugin(EmergencyActionsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

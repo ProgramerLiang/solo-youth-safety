@@ -86,7 +86,7 @@ const pageCatalog = [
     id: 'sos',
     label: 'SOS',
     title: '一键求助',
-    description: '执行 5 秒倒计时报警，并拉起系统拨号 / 短信。',
+    description: '执行 5 秒倒计时报警，并直接发送短信 / 发起拨号。',
   },
   {
     id: 'history',
@@ -221,7 +221,7 @@ function getValidationHints(form) {
   const callEmpty = !form.callNumber.trim()
   const smsEmpty = !form.smsNumber.trim()
   if (callEmpty && smsEmpty) {
-    hints.push('当前电话与短信号码都为空：SOS 仅会上报后端，不会拉起拨号或短信。')
+    hints.push('当前电话与短信号码都为空：SOS 仅会上报后端，不会执行直接短信或拨号。')
   }
   if (!form.smsTemplate.trim()) {
     hints.push('短信模板为空时将自动回退默认模板。')
@@ -1347,7 +1347,7 @@ function SosPage({
             <h2>SOS 快速操作</h2>
             <span className="md-chip">5 秒倒计时</span>
           </div>
-          <p>触发后会先写入后端事件，再尝试拉起系统拨号与短信。</p>
+          <p>触发后会先写入后端事件，再尝试直接发送短信并直接发起拨号。</p>
           {!arming ? (
             <button
               type="button"
@@ -1404,7 +1404,8 @@ function SosPage({
 
           <ul className="md-bullet-list">
             <li>电话与短信号码都可留空，空值会显示为 skipped。</li>
-            <li>短信内容按当前模板与实时位置变量渲染。</li>
+            <li>首次触发原生动作时会按需申请短信 / 电话权限。</li>
+            <li>短信内容按当前模板与实时位置变量渲染，并直接发送。</li>
             <li>倒计时结束时若位置缺失或偏旧，会优先尝试刷新当前位置。</li>
             <li>触发完成后，可前往“历史”页面查看事件详情。</li>
           </ul>
@@ -2923,18 +2924,19 @@ function App() {
         </div>
       </aside>
 
+      <button
+        type="button"
+        className="md-menu-fab"
+        onClick={drawerOpen ? closeDrawer : openDrawer}
+        aria-label={drawerOpen ? '收起侧边栏' : '打开侧边栏'}
+      >
+        ☰
+      </button>
+
       <div className="md-shell">
         <section ref={mainPanelRef} className="md-main">
           <header className="md-page-header">
             <div className="md-page-heading">
-              <button
-                type="button"
-                className="md-menu-btn"
-                onClick={drawerOpen ? closeDrawer : openDrawer}
-                aria-label={drawerOpen ? '收起侧边栏' : '打开侧边栏'}
-              >
-                ☰
-              </button>
               <div>
                 <p className="md-page-label">{currentPage.label}</p>
                 <h2>{currentPage.title}</h2>

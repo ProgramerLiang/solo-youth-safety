@@ -49,8 +49,10 @@
 
 ## F. SOS 触发结果
 - [ ] 后端收到 SOS（日志/接口返回成功）
-- [ ] 电话号码不为空时可拉起拨号界面
-- [ ] 短信号码不为空时可拉起短信界面并带入模板内容
+- [ ] 首次触发原生动作时会申请 `SEND_SMS` / `CALL_PHONE` 权限
+- [ ] 电话号码不为空且已授权时会直接发起拨号
+- [ ] 短信号码不为空且已授权时会直接发送短信，无需手动点发送
+- [ ] 拒绝权限时，“最新操作结果”会明确显示权限失败原因
 - [ ] 号码留空时相应通道显示 skipped
 - [ ] 触发完成后可在“历史”页看到刚触发的事件
 - [ ] 杀掉 App 后重新打开，历史 / 联系人 / 本地后端数据仍存在
@@ -62,9 +64,9 @@
 - [ ] `npm run android:apk` 成功
 - [ ] `npm run android:release:setup-signing` 成功
 - [ ] `npm run android:release` 成功
-- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-debug.apk`
-- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-release.apk`
-- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.5-release.aab`
+- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-debug.apk`
+- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-release.apk`
+- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.6-release.aab`
 - [ ] 项目外签名主目录存在：`/home/crp/.solo-youth-safety/signing`
 - [ ] 项目外签名备份目录存在：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 - [ ] 安装生成的版本化 APK 后可正常打开运行
