@@ -1,0 +1,10 @@
+{
+  "thinkingLevel": "medium",
+  "projectType": "documentation",
+  "language": "zh-CN",
+  "skills": {
+    "enabled": [
+      "quick-setup"
+    ]
+  }
+}
