@@ -96,6 +96,15 @@ function parseImportedConfig(raw) {
   }
 }
 
+function buildImportSummary(config) {
+  return {
+    userId: config.userId,
+    hasCallNumber: Boolean(config.callNumber.trim()),
+    hasSmsNumber: Boolean(config.smsNumber.trim()),
+    templateLength: config.smsTemplate.length,
+  }
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -106,6 +115,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('setup')
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
+  const [pendingImport, setPendingImport] = useState(null)
   const [form, setForm] = useState({
     userId: DEFAULT_USER,
     callNumber: '',
@@ -277,16 +287,33 @@ function App() {
     try {
       const text = await file.text()
       const imported = parseImportedConfig(text)
-      setForm(imported)
-      writeJsonCache(cacheKey, imported)
-      setOnboardingDone(false)
-      setResultText('配置导入成功，请检查后点击“保存配置”同步到后端')
+      setPendingImport(imported)
+      const summary = buildImportSummary(imported)
+      setResultText(
+        `导入预览：userId=${summary.userId}, 电话=${summary.hasCallNumber ? '已填' : '空'}, 短信=${summary.hasSmsNumber ? '已填' : '空'}, 模板长度=${summary.templateLength}。请点击“确认导入”。`
+      )
       setActiveTab('setup')
     } catch (error) {
       setResultText(`配置导入失败: ${error.message}`)
     } finally {
       event.target.value = ''
     }
+  }
+
+  function onConfirmImport() {
+    if (!pendingImport) {
+      return
+    }
+    setForm(pendingImport)
+    writeJsonCache(cacheKey, pendingImport)
+    setOnboardingDone(false)
+    setPendingImport(null)
+    setResultText('配置导入成功，请检查后点击“保存配置”同步到后端')
+  }
+
+  function onCancelImport() {
+    setPendingImport(null)
+    setResultText('已取消导入')
   }
 
   function onApplyTemplate(kind) {
@@ -354,6 +381,16 @@ function App() {
             <button type="button" className="md-btn tonal" onClick={onImportClick}>
               导入配置
             </button>
+            {pendingImport && (
+              <>
+                <button type="button" className="md-btn" onClick={onConfirmImport}>
+                  确认导入
+                </button>
+                <button type="button" className="md-btn tonal" onClick={onCancelImport}>
+                  取消导入
+                </button>
+              </>
+            )}
             <input
               ref={importInputRef}
               type="file"
