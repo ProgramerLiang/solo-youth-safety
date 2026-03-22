@@ -1,10 +1,20 @@
+import { getPersistedIdentity } from './identity'
 import { isNativePlatform } from './nativeActions'
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1'
-const DEFAULT_USER = 'u_123'
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
+const DEFAULT_USER = getPersistedIdentity().userId
+const DEFAULT_DEVICE_ID = getPersistedIdentity().deviceId
 const localDbKey = 'safety_local_backend_v1'
 const localBundleVersion = '1.0'
+
+function getDefaultUserId() {
+  return getPersistedIdentity().userId
+}
+
+function getDefaultDeviceId() {
+  return getPersistedIdentity().deviceId
+}
 
 function isLocalBackendEnabled() {
   const forced = globalThis?.localStorage?.getItem('safety_force_local_backend') === '1'
@@ -176,7 +186,7 @@ function normalizeImportedTrackingRecord(item, userId, index) {
   }
   return {
     userId,
-    deviceId: asTrimmedString(item?.deviceId) || 'android-device-001',
+    deviceId: asTrimmedString(item?.deviceId) || getDefaultDeviceId(),
     point: {
       lat: toFiniteNumber(point.lat, `${label}.lat`),
       lng: toFiniteNumber(point.lng, `${label}.lng`),
@@ -253,7 +263,7 @@ async function checkHealthLocal() {
   return { status: 'ok', time: new Date().toISOString(), mode: 'local' }
 }
 
-async function getEmergencyConfigLocal(userId = DEFAULT_USER) {
+async function getEmergencyConfigLocal(userId = getDefaultUserId()) {
   const db = loadLocalDb()
   return (
     db.emergencyConfigByUser[userId] || {
@@ -381,7 +391,7 @@ async function getTrackingTimelineLocal(userId, from, to) {
   return { userId, count: points.length, points }
 }
 
-async function listSosEventsLocal(userId = DEFAULT_USER, limit = 20) {
+async function listSosEventsLocal(userId = getDefaultUserId(), limit = 20) {
   if (!userId) {
     throw new Error('userId is required')
   }
@@ -397,7 +407,7 @@ async function listSosEventsLocal(userId = DEFAULT_USER, limit = 20) {
   return { userId, count: filtered.length, items: filtered.slice(0, limit) }
 }
 
-async function listContactsLocal(userId = DEFAULT_USER) {
+async function listContactsLocal(userId = getDefaultUserId()) {
   if (!userId) {
     throw new Error('userId is required')
   }
@@ -439,7 +449,7 @@ async function updateContactLocal(contactId, payload) {
   return { message: 'contact updated', count: existing.length, contact: existing[index] }
 }
 
-async function deleteContactLocal(contactId, userId = DEFAULT_USER) {
+async function deleteContactLocal(contactId, userId = getDefaultUserId()) {
   if (!contactId || !userId) {
     throw new Error('contactId/userId are required')
   }
@@ -459,7 +469,7 @@ export function isLocalBackendMode() {
   return isLocalBackendEnabled()
 }
 
-export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
+export async function getLocalBackendSnapshot(userId = getDefaultUserId()) {
   const db = loadLocalDb()
   const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
@@ -480,7 +490,7 @@ export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
   }
 }
 
-export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
+export async function exportLocalBackendBundle(userId = getDefaultUserId()) {
   const db = loadLocalDb()
   const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
@@ -527,7 +537,7 @@ export async function importLocalBackendBundle(payload) {
   }
 }
 
-export async function clearLocalBackendData(userId = DEFAULT_USER) {
+export async function clearLocalBackendData(userId = getDefaultUserId()) {
   const db = loadLocalDb()
   delete db.emergencyConfigByUser[userId]
   delete db.contactsByUser[userId]
@@ -544,7 +554,7 @@ export async function checkHealth() {
   return request('/health')
 }
 
-export async function getEmergencyConfig(userId = DEFAULT_USER) {
+export async function getEmergencyConfig(userId = getDefaultUserId()) {
   if (isLocalBackendEnabled()) {
     return getEmergencyConfigLocal(userId)
   }
@@ -572,7 +582,7 @@ export async function triggerSos(payload) {
   })
 }
 
-export async function listSosEvents(userId = DEFAULT_USER, limit = 20) {
+export async function listSosEvents(userId = getDefaultUserId(), limit = 20) {
   if (isLocalBackendEnabled()) {
     return listSosEventsLocal(userId, limit)
   }
@@ -598,7 +608,7 @@ export async function getTrackingTimeline({ userId, from, to }) {
   return request(`/tracking/timeline?${q.toString()}`)
 }
 
-export async function listContacts(userId = DEFAULT_USER) {
+export async function listContacts(userId = getDefaultUserId()) {
   if (isLocalBackendEnabled()) {
     return listContactsLocal(userId)
   }
@@ -626,7 +636,7 @@ export async function updateContact(contactId, payload) {
   })
 }
 
-export async function deleteContact(contactId, userId = DEFAULT_USER) {
+export async function deleteContact(contactId, userId = getDefaultUserId()) {
   if (isLocalBackendEnabled()) {
     return deleteContactLocal(contactId, userId)
   }

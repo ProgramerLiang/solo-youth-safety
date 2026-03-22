@@ -4,7 +4,6 @@ import {
   clearLocalBackendData,
   createContact,
   createTrackingPoints,
-  DEFAULT_USER,
   deleteContact,
   exportLocalBackendBundle,
   getEmergencyConfig,
@@ -20,18 +19,34 @@ import {
 } from './api'
 import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
 import { requestInitialPermissions } from './permissions'
+import {
+  applyThemeState,
+  buildThemeState,
+  loadDynamicThemeInfo,
+  presetPalettes,
+  readThemePreferences,
+  writeThemePreferences,
+} from './theme'
+import { getPersistedIdentity, savePersistedIdentity } from './identity'
 
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
 const configVersion = '1.0'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
+const appVersion = __APP_VERSION__
 const pageCatalog = [
   {
     id: 'overview',
     label: '总览',
     title: '状态总览',
     description: '先看当前状态，再进入具体功能页。',
+  },
+  {
+    id: 'theme',
+    label: '主题',
+    title: 'Material 动态主题',
+    description: '支持壁纸吸色、预设调色板与自定义配色。',
   },
   {
     id: 'config',
@@ -90,11 +105,11 @@ function downloadJsonFile(filename, payload) {
   URL.revokeObjectURL(url)
 }
 
-function createSosPayload(userId, location) {
+function createSosPayload(userId, deviceId, location) {
   const safeLocation = location ?? { lat: 31.2304, lng: 121.4737, accuracy: 12 }
   return {
     userId,
-    deviceId: 'android-device-001',
+    deviceId,
     triggerType: 'manual',
     timestamp: new Date().toISOString(),
     location: safeLocation,
@@ -186,9 +201,9 @@ function buildDiffHints(current, incoming) {
   return hints
 }
 
-function createEmptyForm() {
+function createEmptyForm(userId = getPersistedIdentity().userId) {
   return {
-    userId: DEFAULT_USER,
+    userId,
     callNumber: '',
     smsNumber: '',
     smsTemplate: defaultTemplate,
@@ -228,12 +243,12 @@ function createMockContactPayload(userId, count) {
   }
 }
 
-function createMockTrackingPayload(userId, location, count) {
+function createMockTrackingPayload(userId, deviceId, location, count) {
   const base = location ?? { lat: 31.2304, lng: 121.4737, accuracy: 12 }
   const offset = (count + 1) * 0.0005
   return {
     userId,
-    deviceId: 'android-device-001',
+    deviceId,
     points: [
       {
         lat: Number((base.lat + offset).toFixed(6)),
@@ -263,7 +278,7 @@ function buildTrackingPreview(data) {
 
 function buildLocalBundleSummary(bundle) {
   return {
-    userId: typeof bundle?.userId === 'string' ? bundle.userId : DEFAULT_USER,
+    userId: typeof bundle?.userId === 'string' ? bundle.userId : getPersistedIdentity().userId,
     hasConfig: Boolean(bundle?.config),
     contactsCount: Array.isArray(bundle?.contacts) ? bundle.contacts.length : 0,
     trackingCount: Array.isArray(bundle?.trackingPoints) ? bundle.trackingPoints.length : 0,
@@ -296,6 +311,7 @@ function PageButton({ page, active, onClick }) {
 
 function OverviewPage({
   contactsList,
+  deviceId,
   form,
   healthText,
   latestLocation,
@@ -304,6 +320,7 @@ function OverviewPage({
   pages,
   permissionText,
   sosHistory,
+  themeState,
   onCheckHealth,
   onNavigate,
   onResetOnboarding,
@@ -334,6 +351,7 @@ function OverviewPage({
           value={`${sosHistory.length} 条`}
           hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无事件'}
         />
+        <SummaryCard label="当前主题" value={themeState.label} hint={`版本 ${appVersion}`} />
       </section>
 
       <div className="md-overview-grid">
@@ -417,6 +435,10 @@ function OverviewPage({
               <span>本地数据</span>
               <strong>{localPanel ? `SOS ${localPanel.sosCount} / 轨迹 ${localPanel.trackingCount}` : '未启用'}</strong>
             </div>
+            <div className="md-kv-item">
+              <span>设备标识</span>
+              <strong>{deviceId}</strong>
+            </div>
           </div>
           <div className="md-row-actions">
             <button
@@ -436,7 +458,178 @@ function OverviewPage({
   )
 }
 
+function ThemePage({
+  themeState,
+  onCustomSeedChange,
+  onPresetChange,
+  onThemeModeChange,
+}) {
+  const dynamicSupported = themeState.dynamicInfo.supported
+
+  return (
+    <div className="md-page-stack">
+      <section className="md-summary-grid">
+        <SummaryCard
+          label="当前主题"
+          value={themeState.label}
+          hint={`主色 ${themeState.seedColor}`}
+        />
+        <SummaryCard
+          label="壁纸吸色"
+          value={dynamicSupported ? '已支持' : '当前设备不支持'}
+          hint={dynamicSupported ? themeState.dynamicInfo.source : 'Android 12+ 可用'}
+        />
+        <SummaryCard label="APK 版本" value={appVersion} hint="从此版本开始使用 0.x.x 迭代" />
+        <SummaryCard
+          label="当前模式"
+          value={
+            themeState.preferences.mode === 'dynamic'
+              ? '壁纸吸色'
+              : themeState.preferences.mode === 'custom'
+                ? '自定义'
+                : '预设'
+          }
+          hint="修改后立即生效并持久化"
+        />
+      </section>
+
+      <div className="md-overview-grid">
+        <section className="md-section-card md-theme-section">
+          <div className="md-section-head">
+            <h3>主题模式</h3>
+            <span className="md-chip">Material Design</span>
+          </div>
+          <p className="md-section-hint">在支持的 Android 设备上默认跟随壁纸吸色，也可随时切换到预设或自定义调色板。</p>
+          <div className="md-theme-mode-grid">
+            <button
+              type="button"
+              className={`md-theme-option ${themeState.preferences.mode === 'dynamic' ? 'active' : ''}`}
+              onClick={() => onThemeModeChange('dynamic')}
+              disabled={!dynamicSupported}
+            >
+              <strong>壁纸吸色</strong>
+              <span>{dynamicSupported ? '默认启用，跟随系统 Material You' : '当前设备不支持'}</span>
+            </button>
+            <button
+              type="button"
+              className={`md-theme-option ${themeState.preferences.mode === 'preset' ? 'active' : ''}`}
+              onClick={() => onThemeModeChange('preset')}
+            >
+              <strong>预设调色板</strong>
+              <span>提供多组稳定配色，适合统一演示风格</span>
+            </button>
+            <button
+              type="button"
+              className={`md-theme-option ${themeState.preferences.mode === 'custom' ? 'active' : ''}`}
+              onClick={() => onThemeModeChange('custom')}
+            >
+              <strong>自定义调色板</strong>
+              <span>选择自己的主色，立即重算 Material 色阶</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="md-section-card md-theme-section">
+          <div className="md-section-head">
+            <h3>调色板选择</h3>
+            <span className="md-chip subtle">实时预览</span>
+          </div>
+          <div className="md-theme-palette-grid">
+            {presetPalettes.map((palette) => (
+              <button
+                key={palette.id}
+                type="button"
+                className={`md-palette-card ${themeState.preferences.presetId === palette.id ? 'active' : ''}`}
+                onClick={() => onPresetChange(palette.id)}
+              >
+                <span
+                  className="md-color-dot"
+                  style={{ backgroundColor: palette.seed }}
+                  aria-hidden="true"
+                />
+                <strong>{palette.label}</strong>
+                <span>{palette.seed}</span>
+              </button>
+            ))}
+          </div>
+
+          <label htmlFor="customSeed" className="md-theme-custom-label">
+            自定义主色
+          </label>
+          <div className="md-theme-custom-row">
+            <input
+              id="customSeed"
+              type="color"
+              value={themeState.preferences.customSeed}
+              onChange={onCustomSeedChange}
+              className="md-color-input"
+            />
+            <div className="md-readonly-field">
+              <span>当前自定义颜色</span>
+              <strong>{themeState.preferences.customSeed}</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="md-section-card md-theme-preview-card">
+        <div className="md-section-head">
+          <h3>当前主题预览</h3>
+          <span className="md-chip subtle">v{appVersion}</span>
+        </div>
+        <div className="md-theme-preview-grid">
+          <div
+            className="md-theme-preview-block"
+            style={{
+              backgroundColor: themeState.palette.primary,
+              color: themeState.palette.onPrimary,
+            }}
+          >
+            <span style={{ color: themeState.palette.onPrimary }}>Primary</span>
+            <strong style={{ color: themeState.palette.onPrimary }}>{themeState.palette.primary}</strong>
+          </div>
+          <div
+            className="md-theme-preview-block"
+            style={{
+              backgroundColor: themeState.palette.primaryContainer,
+              color: themeState.palette.onPrimaryContainer,
+            }}
+          >
+            <span style={{ color: themeState.palette.onPrimaryContainer }}>Primary Container</span>
+            <strong style={{ color: themeState.palette.onPrimaryContainer }}>
+              {themeState.palette.primaryContainer}
+            </strong>
+          </div>
+          <div
+            className="md-theme-preview-block"
+            style={{
+              backgroundColor: themeState.palette.surface,
+              color: themeState.palette.onSurface,
+            }}
+          >
+            <span style={{ color: themeState.palette.onSurfaceVariant }}>Surface</span>
+            <strong style={{ color: themeState.palette.onSurface }}>{themeState.palette.surface}</strong>
+          </div>
+          <div
+            className="md-theme-preview-block"
+            style={{
+              backgroundColor: themeState.palette.surfaceContainer,
+              color: themeState.palette.onSurface,
+            }}
+          >
+            <span style={{ color: themeState.palette.onSurfaceVariant }}>Surface Container</span>
+            <strong style={{ color: themeState.palette.onSurface }}>
+              {themeState.palette.surfaceContainer}
+            </strong>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function ConfigPage({
+  deviceId,
   form,
   hasPendingImport,
   loadingInit,
@@ -527,6 +720,11 @@ function ConfigPage({
         <div className="md-readonly-field">
           <span>当前 userId</span>
           <strong>{form.userId}</strong>
+        </div>
+
+        <div className="md-readonly-field">
+          <span>当前 deviceId</span>
+          <strong>{deviceId}</strong>
         </div>
 
         <label htmlFor="callNumber">电话号码（可留空）</label>
@@ -1040,6 +1238,7 @@ function App() {
   const [permissionText, setPermissionText] = useState('首次启动将自动申请权限')
   const [latestLocation, setLatestLocation] = useState(null)
   const [loadingInit, setLoadingInit] = useState(true)
+  const [identity, setIdentity] = useState(getPersistedIdentity)
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [activePage, setActivePage] = useState('overview')
   const [arming, setArming] = useState(false)
@@ -1047,6 +1246,13 @@ function App() {
   const [pendingImport, setPendingImport] = useState(null)
   const [pendingImportSummary, setPendingImportSummary] = useState(null)
   const [pendingImportDiffs, setPendingImportDiffs] = useState([])
+  const [themePreferences, setThemePreferences] = useState(readThemePreferences)
+  const [dynamicThemeInfo, setDynamicThemeInfo] = useState({
+    supported: false,
+    seedColor: '#6750A4',
+    source: 'loading',
+    sdkInt: 0,
+  })
   const [localPanel, setLocalPanel] = useState(null)
   const [contactsList, setContactsList] = useState([])
   const [contactsPreview, setContactsPreview] = useState(null)
@@ -1055,7 +1261,7 @@ function App() {
   const [selectedSosId, setSelectedSosId] = useState(null)
   const [contactForm, setContactForm] = useState(createEmptyContactForm)
   const [editingContactId, setEditingContactId] = useState(null)
-  const [form, setForm] = useState(createEmptyForm)
+  const [form, setForm] = useState(() => createEmptyForm(identity.userId))
   const importInputRef = useRef(null)
   const localBundleInputRef = useRef(null)
 
@@ -1072,11 +1278,15 @@ function App() {
     () => pageItems.find((page) => page.id === activePage) || pageItems[0],
     [activePage, pageItems]
   )
+  const themeState = useMemo(
+    () => buildThemeState(themePreferences, dynamicThemeInfo),
+    [dynamicThemeInfo, themePreferences]
+  )
   const latestSosEvent = useMemo(() => sosHistory[0] || null, [sosHistory])
 
   const previewPayload = useMemo(
-    () => createSosPayload(form.userId || DEFAULT_USER, latestLocation),
-    [form.userId, latestLocation]
+    () => createSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation),
+    [form.userId, identity.deviceId, identity.userId, latestLocation]
   )
 
   const smsPreview = useMemo(
@@ -1090,7 +1300,33 @@ function App() {
     [selectedSosId, sosHistory]
   )
 
-  async function refreshLocalPanel(userId = form.userId || DEFAULT_USER) {
+  useEffect(() => {
+    applyThemeState(themeState)
+    writeThemePreferences(themeState.preferences)
+  }, [themeState])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadThemeInfo() {
+      const info = await loadDynamicThemeInfo()
+      if (!active) {
+        return
+      }
+      setDynamicThemeInfo(info)
+      setThemePreferences((current) => {
+        const resolved = buildThemeState(current, info).preferences
+        return JSON.stringify(current) === JSON.stringify(resolved) ? current : resolved
+      })
+    }
+
+    void loadThemeInfo()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function refreshLocalPanel(userId = form.userId || identity.userId) {
     if (!isLocalBackendMode()) {
       setLocalPanel(null)
       return
@@ -1099,14 +1335,14 @@ function App() {
     setLocalPanel(snapshot)
   }
 
-  async function loadContactsPreview(userId = form.userId || DEFAULT_USER) {
+  async function loadContactsPreview(userId = form.userId || identity.userId) {
     const data = await listContacts(userId)
     setContactsList(data.contacts)
     setContactsPreview(buildContactsPreview(data))
     return data
   }
 
-  async function loadTrackingPreview(userId = form.userId || DEFAULT_USER) {
+  async function loadTrackingPreview(userId = form.userId || identity.userId) {
     const to = new Date()
     const from = new Date(to.getTime() - 60 * 60 * 1000)
     const data = await getTrackingTimeline({
@@ -1118,7 +1354,7 @@ function App() {
     return data
   }
 
-  async function loadSosHistory(userId = form.userId || DEFAULT_USER) {
+  async function loadSosHistory(userId = form.userId || identity.userId) {
     const data = await listSosEvents(userId)
     setSosHistory(data.items)
     setSelectedSosId((current) =>
@@ -1143,6 +1379,17 @@ function App() {
     setSelectedSosId(null)
   }
 
+  function updateIdentityUserId(userId) {
+    const nextUserId = typeof userId === 'string' ? userId.trim() : ''
+    if (!nextUserId) {
+      return
+    }
+    setIdentity((current) => {
+      const next = savePersistedIdentity({ ...current, userId: nextUserId })
+      return current.userId === next.userId ? current : next
+    })
+  }
+
   useEffect(() => {
     let ignore = false
 
@@ -1164,15 +1411,16 @@ function App() {
       setLatestLocation(permissionResult.location)
 
       try {
-        const remote = await getEmergencyConfig(DEFAULT_USER)
+        const remote = await getEmergencyConfig(identity.userId)
         if (ignore) return
         const merged = {
-          userId: remote.userId || DEFAULT_USER,
+          userId: remote.userId || identity.userId,
           callNumber: remote.callNumber ?? cached?.callNumber ?? '',
           smsNumber: remote.smsNumber ?? cached?.smsNumber ?? '',
           smsTemplate: remote.smsTemplate || cached?.smsTemplate || defaultTemplate,
         }
         setForm(merged)
+        updateIdentityUserId(merged.userId)
         writeJsonCache(cacheKey, merged)
         await Promise.all([
           refreshLocalPanel(merged.userId),
@@ -1213,9 +1461,9 @@ function App() {
     resetContactManager()
     resetSosHistory()
     void Promise.all([
-      refreshLocalPanel(form.userId || DEFAULT_USER),
-      loadContactsPreview(form.userId || DEFAULT_USER),
-      loadSosHistory(form.userId || DEFAULT_USER),
+      refreshLocalPanel(form.userId || identity.userId),
+      loadContactsPreview(form.userId || identity.userId),
+      loadSosHistory(form.userId || identity.userId),
     ])
   }, [form.userId])
 
@@ -1252,6 +1500,7 @@ function App() {
         smsTemplate: data.smsTemplate,
       }
       setForm(next)
+      updateIdentityUserId(next.userId)
       writeJsonCache(cacheKey, next)
       await refreshLocalPanel(next.userId)
       setResultText('配置保存成功，已完成引导，可前往 SOS 页面')
@@ -1326,6 +1575,7 @@ function App() {
       return
     }
     setForm(pendingImport)
+    updateIdentityUserId(pendingImport.userId)
     writeJsonCache(cacheKey, pendingImport)
     await refreshLocalPanel(pendingImport.userId)
     setOnboardingDone(false)
@@ -1341,6 +1591,33 @@ function App() {
     setPendingImportSummary(null)
     setPendingImportDiffs([])
     setResultText('已取消导入')
+  }
+
+  function onThemeModeChange(mode) {
+    if (mode === 'dynamic' && !dynamicThemeInfo.supported) {
+      setResultText('当前设备不支持壁纸吸色，已保留现有调色板')
+      return
+    }
+    setThemePreferences((prev) => ({ ...prev, mode }))
+    setResultText(
+      mode === 'dynamic'
+        ? '已切换为壁纸吸色主题'
+        : mode === 'custom'
+          ? '已切换为自定义调色板模式'
+          : '已切换为预设调色板模式'
+    )
+  }
+
+  function onPresetThemeChange(presetId) {
+    setThemePreferences((prev) => ({ ...prev, mode: 'preset', presetId }))
+    const palette = presetPalettes.find((item) => item.id === presetId)
+    setResultText(`已切换预设调色板：${palette?.label || presetId}`)
+  }
+
+  function onCustomThemeSeedChange(event) {
+    const nextSeed = event.target.value
+    setThemePreferences((prev) => ({ ...prev, mode: 'custom', customSeed: nextSeed }))
+    setResultText(`已更新自定义调色板：${nextSeed}`)
   }
 
   function onApplyTemplate(kind) {
@@ -1379,7 +1656,7 @@ function App() {
       return
     }
 
-    const payload = { userId: form.userId || DEFAULT_USER, contact: { name, phone } }
+    const payload = { userId: form.userId || identity.userId, contact: { name, phone } }
     try {
       if (editingContactId) {
         await updateContact(editingContactId, payload)
@@ -1402,12 +1679,12 @@ function App() {
       return
     }
     try {
-      await deleteContact(contact.id, form.userId || DEFAULT_USER)
+      await deleteContact(contact.id, form.userId || identity.userId)
       if (editingContactId === contact.id) {
         onCancelEditContact()
       }
-      await refreshLocalPanel(form.userId || DEFAULT_USER)
-      await loadContactsPreview(form.userId || DEFAULT_USER)
+      await refreshLocalPanel(form.userId || identity.userId)
+      await loadContactsPreview(form.userId || identity.userId)
       setResultText(`已删除联系人：${contact.name}`)
     } catch (error) {
       setResultText(`删除联系人失败: ${error.message}`)
@@ -1416,10 +1693,10 @@ function App() {
 
   async function onClearLocalPanel() {
     try {
-      await clearLocalBackendData(form.userId || DEFAULT_USER)
+      await clearLocalBackendData(form.userId || identity.userId)
       localStorage.removeItem(cacheKey)
       localStorage.removeItem(onboardingKey)
-      setForm(createEmptyForm())
+      setForm(createEmptyForm(identity.userId))
       setOnboardingDone(false)
       setPendingImport(null)
       setPendingImportSummary(null)
@@ -1428,7 +1705,7 @@ function App() {
       resetContactManager()
       resetSosHistory()
       setActivePage('config')
-      await refreshLocalPanel(DEFAULT_USER)
+      await refreshLocalPanel(identity.userId)
       setResultText('已清空当前用户本地后端数据，并重置引导')
     } catch (error) {
       setResultText(`清空本地数据失败: ${error.message}`)
@@ -1437,7 +1714,7 @@ function App() {
 
   async function onExportLocalBundle() {
     try {
-      const userId = form.userId || DEFAULT_USER
+      const userId = form.userId || identity.userId
       const payload = await exportLocalBackendBundle(userId)
       downloadJsonFile(`safety-local-backup-${userId}.json`, payload)
       setResultText('已导出当前用户本地后端快照 JSON')
@@ -1477,6 +1754,7 @@ function App() {
           }
         : { ...createEmptyForm(), userId: bundle.userId }
       setForm(nextForm)
+      updateIdentityUserId(bundle.userId)
       writeJsonCache(cacheKey, nextForm)
       if (bundle.config) {
         localStorage.setItem(onboardingKey, 'done')
@@ -1509,7 +1787,7 @@ function App() {
   async function onAddMockContact() {
     try {
       const payload = createMockContactPayload(
-        form.userId || DEFAULT_USER,
+        form.userId || identity.userId,
         localPanel?.contactsCount ?? 0
       )
       const data = await createContact(payload)
@@ -1526,7 +1804,8 @@ function App() {
   async function onAddMockTracking() {
     try {
       const payload = createMockTrackingPayload(
-        form.userId || DEFAULT_USER,
+        form.userId || identity.userId,
+        identity.deviceId,
         latestLocation,
         localPanel?.trackingCount ?? 0
       )
@@ -1544,7 +1823,7 @@ function App() {
 
   async function onInspectContacts() {
     try {
-      const data = await loadContactsPreview(form.userId || DEFAULT_USER)
+      const data = await loadContactsPreview(form.userId || identity.userId)
       setResultText(`联系人快照已刷新（共 ${data.contacts.length} 条）`)
     } catch (error) {
       setResultText(`读取联系人失败: ${error.message}`)
@@ -1553,7 +1832,7 @@ function App() {
 
   async function onInspectTracking() {
     try {
-      const data = await loadTrackingPreview(form.userId || DEFAULT_USER)
+      const data = await loadTrackingPreview(form.userId || identity.userId)
       setResultText(`轨迹快照已刷新（最近 1 小时共 ${data.count} 条）`)
     } catch (error) {
       setResultText(`读取轨迹失败: ${error.message}`)
@@ -1562,7 +1841,7 @@ function App() {
 
   async function onRefreshSosHistory() {
     try {
-      const data = await loadSosHistory(form.userId || DEFAULT_USER)
+      const data = await loadSosHistory(form.userId || identity.userId)
       setResultText(`SOS 历史已刷新（共 ${data.count} 条）`)
     } catch (error) {
       setResultText(`读取 SOS 历史失败: ${error.message}`)
@@ -1572,7 +1851,7 @@ function App() {
   async function executeSos() {
     setArming(false)
     setCountdown(5)
-    const payload = createSosPayload(form.userId, latestLocation)
+    const payload = createSosPayload(form.userId || identity.userId, identity.deviceId, latestLocation)
     try {
       const [serverData, nativeLogs] = await Promise.all([
         triggerSos(payload),
@@ -1587,9 +1866,19 @@ function App() {
 
   function renderPageContent() {
     switch (currentPage.id) {
+      case 'theme':
+        return (
+          <ThemePage
+            themeState={themeState}
+            onCustomSeedChange={onCustomThemeSeedChange}
+            onPresetChange={onPresetThemeChange}
+            onThemeModeChange={onThemeModeChange}
+          />
+        )
       case 'config':
         return (
           <ConfigPage
+            deviceId={identity.deviceId}
             form={form}
             hasPendingImport={Boolean(pendingImport)}
             loadingInit={loadingInit}
@@ -1666,6 +1955,7 @@ function App() {
         return (
           <OverviewPage
             contactsList={contactsList}
+            deviceId={identity.deviceId}
             form={form}
             healthText={healthText}
             latestLocation={latestLocation}
@@ -1674,6 +1964,7 @@ function App() {
             pages={pageItems}
             permissionText={permissionText}
             sosHistory={sosHistory}
+            themeState={themeState}
             onCheckHealth={onCheckHealth}
             onNavigate={setActivePage}
             onResetOnboarding={onResetOnboarding}
@@ -1693,6 +1984,7 @@ function App() {
             <p className="md-brand-copy">把配置、联系人、SOS、历史、自检拆到独立页面，手机与大屏都更易使用。</p>
             <div className="md-chip-row">
               <span className="md-chip">{envText}</span>
+              <span className="md-chip subtle">v{appVersion}</span>
               <span className="md-chip subtle">用户 {form.userId}</span>
             </div>
           </section>
@@ -1731,6 +2023,14 @@ function App() {
               <div className="md-status-item">
                 <span>位置</span>
                 <strong>{formatLocationText(latestLocation)}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>主题</span>
+                <strong>{themeState.label}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>设备 ID</span>
+                <strong>{identity.deviceId}</strong>
               </div>
             </div>
           </section>

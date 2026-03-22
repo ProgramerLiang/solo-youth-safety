@@ -23,23 +23,29 @@ npm run build
 npm run android:sync
 npm run android:apk
 ```
-产物路径：
-`frontend/android/app/build/outputs/apk/debug/app-debug.apk`
+产物路径（按版本号命名）：
+`frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
 
-## 4) 首次启动引导与页面结构（已实现）
+## 4) 首次启动引导、主题与页面结构（已实现）
 - App 首次打开会自动申请定位权限
 - 权限申请后自动进入“通知配置”页面引导
 - 当前 UI 已拆分为自适应多页面：
   - 总览
+  - 主题
   - 通知配置
   - 联系人
   - SOS
   - 历史
   - 工具（本地后端 / 自检）
+- 主题页已支持：
+  - Android 12+ 默认壁纸吸色（Material You）
+  - 预设调色板
+  - 自定义调色板
 - 配置项支持：
   - 电话号码（可留空）
   - 短信号码（可留空）
   - 短信模板（自定义）
+  - 持久化 userId / deviceId 展示
 - 联系人已独立为单独页面，支持：
   - 新增联系人
   - 编辑联系人

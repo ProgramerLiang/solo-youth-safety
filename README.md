@@ -19,7 +19,9 @@
 - 首次启动自动申请定位权限
 - 配置电话号码 / 短信号码（均可留空）
 - 自定义短信模板与变量预览
-- 自适应多页面布局（总览 / 通知配置 / 联系人 / SOS / 历史 / 工具）
+- 自适应多页面布局（总览 / 主题 / 通知配置 / 联系人 / SOS / 历史 / 工具）
+- Material Design 动态主题（Android 12+ 默认壁纸吸色）与自定义调色板
+- 用户 / 设备标识持久化
 - 正式联系人管理（新增 / 编辑 / 删除 / 一键填入号码）
 - SOS 5 秒倒计时与取消
 - SOS 历史记录与通知详情查看
@@ -58,16 +60,16 @@ npm run android:sync
 npm run android:apk
 ```
 
-APK 输出路径：
-`frontend/android/app/build/outputs/apk/debug/app-debug.apk`
+APK 输出路径（按版本命名）：
+`frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
 
 ## 下一阶段重点
 详见：`docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
 
 当前最优先的方向是：
-1. 用户 / 设备标识持久化
-2. 本地与远端持久化升级
-3. Release APK / 签名 / 调试功能隔离
-4. 联系人角色 / 通知策略补强
-5. SOS 历史筛选与地图化增强
-6. 测试与 CI
+1. 本地与远端持久化升级
+2. Release APK / 签名 / 调试功能隔离
+3. 联系人角色 / 通知策略补强
+4. SOS 历史筛选与地图化增强
+5. 测试与 CI
+6. 远端身份 / 鉴权模型补强

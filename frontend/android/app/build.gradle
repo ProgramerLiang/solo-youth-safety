@@ -1,4 +1,18 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
+
+def frontendPackage = new JsonSlurper().parse(file('../../package.json'))
+def appVersionName = (frontendPackage.version ?: '0.2.0').toString()
+def versionTokens = appVersionName.tokenize('.').collect { token ->
+    token.isInteger() ? token.toInteger() : 0
+}
+while (versionTokens.size() < 3) {
+    versionTokens << 0
+}
+def appVersionCode = (versionTokens[0] * 10000) + (versionTokens[1] * 100) + versionTokens[2]
+
+def apkBaseName = "solo-youth-safety-v${appVersionName}"
 
 android {
     namespace "com.solo.youth.safety"
@@ -7,8 +21,8 @@ android {
         applicationId "com.solo.youth.safety"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -22,10 +36,15 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "${apkBaseName}-${variant.name}.apk"
+        }
+    }
 }
 
 repositories {
-    flatDir{
+    flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
 }
