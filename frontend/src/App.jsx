@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   checkHealth,
   DEFAULT_USER,
@@ -11,6 +11,7 @@ import { requestInitialPermissions } from './permissions'
 
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
+const configVersion = '1.0'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
 
@@ -73,6 +74,28 @@ function formatLogs(serverData, nativeLogs) {
   return ['SOS 已上报', ...serverLines, ...nativeLines].join('\n')
 }
 
+function parseImportedConfig(raw) {
+  const data = JSON.parse(raw)
+  if (!data || typeof data !== 'object') {
+    throw new Error('配置格式无效')
+  }
+  if (data.version !== configVersion) {
+    throw new Error(`配置版本不匹配，期望 ${configVersion}`)
+  }
+  if (typeof data.userId !== 'string' || !data.userId.trim()) {
+    throw new Error('缺少 userId')
+  }
+  if (typeof data.smsTemplate !== 'string') {
+    throw new Error('smsTemplate 必须为字符串')
+  }
+  return {
+    userId: data.userId,
+    callNumber: typeof data.callNumber === 'string' ? data.callNumber : '',
+    smsNumber: typeof data.smsNumber === 'string' ? data.smsNumber : '',
+    smsTemplate: data.smsTemplate || defaultTemplate,
+  }
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -89,6 +112,7 @@ function App() {
     smsNumber: '',
     smsTemplate: defaultTemplate,
   })
+  const importInputRef = useRef(null)
 
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
@@ -224,6 +248,7 @@ function App() {
 
   function onExportConfig() {
     const payload = {
+      version: configVersion,
       ...form,
       exportedAt: new Date().toISOString(),
       onboardingDone,
@@ -238,6 +263,30 @@ function App() {
     a.click()
     URL.revokeObjectURL(url)
     setResultText('已导出当前配置 JSON')
+  }
+
+  function onImportClick() {
+    importInputRef.current?.click()
+  }
+
+  async function onImportConfig(event) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+    try {
+      const text = await file.text()
+      const imported = parseImportedConfig(text)
+      setForm(imported)
+      writeJsonCache(cacheKey, imported)
+      setOnboardingDone(false)
+      setResultText('配置导入成功，请检查后点击“保存配置”同步到后端')
+      setActiveTab('setup')
+    } catch (error) {
+      setResultText(`配置导入失败: ${error.message}`)
+    } finally {
+      event.target.value = ''
+    }
   }
 
   function onApplyTemplate(kind) {
@@ -302,6 +351,16 @@ function App() {
             <button type="button" className="md-btn tonal" onClick={onExportConfig}>
               导出配置
             </button>
+            <button type="button" className="md-btn tonal" onClick={onImportClick}>
+              导入配置
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json"
+              className="md-hidden-input"
+              onChange={onImportConfig}
+            />
           </div>
         </div>
 

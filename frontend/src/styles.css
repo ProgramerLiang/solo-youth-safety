@@ -109,6 +109,10 @@ body {
   gap: 8px;
 }
 
+.md-hidden-input {
+  display: none;
+}
+
 .md-form {
   margin-top: 16px;
   display: grid;
