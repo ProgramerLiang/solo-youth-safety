@@ -45,14 +45,28 @@ npm run android:apk
   localStorage.setItem('safety_force_local_backend', '1')
   ```
 
-## 6) 真机行为说明
+## 6) 本地后端接口覆盖范围
+APK 本地后端已覆盖 MVP API：
+- `GET /health`
+- `GET/POST /emergency/config`
+- `POST /sos/events`
+- `POST /tracking/points`
+- `GET /tracking/timeline`
+- `GET/POST /contacts`
+
+说明：
+- 数据存储在本地 `localStorage`（key: `safety_local_backend_v1`）
+- `tracking/timeline` 同样校验时间范围（`from <= to`）
+- `contacts` 支持按 `userId` 读写
+
+## 7) 真机行为说明
 - 在 Android App 内点击“触发 SOS”时会：
   1. 调用 APK 内本地后端记录 SOS 与通知日志
   2. 尝试打开系统拨号（`tel:`）
   3. 尝试打开系统短信（`sms:`）并填充模板内容
 - 若号码留空，会自动跳过对应动作
 
-## 7) 打开 Android Studio（可选）
+## 8) 打开 Android Studio（可选）
 ```bash
 cd frontend
 npm run android:open

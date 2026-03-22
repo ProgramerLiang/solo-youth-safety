@@ -23,15 +23,27 @@ function loadLocalDb() {
   try {
     const raw = localStorage.getItem(localDbKey)
     if (!raw) {
-      return { emergencyConfigByUser: {}, sosEvents: [] }
+      return {
+        emergencyConfigByUser: {},
+        sosEvents: [],
+        contactsByUser: {},
+        trackingPoints: [],
+      }
     }
     const parsed = JSON.parse(raw)
     return {
       emergencyConfigByUser: parsed.emergencyConfigByUser || {},
       sosEvents: parsed.sosEvents || [],
+      contactsByUser: parsed.contactsByUser || {},
+      trackingPoints: parsed.trackingPoints || [],
     }
   } catch {
-    return { emergencyConfigByUser: {}, sosEvents: [] }
+    return {
+      emergencyConfigByUser: {},
+      sosEvents: [],
+      contactsByUser: {},
+      trackingPoints: [],
+    }
   }
 }
 
@@ -144,6 +156,73 @@ async function triggerSosLocal(payload) {
   }
 }
 
+async function createTrackingPointsLocal(payload) {
+  if (!payload?.userId || !payload?.deviceId || !Array.isArray(payload.points)) {
+    throw new Error('invalid tracking payload')
+  }
+  if (payload.points.length === 0) {
+    throw new Error('points must not be empty')
+  }
+
+  const db = loadLocalDb()
+  for (const point of payload.points) {
+    db.trackingPoints.push({
+      userId: payload.userId,
+      deviceId: payload.deviceId,
+      point,
+    })
+  }
+  saveLocalDb(db)
+  return { message: 'points stored', count: payload.points.length }
+}
+
+async function getTrackingTimelineLocal(userId, from, to) {
+  if (!userId || !from || !to) {
+    throw new Error('userId/from/to are required')
+  }
+
+  const fromTime = new Date(from)
+  const toTime = new Date(to)
+  if (Number.isNaN(fromTime.getTime()) || Number.isNaN(toTime.getTime())) {
+    throw new Error('invalid datetime range')
+  }
+  if (fromTime > toTime) {
+    throw new Error('from must be earlier than to')
+  }
+
+  const db = loadLocalDb()
+  const points = db.trackingPoints
+    .filter((item) => item.userId === userId)
+    .map((item) => item.point)
+    .filter((point) => {
+      const t = new Date(point.timestamp)
+      return t >= fromTime && t <= toTime
+    })
+
+  return { userId, count: points.length, points }
+}
+
+async function listContactsLocal(userId = DEFAULT_USER) {
+  if (!userId) {
+    throw new Error('userId is required')
+  }
+  const db = loadLocalDb()
+  return { userId, contacts: db.contactsByUser[userId] || [] }
+}
+
+async function createContactLocal(payload) {
+  if (!payload?.userId || !payload?.contact?.name || !payload?.contact?.phone) {
+    throw new Error('invalid contact payload')
+  }
+
+  const db = loadLocalDb()
+  const existing = db.contactsByUser[payload.userId] || []
+  existing.push({ name: payload.contact.name, phone: payload.contact.phone })
+  db.contactsByUser[payload.userId] = existing
+  saveLocalDb(db)
+  return { message: 'contact added', count: existing.length }
+}
+
 export async function checkHealth() {
   if (isLocalBackendEnabled()) {
     return checkHealthLocal()
@@ -174,6 +253,42 @@ export async function triggerSos(payload) {
     return triggerSosLocal(payload)
   }
   return request('/sos/events', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createTrackingPoints(payload) {
+  if (isLocalBackendEnabled()) {
+    return createTrackingPointsLocal(payload)
+  }
+  return request('/tracking/points', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getTrackingTimeline({ userId, from, to }) {
+  if (isLocalBackendEnabled()) {
+    return getTrackingTimelineLocal(userId, from, to)
+  }
+  const q = new URLSearchParams({ userId, from, to })
+  return request(`/tracking/timeline?${q.toString()}`)
+}
+
+export async function listContacts(userId = DEFAULT_USER) {
+  if (isLocalBackendEnabled()) {
+    return listContactsLocal(userId)
+  }
+  const q = new URLSearchParams({ userId })
+  return request(`/contacts?${q.toString()}`)
+}
+
+export async function createContact(payload) {
+  if (isLocalBackendEnabled()) {
+    return createContactLocal(payload)
+  }
+  return request('/contacts', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
