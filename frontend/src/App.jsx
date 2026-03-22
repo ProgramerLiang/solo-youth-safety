@@ -8,9 +8,9 @@ import {
   deleteContact,
   exportLocalBackendBundle,
   getEmergencyConfig,
-  importLocalBackendBundle,
   getLocalBackendSnapshot,
   getTrackingTimeline,
+  importLocalBackendBundle,
   isLocalBackendMode,
   listContacts,
   listSosEvents,
@@ -26,6 +26,44 @@ const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
 const configVersion = '1.0'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
+const pageCatalog = [
+  {
+    id: 'overview',
+    label: '总览',
+    title: '状态总览',
+    description: '先看当前状态，再进入具体功能页。',
+  },
+  {
+    id: 'config',
+    label: '通知配置',
+    title: '紧急通知配置',
+    description: '设置号码、短信模板与配置导入导出。',
+  },
+  {
+    id: 'contacts',
+    label: '联系人',
+    title: '紧急联系人管理',
+    description: '新增、编辑、删除联系人，并一键填入号码。',
+  },
+  {
+    id: 'sos',
+    label: 'SOS',
+    title: '一键求助',
+    description: '执行 5 秒倒计时报警，并拉起系统拨号 / 短信。',
+  },
+  {
+    id: 'history',
+    label: '历史',
+    title: 'SOS 历史记录',
+    description: '查看每次事件的时间、位置与通知结果。',
+  },
+  {
+    id: 'tools',
+    label: '工具',
+    title: '本地数据与自检',
+    description: '查看本地后端数据、快照与调试验证能力。',
+  },
+]
 
 function readJsonCache(key) {
   try {
@@ -172,6 +210,13 @@ function formatPanelTime(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
+function formatLocationText(location) {
+  if (!location) {
+    return '未获取'
+  }
+  return `${location.lat}, ${location.lng} / ±${location.accuracy ?? 12}m`
+}
+
 function createMockContactPayload(userId, count) {
   const index = count + 1
   return {
@@ -230,6 +275,765 @@ function summarizeNotifications(notifications = []) {
   return notifications.map((item) => `${item.channel}:${item.status}`).join(' / ') || '暂无通知记录'
 }
 
+function SummaryCard({ label, value, hint }) {
+  return (
+    <article className="md-summary-card">
+      <span className="md-summary-label">{label}</span>
+      <strong className="md-summary-value">{value}</strong>
+      {hint ? <span className="md-summary-hint">{hint}</span> : null}
+    </article>
+  )
+}
+
+function PageButton({ page, active, onClick }) {
+  return (
+    <button type="button" className={`md-nav-item ${active ? 'active' : ''}`} onClick={onClick}>
+      <strong>{page.label}</strong>
+      <span>{page.description}</span>
+    </button>
+  )
+}
+
+function OverviewPage({
+  contactsList,
+  form,
+  healthText,
+  latestLocation,
+  localPanel,
+  onboardingDone,
+  pages,
+  permissionText,
+  sosHistory,
+  onCheckHealth,
+  onNavigate,
+  onResetOnboarding,
+  showToolsPage,
+}) {
+  const latestSosEvent = sosHistory[0] || null
+
+  return (
+    <div className="md-page-stack">
+      <section className="md-summary-grid">
+        <SummaryCard
+          label="引导状态"
+          value={onboardingDone ? '已完成' : '待完成'}
+          hint={onboardingDone ? '可直接进入 SOS' : '建议先完成配置'}
+        />
+        <SummaryCard
+          label="通知通道"
+          value={`${form.callNumber.trim() ? 1 : 0}/${form.smsNumber.trim() ? 1 : 0} 已配置`}
+          hint="电话 / 短信"
+        />
+        <SummaryCard
+          label="联系人"
+          value={`${contactsList.length} 人`}
+          hint={contactsList.length > 0 ? '可一键填入配置' : '建议至少维护 1 人'}
+        />
+        <SummaryCard
+          label="SOS 历史"
+          value={`${sosHistory.length} 条`}
+          hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无事件'}
+        />
+      </section>
+
+      <div className="md-overview-grid">
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>快捷入口</h3>
+            <span className="md-chip">多页面导航</span>
+          </div>
+          <p className="md-section-hint">已按配置、联系人、SOS、历史、自检拆分页面，减少单页堆叠。</p>
+          <div className="md-quick-grid">
+            {pages
+              .filter((page) => page.id !== 'overview')
+              .map((page) => (
+                <button
+                  key={page.id}
+                  type="button"
+                  className="md-quick-card"
+                  onClick={() => onNavigate(page.id)}
+                >
+                  <strong>{page.label}</strong>
+                  <span>{page.description}</span>
+                </button>
+              ))}
+          </div>
+        </section>
+
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>设备状态</h3>
+            <span className={`md-chip ${showToolsPage ? 'subtle' : ''}`}>
+              {showToolsPage ? '本地后端' : '远端后端'}
+            </span>
+          </div>
+          <div className="md-kv-list">
+            <div className="md-kv-item">
+              <span>权限状态</span>
+              <strong>{permissionText}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>后端健康</span>
+              <strong>{healthText}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>当前位置</span>
+              <strong>{formatLocationText(latestLocation)}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>最近 SOS</span>
+              <strong>{latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无'}</strong>
+            </div>
+          </div>
+          <div className="md-row-actions">
+            <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
+              检查后端
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
+              重置引导
+            </button>
+          </div>
+        </section>
+
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>当前配置摘要</h3>
+            <span className="md-chip subtle">{form.userId}</span>
+          </div>
+          <div className="md-kv-list">
+            <div className="md-kv-item">
+              <span>电话号码</span>
+              <strong>{form.callNumber.trim() || '未设置'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>短信号码</span>
+              <strong>{form.smsNumber.trim() || '未设置'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>模板长度</span>
+              <strong>{(form.smsTemplate || defaultTemplate).length} 字符</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>本地数据</span>
+              <strong>{localPanel ? `SOS ${localPanel.sosCount} / 轨迹 ${localPanel.trackingCount}` : '未启用'}</strong>
+            </div>
+          </div>
+          <div className="md-row-actions">
+            <button
+              type="button"
+              className="md-btn"
+              onClick={() => onNavigate(onboardingDone ? 'sos' : 'config')}
+            >
+              {onboardingDone ? '前往 SOS' : '完成配置'}
+            </button>
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('history')}>
+              查看历史
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function ConfigPage({
+  form,
+  hasPendingImport,
+  loadingInit,
+  pendingImportDiffs,
+  pendingImportSummary,
+  smsPreview,
+  validationHints,
+  onApplyTemplate,
+  onCancelImport,
+  onChange,
+  onConfirmImport,
+  onExportConfig,
+  onImportClick,
+  onResetOnboarding,
+  onSaveConfig,
+}) {
+  return (
+    <div className="md-page-stack">
+      <section className="md-section-card">
+        <div className="md-section-head">
+          <h3>配置工具</h3>
+          <span className="md-chip subtle">当前用户 {form.userId}</span>
+        </div>
+        <p className="md-section-hint">电话和短信号码都支持留空，短信模板支持导入、导出与自定义。</p>
+        <div className="md-row-actions">
+          <button type="button" className="md-btn tonal" onClick={onExportConfig}>
+            导出配置
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onImportClick}>
+            导入配置
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
+            重置引导
+          </button>
+          {hasPendingImport && (
+            <>
+              <button type="button" className="md-btn" onClick={onConfirmImport}>
+                确认导入
+              </button>
+              <button type="button" className="md-btn tonal" onClick={onCancelImport}>
+                取消导入
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      {pendingImportSummary && (
+        <section className="md-import-card">
+          <h3>导入预览</h3>
+          <div className="md-import-meta">
+            <p>
+              <strong>userId：</strong>
+              {pendingImportSummary.userId}
+            </p>
+            <p>
+              <strong>电话号码：</strong>
+              {pendingImportSummary.hasCallNumber ? '已填写' : '留空'}
+            </p>
+            <p>
+              <strong>短信号码：</strong>
+              {pendingImportSummary.hasSmsNumber ? '已填写' : '留空'}
+            </p>
+            <p>
+              <strong>模板长度：</strong>
+              {pendingImportSummary.templateLength}
+            </p>
+          </div>
+          <p className="md-import-diff-title">差异提示：</p>
+          {pendingImportDiffs.length > 0 ? (
+            <ul className="md-import-diff-list">
+              {pendingImportDiffs.map((hint) => (
+                <li key={hint}>{hint}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="md-import-no-diff">与当前配置一致，无变更项。</p>
+          )}
+        </section>
+      )}
+
+      <form className="md-form md-section-card" onSubmit={onSaveConfig}>
+        <div className="md-section-head">
+          <h2>紧急通知配置</h2>
+          <span className="md-chip">保存后生效</span>
+        </div>
+
+        <div className="md-readonly-field">
+          <span>当前 userId</span>
+          <strong>{form.userId}</strong>
+        </div>
+
+        <label htmlFor="callNumber">电话号码（可留空）</label>
+        <input
+          id="callNumber"
+          name="callNumber"
+          value={form.callNumber}
+          onChange={onChange}
+          placeholder="例如 110 或联系人号码"
+        />
+
+        <label htmlFor="smsNumber">短信号码（可留空）</label>
+        <input
+          id="smsNumber"
+          name="smsNumber"
+          value={form.smsNumber}
+          onChange={onChange}
+          placeholder="例如 13800000000"
+        />
+
+        <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
+        <textarea
+          id="smsTemplate"
+          name="smsTemplate"
+          value={form.smsTemplate}
+          onChange={onChange}
+          rows={5}
+        />
+
+        <div className="md-template-actions">
+          <button type="button" className="md-btn tonal" onClick={() => onApplyTemplate('default')}>
+            使用默认模板
+          </button>
+          <button type="button" className="md-btn tonal" onClick={() => onApplyTemplate('compact')}>
+            使用简洁模板
+          </button>
+        </div>
+
+        <div className="md-helper">
+          <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+          {validationHints.length > 0 && (
+            <ul className="md-warn-list">
+              {validationHints.map((hint) => (
+                <li key={hint}>{hint}</li>
+              ))}
+            </ul>
+          )}
+          <p>短信预览：</p>
+          <pre className="md-preview">{smsPreview}</pre>
+        </div>
+
+        <button type="submit" className="md-btn" disabled={loadingInit}>
+          保存配置
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function ContactsPage({
+  contactForm,
+  contactsList,
+  editingContactId,
+  onApplyContactNumber,
+  onCancelEditContact,
+  onContactFormChange,
+  onDeleteContact,
+  onStartEditContact,
+  onSubmitContact,
+}) {
+  return (
+    <div className="md-page-stack">
+      <section className="md-section-card">
+        <div className="md-section-head">
+          <h3>联系人页面</h3>
+          <span className="md-chip">{contactsList.length} 人</span>
+        </div>
+        <p className="md-section-hint">此页仅负责联系人管理；将号码填入通知配置后，记得回到“通知配置”页面保存。</p>
+      </section>
+
+      <div className="md-overview-grid">
+        <form className="md-section-card md-contact-form" onSubmit={onSubmitContact}>
+          <div className="md-section-head">
+            <h2>{editingContactId ? '编辑联系人' : '新增联系人'}</h2>
+            <span className="md-chip subtle">表单</span>
+          </div>
+          <div className="md-contact-form-grid">
+            <div>
+              <label htmlFor="contactName">联系人姓名</label>
+              <input
+                id="contactName"
+                name="name"
+                value={contactForm.name}
+                onChange={onContactFormChange}
+                placeholder="例如 家人 / 室友 / 朋友"
+              />
+            </div>
+            <div>
+              <label htmlFor="contactPhone">联系电话</label>
+              <input
+                id="contactPhone"
+                name="phone"
+                value={contactForm.phone}
+                onChange={onContactFormChange}
+                placeholder="例如 13800000000"
+              />
+            </div>
+          </div>
+          <div className="md-row-actions">
+            <button type="submit" className="md-btn">
+              {editingContactId ? '保存联系人' : '新增联系人'}
+            </button>
+            {editingContactId && (
+              <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
+                取消编辑
+              </button>
+            )}
+          </div>
+        </form>
+
+        <section className="md-section-card md-contact-section">
+          <div className="md-section-head">
+            <h2>联系人列表</h2>
+            <span className="md-chip subtle">可直接填入号码</span>
+          </div>
+
+          {contactsList.length > 0 ? (
+            <ul className="md-contact-list">
+              {contactsList.map((contact) => (
+                <li key={contact.id} className="md-contact-item">
+                  <div className="md-contact-main">
+                    <strong>{contact.name}</strong>
+                    <span>{contact.phone}</span>
+                  </div>
+                  <div className="md-row-actions">
+                    <button
+                      type="button"
+                      className="md-btn tonal"
+                      onClick={() => onApplyContactNumber('callNumber', contact.phone)}
+                    >
+                      设为电话
+                    </button>
+                    <button
+                      type="button"
+                      className="md-btn tonal"
+                      onClick={() => onApplyContactNumber('smsNumber', contact.phone)}
+                    >
+                      设为短信
+                    </button>
+                    <button
+                      type="button"
+                      className="md-btn tonal"
+                      onClick={() => onStartEditContact(contact)}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      className="md-btn tonal"
+                      onClick={() => onDeleteContact(contact)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="md-data-empty">当前用户还没有联系人，请先新增至少 1 位可信联系人。</p>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function SosPage({
+  arming,
+  countdown,
+  form,
+  historyCount,
+  latestSosEvent,
+  loadingInit,
+  onboardingDone,
+  onArmSos,
+  onCancelSos,
+  onNavigate,
+}) {
+  return (
+    <div className="md-page-stack">
+      {!onboardingDone && <div className="md-banner">建议先在“通知配置”页面完成保存，再进入 SOS 流程。</div>}
+
+      <section className="md-summary-grid">
+        <SummaryCard
+          label="电话通道"
+          value={form.callNumber.trim() ? '已配置' : '未配置'}
+          hint={form.callNumber.trim() || '留空时自动跳过'}
+        />
+        <SummaryCard
+          label="短信通道"
+          value={form.smsNumber.trim() ? '已配置' : '未配置'}
+          hint={form.smsNumber.trim() || '留空时自动跳过'}
+        />
+        <SummaryCard
+          label="模板状态"
+          value={`${(form.smsTemplate || defaultTemplate).length} 字符`}
+          hint="支持变量占位符"
+        />
+        <SummaryCard
+          label="历史记录"
+          value={`${historyCount} 条`}
+          hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无历史'}
+        />
+      </section>
+
+      <div className="md-overview-grid">
+        <section className="md-sos-panel md-section-card">
+          <div className="md-section-head">
+            <h2>SOS 快速操作</h2>
+            <span className="md-chip">5 秒倒计时</span>
+          </div>
+          <p>触发后会先写入后端事件，再尝试拉起系统拨号与短信。</p>
+          {!arming ? (
+            <button
+              type="button"
+              className="md-btn danger"
+              onClick={onArmSos}
+              disabled={loadingInit}
+            >
+              触发 SOS（倒计时 5 秒）
+            </button>
+          ) : (
+            <button type="button" className="md-btn" onClick={onCancelSos}>
+              取消 SOS（剩余 {countdown}s）
+            </button>
+          )}
+          <div className="md-row-actions">
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('config')}>
+              检查配置
+            </button>
+            <button type="button" className="md-btn tonal" onClick={() => onNavigate('history')}>
+              查看历史
+            </button>
+          </div>
+        </section>
+
+        <section className="md-section-card">
+          <div className="md-section-head">
+            <h3>触发说明</h3>
+            <span className="md-chip subtle">Android 原生动作</span>
+          </div>
+          <ul className="md-bullet-list">
+            <li>电话与短信号码都可留空，空值会显示为 skipped。</li>
+            <li>短信内容按当前模板与实时位置变量渲染。</li>
+            <li>触发完成后，可前往“历史”页面查看事件详情。</li>
+          </ul>
+
+          {latestSosEvent ? (
+            <div className="md-kv-list">
+              <div className="md-kv-item">
+                <span>最近事件</span>
+                <strong>{formatPanelTime(latestSosEvent.timestamp)}</strong>
+              </div>
+              <div className="md-kv-item">
+                <span>位置</span>
+                <strong>
+                  {latestSosEvent.location.lat}, {latestSosEvent.location.lng}
+                </strong>
+              </div>
+            </div>
+          ) : (
+            <p className="md-data-empty">当前还没有 SOS 记录，触发一次后即可在历史页查看。</p>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function HistoryPage({ onRefreshSosHistory, selectedSosEvent, setSelectedSosId, sosHistory }) {
+  return (
+    <div className="md-page-stack">
+      <section className="md-section-card md-history-section">
+        <div className="md-data-card-header">
+          <h2>SOS 历史记录</h2>
+          <span className="md-chip">最近 {sosHistory.length} 条</span>
+        </div>
+        <p className="md-section-hint">列表与详情拆分展示，方便在手机上逐条查看通知结果。</p>
+        <div className="md-row-actions">
+          <button type="button" className="md-btn tonal" onClick={onRefreshSosHistory}>
+            刷新历史
+          </button>
+        </div>
+
+        {sosHistory.length > 0 ? (
+          <div className="md-history-layout">
+            <ul className="md-history-list">
+              {sosHistory.map((event) => (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    className={`md-history-item ${selectedSosEvent?.id === event.id ? 'active' : ''}`}
+                    onClick={() => setSelectedSosId(event.id)}
+                  >
+                    <strong>{formatPanelTime(event.timestamp)}</strong>
+                    <span>{event.triggerType === 'manual' ? '手动触发' : '自动触发'}</span>
+                    <span>{summarizeNotifications(event.notifications)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {selectedSosEvent && (
+              <article className="md-history-detail">
+                <div className="md-history-detail-grid">
+                  <p>
+                    <strong>事件 ID：</strong>
+                    {selectedSosEvent.id}
+                  </p>
+                  <p>
+                    <strong>触发时间：</strong>
+                    {formatPanelTime(selectedSosEvent.timestamp)}
+                  </p>
+                  <p>
+                    <strong>触发方式：</strong>
+                    {selectedSosEvent.triggerType === 'manual' ? '手动' : '自动'}
+                  </p>
+                  <p>
+                    <strong>设备：</strong>
+                    {selectedSosEvent.deviceId}
+                  </p>
+                  <p>
+                    <strong>位置：</strong>
+                    ({selectedSosEvent.location.lat}, {selectedSosEvent.location.lng})
+                  </p>
+                  <p>
+                    <strong>精度：</strong>
+                    {selectedSosEvent.location.accuracy}
+                  </p>
+                </div>
+
+                <h3 className="md-history-subtitle">通知结果</h3>
+                {selectedSosEvent.notifications.length > 0 ? (
+                  <ul className="md-data-list">
+                    {selectedSosEvent.notifications.map((item, index) => (
+                      <li
+                        key={`${selectedSosEvent.id}-${item.channel}-${index}`}
+                        className="md-data-list-item"
+                      >
+                        <strong>
+                          {item.channel.toUpperCase()} / {item.status}
+                        </strong>
+                        <span>{item.destination || '未设置号码'}</span>
+                        <span>{item.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="md-data-empty">该事件暂无通知详情。</p>
+                )}
+              </article>
+            )}
+          </div>
+        ) : (
+          <p className="md-data-empty">当前用户暂无 SOS 历史记录，触发一次 SOS 后会在这里展示。</p>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ToolsPage({
+  contactsPreview,
+  localPanel,
+  trackingPreview,
+  onAddMockContact,
+  onAddMockTracking,
+  onClearLocalPanel,
+  onExportLocalBundle,
+  onImportLocalBundleClick,
+  onInspectContacts,
+  onInspectTracking,
+  onRefreshLocalPanel,
+}) {
+  return (
+    <div className="md-page-stack">
+      <section className="md-section-card">
+        <div className="md-section-head">
+          <h3>开发者自检页</h3>
+          <span className="md-chip subtle">Debug / 验收辅助</span>
+        </div>
+        <p className="md-section-hint">这一页承载本地后端面板、快照与 mock 操作，避免与用户主流程混在同一屏。</p>
+      </section>
+
+      {localPanel ? (
+        <section className="md-local-panel">
+          <div className="md-local-panel-header">
+            <h3>本地后端数据面板</h3>
+            <span className="md-chip">当前用户 {localPanel.userId}</span>
+          </div>
+          <div className="md-local-panel-grid">
+            <div className="md-stat-card">
+              <span>配置</span>
+              <strong>{localPanel.hasConfig ? '已保存' : '未保存'}</strong>
+            </div>
+            <div className="md-stat-card">
+              <span>SOS 记录</span>
+              <strong>{localPanel.sosCount}</strong>
+            </div>
+            <div className="md-stat-card">
+              <span>联系人</span>
+              <strong>{localPanel.contactsCount}</strong>
+            </div>
+            <div className="md-stat-card">
+              <span>轨迹点</span>
+              <strong>{localPanel.trackingCount}</strong>
+            </div>
+          </div>
+          <p className="md-local-panel-time">最近 SOS：{formatPanelTime(localPanel.latestSos)}</p>
+          <p className="md-local-panel-note">建议仅在测试 / 验收时使用下面这些工具按钮。</p>
+          <div className="md-row-actions">
+            <button type="button" className="md-btn tonal" onClick={() => onRefreshLocalPanel(localPanel.userId)}>
+              刷新面板
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onExportLocalBundle}>
+              导出本地快照
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onImportLocalBundleClick}>
+              导入本地快照
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onAddMockContact}>
+              添加模拟联系人
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onAddMockTracking}>
+              写入模拟轨迹
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onInspectContacts}>
+              刷新联系人快照
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onInspectTracking}>
+              刷新轨迹快照
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onClearLocalPanel}>
+              清空本地数据
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="md-section-card">
+          <p className="md-data-empty">当前不在本地后端模式，工具页无可展示的本地数据面板。</p>
+        </section>
+      )}
+
+      {(contactsPreview || trackingPreview) && (
+        <section className="md-preview-section">
+          {contactsPreview && (
+            <article className="md-data-card">
+              <div className="md-data-card-header">
+                <h3>联系人快照</h3>
+                <span className="md-chip">{contactsPreview.count} 条</span>
+              </div>
+              {contactsPreview.items.length > 0 ? (
+                <ul className="md-data-list">
+                  {contactsPreview.items.map((item) => (
+                    <li key={item.id || `${item.name}-${item.phone}`} className="md-data-list-item">
+                      <strong>{item.name}</strong>
+                      <span>{item.phone}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="md-data-empty">暂无联系人数据</p>
+              )}
+            </article>
+          )}
+
+          {trackingPreview && (
+            <article className="md-data-card">
+              <div className="md-data-card-header">
+                <h3>最近 1 小时轨迹</h3>
+                <span className="md-chip">{trackingPreview.count} 条</span>
+              </div>
+              {trackingPreview.items.length > 0 ? (
+                <ul className="md-data-list">
+                  {trackingPreview.items.map((point) => (
+                    <li
+                      key={`${point.timestamp}-${point.lat}-${point.lng}`}
+                      className="md-data-list-item"
+                    >
+                      <strong>
+                        ({point.lat}, {point.lng})
+                      </strong>
+                      <span>{formatPanelTime(point.timestamp)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="md-data-empty">最近 1 小时暂无轨迹点</p>
+              )}
+            </article>
+          )}
+        </section>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -237,7 +1041,7 @@ function App() {
   const [latestLocation, setLatestLocation] = useState(null)
   const [loadingInit, setLoadingInit] = useState(true)
   const [onboardingDone, setOnboardingDone] = useState(false)
-  const [activeTab, setActiveTab] = useState('setup')
+  const [activePage, setActivePage] = useState('overview')
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
   const [pendingImport, setPendingImport] = useState(null)
@@ -259,6 +1063,16 @@ function App() {
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
     []
   )
+  const showToolsPage = isLocalBackendMode()
+  const pageItems = useMemo(
+    () => pageCatalog.filter((page) => page.id !== 'tools' || showToolsPage),
+    [showToolsPage]
+  )
+  const currentPage = useMemo(
+    () => pageItems.find((page) => page.id === activePage) || pageItems[0],
+    [activePage, pageItems]
+  )
+  const latestSosEvent = useMemo(() => sosHistory[0] || null, [sosHistory])
 
   const previewPayload = useMemo(
     () => createSosPayload(form.userId || DEFAULT_USER, latestLocation),
@@ -336,7 +1150,7 @@ function App() {
       const done = localStorage.getItem(onboardingKey) === 'done'
       if (!ignore) {
         setOnboardingDone(done)
-        setActiveTab(done ? 'sos' : 'setup')
+        setActivePage(done ? 'overview' : 'config')
       }
 
       const cached = readJsonCache(cacheKey)
@@ -389,6 +1203,12 @@ function App() {
   }, [arming, countdown])
 
   useEffect(() => {
+    if (!showToolsPage && activePage === 'tools') {
+      setActivePage(onboardingDone ? 'overview' : 'config')
+    }
+  }, [activePage, onboardingDone, showToolsPage])
+
+  useEffect(() => {
     resetDataPreviews()
     resetContactManager()
     resetSosHistory()
@@ -409,8 +1229,10 @@ function App() {
     try {
       const data = await checkHealth()
       setHealthText(`${data.status} @ ${data.time}`)
+      setResultText(`后端健康检查完成：${data.status}`)
     } catch (error) {
       setHealthText(`失败: ${error.message}`)
+      setResultText(`后端健康检查失败：${error.message}`)
     }
   }
 
@@ -432,13 +1254,13 @@ function App() {
       setForm(next)
       writeJsonCache(cacheKey, next)
       await refreshLocalPanel(next.userId)
-      setResultText('配置保存成功，已完成引导，可切换到 SOS 页')
+      setResultText('配置保存成功，已完成引导，可前往 SOS 页面')
     } catch (error) {
       setResultText(`后端保存失败，已本地保存: ${error.message}`)
     }
     localStorage.setItem(onboardingKey, 'done')
     setOnboardingDone(true)
-    setActiveTab('sos')
+    setActivePage('sos')
   }
 
   function onArmSos() {
@@ -457,7 +1279,7 @@ function App() {
   function onResetOnboarding() {
     localStorage.removeItem(onboardingKey)
     setOnboardingDone(false)
-    setActiveTab('setup')
+    setActivePage('config')
     setResultText('已重置引导状态，请重新完成配置')
   }
 
@@ -487,8 +1309,8 @@ function App() {
       setPendingImport(imported)
       setPendingImportSummary(buildImportSummary(imported))
       setPendingImportDiffs(buildDiffHints(form, imported))
-      setResultText('已读取导入文件，请查看预览卡片并确认是否覆盖当前配置。')
-      setActiveTab('setup')
+      setResultText('已读取导入文件，请在配置页确认是否覆盖当前配置。')
+      setActivePage('config')
     } catch (error) {
       setPendingImport(null)
       setPendingImportSummary(null)
@@ -510,6 +1332,7 @@ function App() {
     setPendingImport(null)
     setPendingImportSummary(null)
     setPendingImportDiffs([])
+    setActivePage('config')
     setResultText('配置导入成功，请检查后点击“保存配置”同步到后端')
   }
 
@@ -543,7 +1366,7 @@ function App() {
   function onApplyContactNumber(field, phone) {
     setOnboardingDone(false)
     setForm((prev) => ({ ...prev, [field]: phone }))
-    setActiveTab('setup')
+    setActivePage('config')
     setResultText(`已将联系人号码填入${field === 'callNumber' ? '电话' : '短信'}字段，请记得保存配置`)
   }
 
@@ -604,7 +1427,7 @@ function App() {
       resetDataPreviews()
       resetContactManager()
       resetSosHistory()
-      setActiveTab('setup')
+      setActivePage('config')
       await refreshLocalPanel(DEFAULT_USER)
       setResultText('已清空当前用户本地后端数据，并重置引导')
     } catch (error) {
@@ -666,7 +1489,7 @@ function App() {
       setPendingImportDiffs([])
       onCancelEditContact()
       resetSosHistory()
-      setActiveTab(bundle.config ? 'sos' : 'setup')
+      setActivePage(bundle.config ? 'overview' : 'config')
       await refreshLocalPanel(bundle.userId)
       await Promise.all([
         loadContactsPreview(bundle.userId),
@@ -722,7 +1545,7 @@ function App() {
   async function onInspectContacts() {
     try {
       const data = await loadContactsPreview(form.userId || DEFAULT_USER)
-      setResultText(`联系人列表已刷新到下方卡片（共 ${data.contacts.length} 条）`)
+      setResultText(`联系人快照已刷新（共 ${data.contacts.length} 条）`)
     } catch (error) {
       setResultText(`读取联系人失败: ${error.message}`)
     }
@@ -731,7 +1554,7 @@ function App() {
   async function onInspectTracking() {
     try {
       const data = await loadTrackingPreview(form.userId || DEFAULT_USER)
-      setResultText(`轨迹列表已刷新到下方卡片（最近 1 小时共 ${data.count} 条）`)
+      setResultText(`轨迹快照已刷新（最近 1 小时共 ${data.count} 条）`)
     } catch (error) {
       setResultText(`读取轨迹失败: ${error.message}`)
     }
@@ -762,496 +1585,192 @@ function App() {
     }
   }
 
+  function renderPageContent() {
+    switch (currentPage.id) {
+      case 'config':
+        return (
+          <ConfigPage
+            form={form}
+            hasPendingImport={Boolean(pendingImport)}
+            loadingInit={loadingInit}
+            pendingImportDiffs={pendingImportDiffs}
+            pendingImportSummary={pendingImportSummary}
+            smsPreview={smsPreview}
+            validationHints={validationHints}
+            onApplyTemplate={onApplyTemplate}
+            onCancelImport={onCancelImport}
+            onChange={onChange}
+            onConfirmImport={onConfirmImport}
+            onExportConfig={onExportConfig}
+            onImportClick={onImportClick}
+            onResetOnboarding={onResetOnboarding}
+            onSaveConfig={onSaveConfig}
+          />
+        )
+      case 'contacts':
+        return (
+          <ContactsPage
+            contactForm={contactForm}
+            contactsList={contactsList}
+            editingContactId={editingContactId}
+            onApplyContactNumber={onApplyContactNumber}
+            onCancelEditContact={onCancelEditContact}
+            onContactFormChange={onContactFormChange}
+            onDeleteContact={onDeleteContact}
+            onStartEditContact={onStartEditContact}
+            onSubmitContact={onSubmitContact}
+          />
+        )
+      case 'sos':
+        return (
+          <SosPage
+            arming={arming}
+            countdown={countdown}
+            form={form}
+            historyCount={sosHistory.length}
+            latestSosEvent={latestSosEvent}
+            loadingInit={loadingInit}
+            onboardingDone={onboardingDone}
+            onArmSos={onArmSos}
+            onCancelSos={onCancelSos}
+            onNavigate={setActivePage}
+          />
+        )
+      case 'history':
+        return (
+          <HistoryPage
+            onRefreshSosHistory={onRefreshSosHistory}
+            selectedSosEvent={selectedSosEvent}
+            setSelectedSosId={setSelectedSosId}
+            sosHistory={sosHistory}
+          />
+        )
+      case 'tools':
+        return (
+          <ToolsPage
+            contactsPreview={contactsPreview}
+            localPanel={localPanel}
+            trackingPreview={trackingPreview}
+            onAddMockContact={onAddMockContact}
+            onAddMockTracking={onAddMockTracking}
+            onClearLocalPanel={onClearLocalPanel}
+            onExportLocalBundle={onExportLocalBundle}
+            onImportLocalBundleClick={onImportLocalBundleClick}
+            onInspectContacts={onInspectContacts}
+            onInspectTracking={onInspectTracking}
+            onRefreshLocalPanel={refreshLocalPanel}
+          />
+        )
+      case 'overview':
+      default:
+        return (
+          <OverviewPage
+            contactsList={contactsList}
+            form={form}
+            healthText={healthText}
+            latestLocation={latestLocation}
+            localPanel={localPanel}
+            onboardingDone={onboardingDone}
+            pages={pageItems}
+            permissionText={permissionText}
+            sosHistory={sosHistory}
+            onCheckHealth={onCheckHealth}
+            onNavigate={setActivePage}
+            onResetOnboarding={onResetOnboarding}
+            showToolsPage={showToolsPage}
+          />
+        )
+    }
+  }
+
   return (
     <main className="md-page">
-      <section className="md-surface">
-        <header className="md-header">
-          <h1>独行青年安全守护</h1>
-          <span className="md-chip">{envText}</span>
-        </header>
-
-        {!onboardingDone && (
-          <div className="md-banner">首次使用：请先完成配置，再进入 SOS 页。</div>
-        )}
-
-        <div className="md-tabs">
-          <button
-            type="button"
-            className={`md-tab ${activeTab === 'setup' ? 'active' : ''}`}
-            onClick={() => setActiveTab('setup')}
-          >
-            配置
-          </button>
-          <button
-            type="button"
-            className={`md-tab ${activeTab === 'sos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('sos')}
-          >
-            SOS
-          </button>
-        </div>
-
-        <div className="md-status-grid">
-          <p>权限状态：{permissionText}</p>
-          <p>后端健康：{healthText}</p>
-          <div className="md-row-actions">
-            <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
-              检查后端
-            </button>
-            <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
-              重置引导
-            </button>
-            <button type="button" className="md-btn tonal" onClick={onExportConfig}>
-              导出配置
-            </button>
-            <button type="button" className="md-btn tonal" onClick={onImportClick}>
-              导入配置
-            </button>
-            {pendingImport && (
-              <>
-                <button type="button" className="md-btn" onClick={onConfirmImport}>
-                  确认导入
-                </button>
-                <button type="button" className="md-btn tonal" onClick={onCancelImport}>
-                  取消导入
-                </button>
-              </>
-            )}
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json"
-              className="md-hidden-input"
-              onChange={onImportConfig}
-            />
-          </div>
-        </div>
-
-        {localPanel && (
-          <section className="md-local-panel">
-            <div className="md-local-panel-header">
-              <h3>本地后端数据面板</h3>
-              <span className="md-chip">当前用户 {localPanel.userId}</span>
-            </div>
-            <div className="md-local-panel-grid">
-              <div className="md-stat-card">
-                <span>配置</span>
-                <strong>{localPanel.hasConfig ? '已保存' : '未保存'}</strong>
-              </div>
-              <div className="md-stat-card">
-                <span>SOS 记录</span>
-                <strong>{localPanel.sosCount}</strong>
-              </div>
-              <div className="md-stat-card">
-                <span>联系人</span>
-                <strong>{localPanel.contactsCount}</strong>
-              </div>
-              <div className="md-stat-card">
-                <span>轨迹点</span>
-                <strong>{localPanel.trackingCount}</strong>
-              </div>
-            </div>
-            <p className="md-local-panel-time">
-              最近 SOS：{formatPanelTime(localPanel.latestSos)}
-            </p>
-            <p className="md-local-panel-note">可用下面的模拟按钮快速验证 contacts / tracking 流程。</p>
-            <div className="md-row-actions">
-              <button
-                type="button"
-                className="md-btn tonal"
-                onClick={() => refreshLocalPanel(localPanel.userId)}
-              >
-                刷新面板
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onExportLocalBundle}>
-                导出本地快照
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onImportLocalBundleClick}>
-                导入本地快照
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onAddMockContact}>
-                添加模拟联系人
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onAddMockTracking}>
-                写入模拟轨迹
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onInspectContacts}>
-                查看联系人
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onInspectTracking}>
-                查看轨迹
-              </button>
-              <button type="button" className="md-btn tonal" onClick={onClearLocalPanel}>
-                清空本地数据
-              </button>
-              <input
-                ref={localBundleInputRef}
-                type="file"
-                accept="application/json"
-                className="md-hidden-input"
-                onChange={onImportLocalBundle}
-              />
+      <div className="md-shell">
+        <aside className="md-sidebar">
+          <section className="md-brand">
+            <p className="md-page-label">独行青年安全守护</p>
+            <h1>自适应多页面 MVP</h1>
+            <p className="md-brand-copy">把配置、联系人、SOS、历史、自检拆到独立页面，手机与大屏都更易使用。</p>
+            <div className="md-chip-row">
+              <span className="md-chip">{envText}</span>
+              <span className="md-chip subtle">用户 {form.userId}</span>
             </div>
           </section>
-        )}
 
-        {(contactsPreview || trackingPreview) && (
-          <section className="md-preview-section">
-            {contactsPreview && (
-              <article className="md-data-card">
-                <div className="md-data-card-header">
-                  <h3>联系人列表</h3>
-                  <span className="md-chip">{contactsPreview.count} 条</span>
-                </div>
-                {contactsPreview.items.length > 0 ? (
-                  <ul className="md-data-list">
-                    {contactsPreview.items.map((item) => (
-                      <li key={item.id || `${item.name}-${item.phone}`} className="md-data-list-item">
-                        <strong>{item.name}</strong>
-                        <span>{item.phone}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="md-data-empty">暂无联系人数据</p>
-                )}
-              </article>
-            )}
+          {!onboardingDone && <div className="md-banner">首次使用：请先进入“通知配置”完成设置。</div>}
 
-            {trackingPreview && (
-              <article className="md-data-card">
-                <div className="md-data-card-header">
-                  <h3>最近 1 小时轨迹</h3>
-                  <span className="md-chip">{trackingPreview.count} 条</span>
-                </div>
-                {trackingPreview.items.length > 0 ? (
-                  <ul className="md-data-list">
-                    {trackingPreview.items.map((point) => (
-                      <li
-                        key={`${point.timestamp}-${point.lat}-${point.lng}`}
-                        className="md-data-list-item"
-                      >
-                        <strong>
-                          ({point.lat}, {point.lng})
-                        </strong>
-                        <span>{formatPanelTime(point.timestamp)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="md-data-empty">最近 1 小时暂无轨迹点</p>
-                )}
-              </article>
-            )}
-          </section>
-        )}
+          <nav className="md-nav">
+            {pageItems.map((page) => (
+              <PageButton
+                key={page.id}
+                page={page}
+                active={page.id === currentPage.id}
+                onClick={() => setActivePage(page.id)}
+              />
+            ))}
+          </nav>
 
-        {pendingImportSummary && (
-          <section className="md-import-card">
-            <h3>导入预览</h3>
-            <div className="md-import-meta">
-              <p>
-                <strong>userId：</strong>
-                {pendingImportSummary.userId}
-              </p>
-              <p>
-                <strong>电话号码：</strong>
-                {pendingImportSummary.hasCallNumber ? '已填写' : '留空'}
-              </p>
-              <p>
-                <strong>短信号码：</strong>
-                {pendingImportSummary.hasSmsNumber ? '已填写' : '留空'}
-              </p>
-              <p>
-                <strong>模板长度：</strong>
-                {pendingImportSummary.templateLength}
-              </p>
+          <section className="md-sidebar-status">
+            <div className="md-section-head">
+              <h3>当前状态</h3>
+              <span className="md-chip subtle">概要</span>
             </div>
-            <p className="md-import-diff-title">差异提示：</p>
-            {pendingImportDiffs.length > 0 ? (
-              <ul className="md-import-diff-list">
-                {pendingImportDiffs.map((hint) => (
-                  <li key={hint}>{hint}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="md-import-no-diff">与当前配置一致，无变更项。</p>
-            )}
+            <div className="md-status-stack">
+              <div className="md-status-item">
+                <span>引导</span>
+                <strong>{onboardingDone ? '已完成' : '待完成'}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>权限</span>
+                <strong>{permissionText}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>后端</span>
+                <strong>{healthText}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>位置</span>
+                <strong>{formatLocationText(latestLocation)}</strong>
+              </div>
+            </div>
           </section>
-        )}
+        </aside>
 
-        {activeTab === 'setup' ? (
-          <section className="md-setup-stack">
-            <form className="md-form md-section-card" onSubmit={onSaveConfig}>
-              <h2>紧急通知配置</h2>
-              <label htmlFor="callNumber">电话号码（可留空）</label>
-              <input
-                id="callNumber"
-                name="callNumber"
-                value={form.callNumber}
-                onChange={onChange}
-                placeholder="例如 110 或联系人号码"
-              />
+        <section className="md-main">
+          <header className="md-page-header">
+            <div>
+              <p className="md-page-label">{currentPage.label}</p>
+              <h2>{currentPage.title}</h2>
+              <p>{currentPage.description}</p>
+            </div>
+          </header>
 
-              <label htmlFor="smsNumber">短信号码（可留空）</label>
-              <input
-                id="smsNumber"
-                name="smsNumber"
-                value={form.smsNumber}
-                onChange={onChange}
-                placeholder="例如 13800000000"
-              />
-
-              <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
-              <textarea
-                id="smsTemplate"
-                name="smsTemplate"
-                value={form.smsTemplate}
-                onChange={onChange}
-                rows={4}
-              />
-
-              <div className="md-template-actions">
-                <button
-                  type="button"
-                  className="md-btn tonal"
-                  onClick={() => onApplyTemplate('default')}
-                >
-                  使用默认模板
-                </button>
-                <button
-                  type="button"
-                  className="md-btn tonal"
-                  onClick={() => onApplyTemplate('compact')}
-                >
-                  使用简洁模板
-                </button>
-              </div>
-
-              <div className="md-helper">
-                <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
-                {validationHints.length > 0 && (
-                  <ul className="md-warn-list">
-                    {validationHints.map((hint) => (
-                      <li key={hint}>{hint}</li>
-                    ))}
-                  </ul>
-                )}
-                <p>短信预览：</p>
-                <pre className="md-preview">{smsPreview}</pre>
-              </div>
-
-              <button type="submit" className="md-btn" disabled={loadingInit}>
-                保存配置
-              </button>
-            </form>
-
-            <section className="md-section-card md-contact-section">
-              <div className="md-data-card-header">
-                <h2>紧急联系人管理</h2>
-                <span className="md-chip">{contactsList.length} 人</span>
-              </div>
-              <p className="md-section-hint">可新增、编辑、删除联系人，并一键将号码填入电话或短信配置。</p>
-
-              <form className="md-contact-form" onSubmit={onSubmitContact}>
-                <div className="md-contact-form-grid">
-                  <div>
-                    <label htmlFor="contactName">联系人姓名</label>
-                    <input
-                      id="contactName"
-                      name="name"
-                      value={contactForm.name}
-                      onChange={onContactFormChange}
-                      placeholder="例如 家人 / 室友 / 朋友"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="contactPhone">联系电话</label>
-                    <input
-                      id="contactPhone"
-                      name="phone"
-                      value={contactForm.phone}
-                      onChange={onContactFormChange}
-                      placeholder="例如 13800000000"
-                    />
-                  </div>
-                </div>
-                <div className="md-row-actions">
-                  <button type="submit" className="md-btn">
-                    {editingContactId ? '保存联系人' : '新增联系人'}
-                  </button>
-                  {editingContactId && (
-                    <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
-                      取消编辑
-                    </button>
-                  )}
-                </div>
-              </form>
-
-              {contactsList.length > 0 ? (
-                <ul className="md-contact-list">
-                  {contactsList.map((contact) => (
-                    <li key={contact.id} className="md-contact-item">
-                      <div className="md-contact-main">
-                        <strong>{contact.name}</strong>
-                        <span>{contact.phone}</span>
-                      </div>
-                      <div className="md-row-actions">
-                        <button
-                          type="button"
-                          className="md-btn tonal"
-                          onClick={() => onApplyContactNumber('callNumber', contact.phone)}
-                        >
-                          设为电话
-                        </button>
-                        <button
-                          type="button"
-                          className="md-btn tonal"
-                          onClick={() => onApplyContactNumber('smsNumber', contact.phone)}
-                        >
-                          设为短信
-                        </button>
-                        <button
-                          type="button"
-                          className="md-btn tonal"
-                          onClick={() => onStartEditContact(contact)}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          type="button"
-                          className="md-btn tonal"
-                          onClick={() => onDeleteContact(contact)}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="md-data-empty">当前用户还没有联系人，请先新增至少 1 位可信联系人。</p>
-              )}
-            </section>
+          <section className="md-feedback-card">
+            <div className="md-section-head">
+              <h3>最新操作结果</h3>
+              <span className="md-chip subtle">实时反馈</span>
+            </div>
+            <pre className="md-feedback-text">{resultText}</pre>
           </section>
-        ) : (
-          <section className="md-setup-stack">
-            <section className="md-sos-panel md-section-card">
-              <h2>SOS 快速操作</h2>
-              <p>完成配置后即可一键触发，支持 5 秒倒计时取消。</p>
-              {!arming ? (
-                <button
-                  type="button"
-                  className="md-btn danger"
-                  onClick={onArmSos}
-                  disabled={loadingInit}
-                >
-                  触发 SOS（倒计时 5 秒）
-                </button>
-              ) : (
-                <button type="button" className="md-btn" onClick={onCancelSos}>
-                  取消 SOS（剩余 {countdown}s）
-                </button>
-              )}
-              <button
-                type="button"
-                className="md-btn tonal"
-                onClick={() => setActiveTab('setup')}
-              >
-                返回配置页
-              </button>
-            </section>
 
-            <section className="md-section-card md-history-section">
-              <div className="md-data-card-header">
-                <h2>SOS 历史记录</h2>
-                <span className="md-chip">最近 {sosHistory.length} 条</span>
-              </div>
-              <p className="md-section-hint">可查看最近报警事件的时间、位置与通知结果。</p>
-              <div className="md-row-actions">
-                <button type="button" className="md-btn tonal" onClick={onRefreshSosHistory}>
-                  刷新历史
-                </button>
-              </div>
+          {renderPageContent()}
 
-              {sosHistory.length > 0 ? (
-                <div className="md-history-layout">
-                  <ul className="md-history-list">
-                    {sosHistory.map((event) => (
-                      <li key={event.id}>
-                        <button
-                          type="button"
-                          className={`md-history-item ${selectedSosEvent?.id === event.id ? 'active' : ''}`}
-                          onClick={() => setSelectedSosId(event.id)}
-                        >
-                          <strong>{formatPanelTime(event.timestamp)}</strong>
-                          <span>{event.triggerType === 'manual' ? '手动触发' : '自动触发'}</span>
-                          <span>{summarizeNotifications(event.notifications)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {selectedSosEvent && (
-                    <article className="md-history-detail">
-                      <div className="md-history-detail-grid">
-                        <p>
-                          <strong>事件 ID：</strong>
-                          {selectedSosEvent.id}
-                        </p>
-                        <p>
-                          <strong>触发时间：</strong>
-                          {formatPanelTime(selectedSosEvent.timestamp)}
-                        </p>
-                        <p>
-                          <strong>触发方式：</strong>
-                          {selectedSosEvent.triggerType === 'manual' ? '手动' : '自动'}
-                        </p>
-                        <p>
-                          <strong>设备：</strong>
-                          {selectedSosEvent.deviceId}
-                        </p>
-                        <p>
-                          <strong>位置：</strong>
-                          ({selectedSosEvent.location.lat}, {selectedSosEvent.location.lng})
-                        </p>
-                        <p>
-                          <strong>精度：</strong>
-                          {selectedSosEvent.location.accuracy}
-                        </p>
-                      </div>
-
-                      <h3 className="md-history-subtitle">通知结果</h3>
-                      {selectedSosEvent.notifications.length > 0 ? (
-                        <ul className="md-data-list">
-                          {selectedSosEvent.notifications.map((item, index) => (
-                            <li
-                              key={`${selectedSosEvent.id}-${item.channel}-${index}`}
-                              className="md-data-list-item"
-                            >
-                              <strong>
-                                {item.channel.toUpperCase()} / {item.status}
-                              </strong>
-                              <span>{item.destination || '未设置号码'}</span>
-                              <span>{item.detail}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="md-data-empty">该事件暂无通知详情。</p>
-                      )}
-                    </article>
-                  )}
-                </div>
-              ) : (
-                <p className="md-data-empty">当前用户暂无 SOS 历史记录，触发一次 SOS 后会在这里展示。</p>
-              )}
-            </section>
-          </section>
-        )}
-
-        <pre className="md-log">{resultText}</pre>
-      </section>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json"
+            className="md-hidden-input"
+            onChange={onImportConfig}
+          />
+          <input
+            ref={localBundleInputRef}
+            type="file"
+            accept="application/json"
+            className="md-hidden-input"
+            onChange={onImportLocalBundle}
+          />
+        </section>
+      </div>
     </main>
   )
 }
