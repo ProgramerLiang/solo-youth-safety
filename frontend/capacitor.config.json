@@ -1,0 +1,8 @@
+{
+  "appId": "com.solo.youth.safety",
+  "appName": "Solo Youth Safety",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

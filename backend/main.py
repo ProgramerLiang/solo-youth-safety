@@ -3,9 +3,9 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-app = FastAPI(title="Solo Youth Safety API", version="0.1.0")
+app = FastAPI(title="Solo Youth Safety API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +55,22 @@ class ContactPayload(BaseModel):
     contact: Contact
 
 
+class EmergencyConfig(BaseModel):
+    userId: str = Field(min_length=1)
+    callNumber: str | None = Field(default=None, max_length=32)
+    smsNumber: str | None = Field(default=None, max_length=32)
+    smsTemplate: str = Field(default="[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}")
+
+    @field_validator("callNumber", "smsNumber", mode="before")
+    @classmethod
+    def empty_to_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
+
 class HealthResponse(BaseModel):
     status: str
     time: datetime
@@ -82,9 +98,79 @@ class StoredPoint(BaseModel):
     point: TrackingPoint
 
 
+class NotificationLog(BaseModel):
+    channel: Literal["call", "sms"]
+    destination: str | None
+    status: Literal["sent", "skipped"]
+    detail: str
+
+
+class SosResponse(BaseModel):
+    message: str
+    count: int
+    notifications: list[NotificationLog]
+
+
 sos_events: list[SosEvent] = []
 stored_points: list[StoredPoint] = []
 contacts_by_user: dict[str, list[Contact]] = {}
+config_by_user: dict[str, EmergencyConfig] = {}
+
+
+def build_sms_content(event: SosEvent, cfg: EmergencyConfig) -> str:
+    return cfg.smsTemplate.format(
+        userId=event.userId,
+        deviceId=event.deviceId,
+        lat=event.location.lat,
+        lng=event.location.lng,
+        time=event.timestamp.isoformat(),
+    )
+
+
+def simulate_notify(event: SosEvent) -> list[NotificationLog]:
+    cfg = config_by_user.get(event.userId, EmergencyConfig(userId=event.userId))
+    logs: list[NotificationLog] = []
+
+    if cfg.callNumber:
+        logs.append(
+            NotificationLog(
+                channel="call",
+                destination=cfg.callNumber,
+                status="sent",
+                detail="simulated call dispatch",
+            )
+        )
+    else:
+        logs.append(
+            NotificationLog(
+                channel="call",
+                destination=None,
+                status="skipped",
+                detail="callNumber is empty",
+            )
+        )
+
+    if cfg.smsNumber:
+        sms = build_sms_content(event, cfg)
+        logs.append(
+            NotificationLog(
+                channel="sms",
+                destination=cfg.smsNumber,
+                status="sent",
+                detail=f"simulated sms: {sms}",
+            )
+        )
+    else:
+        logs.append(
+            NotificationLog(
+                channel="sms",
+                destination=None,
+                status="skipped",
+                detail="smsNumber is empty",
+            )
+        )
+
+    return logs
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -92,10 +178,26 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok", time=datetime.now(timezone.utc))
 
 
-@app.post("/api/v1/sos/events", response_model=ActionResponse)
-def create_sos_event(payload: SosEvent) -> ActionResponse:
+@app.post("/api/v1/emergency/config", response_model=EmergencyConfig)
+def upsert_emergency_config(payload: EmergencyConfig) -> EmergencyConfig:
+    config_by_user[payload.userId] = payload
+    return payload
+
+
+@app.get("/api/v1/emergency/config", response_model=EmergencyConfig)
+def get_emergency_config(userId: str = Query(min_length=1)) -> EmergencyConfig:
+    return config_by_user.get(userId, EmergencyConfig(userId=userId))
+
+
+@app.post("/api/v1/sos/events", response_model=SosResponse)
+def create_sos_event(payload: SosEvent) -> SosResponse:
     sos_events.append(payload)
-    return ActionResponse(message="sos received", count=len(sos_events))
+    notifications = simulate_notify(payload)
+    return SosResponse(
+        message="sos received",
+        count=len(sos_events),
+        notifications=notifications,
+    )
 
 
 @app.post("/api/v1/tracking/points", response_model=ActionResponse)

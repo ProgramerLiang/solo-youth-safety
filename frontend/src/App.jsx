@@ -1,27 +1,152 @@
-const apiBase = 'http://127.0.0.1:8000/api/v1'
+import { useEffect, useState } from 'react'
+import {
+  checkHealth,
+  DEFAULT_USER,
+  getEmergencyConfig,
+  saveEmergencyConfig,
+  triggerSos,
+} from './api'
 
 function App() {
-  async function checkHealth() {
-    try {
-      const res = await fetch(`${apiBase}/health`)
-      if (!res.ok) {
-        throw new Error('health check failed')
+  const [healthText, setHealthText] = useState('未检查')
+  const [resultText, setResultText] = useState('')
+  const [form, setForm] = useState({
+    userId: DEFAULT_USER,
+    callNumber: '',
+    smsNumber: '',
+    smsTemplate: '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}',
+  })
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadConfig() {
+      try {
+        const data = await getEmergencyConfig(DEFAULT_USER)
+        if (!ignore) {
+          setForm({
+            userId: data.userId,
+            callNumber: data.callNumber ?? '',
+            smsNumber: data.smsNumber ?? '',
+            smsTemplate: data.smsTemplate,
+          })
+        }
+      } catch {
+        if (!ignore) {
+          setResultText('加载配置失败，请先启动后端服务')
+        }
       }
-      const data = await res.json()
-      alert(`后端状态: ${data.status} @ ${data.time}`)
+    }
+
+    loadConfig()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  async function onCheckHealth() {
+    try {
+      const data = await checkHealth()
+      setHealthText(`${data.status} @ ${data.time}`)
     } catch (error) {
-      alert(`请求失败: ${error.message}`)
+      setHealthText(`失败: ${error.message}`)
+    }
+  }
+
+  function onChange(event) {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  async function onSaveConfig(event) {
+    event.preventDefault()
+    try {
+      const data = await saveEmergencyConfig(form)
+      setForm((prev) => ({
+        ...prev,
+        callNumber: data.callNumber ?? '',
+        smsNumber: data.smsNumber ?? '',
+        smsTemplate: data.smsTemplate,
+      }))
+      setResultText('配置保存成功（号码可留空）')
+    } catch (error) {
+      setResultText(`保存失败: ${error.message}`)
+    }
+  }
+
+  async function onTriggerSos() {
+    const payload = {
+      userId: form.userId,
+      deviceId: 'android-device-001',
+      triggerType: 'manual',
+      timestamp: new Date().toISOString(),
+      location: {
+        lat: 31.2304,
+        lng: 121.4737,
+        accuracy: 12,
+      },
+    }
+
+    try {
+      const data = await triggerSos(payload)
+      const lines = data.notifications.map(
+        (n) => `${n.channel}: ${n.status} (${n.detail})`
+      )
+      setResultText(['SOS 已上报', ...lines].join('\n'))
+    } catch (error) {
+      setResultText(`SOS 上报失败: ${error.message}`)
     }
   }
 
   return (
     <main className="page">
       <section className="card">
-        <h1>独行青年安全守护</h1>
-        <p>当前为 MVP 骨架：FastAPI + React</p>
-        <button type="button" onClick={checkHealth}>
-          检查后端连通性
+        <h1>独行青年安全守护（Android MVP）</h1>
+        <p>后端健康状态：{healthText}</p>
+        <button type="button" onClick={onCheckHealth}>
+          检查后端
         </button>
+
+        <form className="form" onSubmit={onSaveConfig}>
+          <h2>紧急通知配置</h2>
+
+          <label htmlFor="callNumber">电话号码（可留空）</label>
+          <input
+            id="callNumber"
+            name="callNumber"
+            value={form.callNumber}
+            onChange={onChange}
+            placeholder="例如 110 或联系人号码"
+          />
+
+          <label htmlFor="smsNumber">短信号码（可留空）</label>
+          <input
+            id="smsNumber"
+            name="smsNumber"
+            value={form.smsNumber}
+            onChange={onChange}
+            placeholder="例如 13800000000"
+          />
+
+          <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
+          <textarea
+            id="smsTemplate"
+            name="smsTemplate"
+            value={form.smsTemplate}
+            onChange={onChange}
+            rows={4}
+          />
+
+          <button type="submit">保存配置</button>
+        </form>
+
+        <div className="actions">
+          <button type="button" className="danger" onClick={onTriggerSos}>
+            触发 SOS（模拟）
+          </button>
+        </div>
+
+        <pre className="result">{resultText || '等待操作...'}</pre>
       </section>
     </main>
   )
