@@ -15,10 +15,7 @@ const cacheKey = 'safety_emergency_config_v1'
 function readCachedConfig() {
   try {
     const raw = localStorage.getItem(cacheKey)
-    if (!raw) {
-      return null
-    }
-    return JSON.parse(raw)
+    return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
@@ -37,6 +34,15 @@ function createSosPayload(userId, location) {
     timestamp: new Date().toISOString(),
     location: safeLocation,
   }
+}
+
+function renderTemplate(template, payload) {
+  return template
+    .replaceAll('{userId}', payload.userId)
+    .replaceAll('{deviceId}', payload.deviceId)
+    .replaceAll('{lat}', String(payload.location.lat))
+    .replaceAll('{lng}', String(payload.location.lng))
+    .replaceAll('{time}', payload.timestamp)
 }
 
 function formatLogs(serverData, nativeLogs) {
@@ -67,6 +73,16 @@ function App() {
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
     []
+  )
+
+  const previewPayload = useMemo(
+    () => createSosPayload(form.userId || DEFAULT_USER, latestLocation),
+    [form.userId, latestLocation]
+  )
+
+  const smsPreview = useMemo(
+    () => renderTemplate(form.smsTemplate || defaultTemplate, previewPayload),
+    [form.smsTemplate, previewPayload]
   )
 
   useEffect(() => {
@@ -113,9 +129,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!arming) {
-      return
-    }
+    if (!arming) return
     if (countdown <= 0) {
       void executeSos()
       return
@@ -158,9 +172,7 @@ function App() {
   }
 
   function onArmSos() {
-    if (loadingInit) {
-      return
-    }
+    if (loadingInit) return
     setCountdown(5)
     setArming(true)
     setResultText('SOS 倒计时开始，5 秒后触发，可取消')
@@ -231,6 +243,12 @@ function App() {
             onChange={onChange}
             rows={4}
           />
+
+          <div className="md-helper">
+            <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+            <p>短信预览：</p>
+            <pre className="md-preview">{smsPreview}</pre>
+          </div>
 
           <button type="submit" className="md-btn" disabled={loadingInit}>
             保存配置

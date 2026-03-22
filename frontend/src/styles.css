@@ -130,6 +130,26 @@ textarea:focus {
   margin-top: 14px;
 }
 
+.md-helper {
+  background: var(--md-surface-container);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.md-helper p {
+  margin: 0 0 8px;
+  color: var(--md-on-surface-variant);
+}
+
+.md-preview {
+  margin: 0;
+  background: #fff;
+  border: 1px dashed #b6aec2;
+  border-radius: 10px;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
 .md-log {
   margin-top: 16px;
   border-radius: 16px;
