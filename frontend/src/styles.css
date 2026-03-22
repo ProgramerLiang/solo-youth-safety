@@ -50,15 +50,51 @@ button:hover:not(:disabled) {
 }
 
 .md-page {
+  position: relative;
   min-height: 100vh;
   padding: 16px;
+  overflow-x: hidden;
 }
 
 .md-shell {
-  width: min(1200px, 100%);
+  width: 100%;
+  min-height: calc(100vh - 32px);
   margin: 0 auto;
-  display: grid;
-  gap: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.md-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 18, 42, 0.28);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  z-index: 20;
+}
+
+.md-drawer-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.md-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(86vw, 380px);
+  padding: 16px;
+  transform: translateX(-110%);
+  transition: transform 0.24s ease;
+  z-index: 24;
+  pointer-events: none;
+}
+
+.md-drawer.open {
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .md-sidebar,
@@ -71,12 +107,18 @@ button:hover:not(:disabled) {
 }
 
 .md-sidebar {
+  width: 100%;
+  height: 100%;
   display: grid;
   gap: 16px;
   padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .md-main {
+  width: min(90vw, 1080px);
+  min-height: calc(100vh - 32px);
   display: grid;
   gap: 16px;
   padding: 20px;
@@ -85,6 +127,38 @@ button:hover:not(:disabled) {
 .md-brand {
   display: grid;
   gap: 10px;
+}
+
+.md-drawer-head,
+.md-page-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.md-drawer-head {
+  justify-content: space-between;
+}
+
+.md-page-heading {
+  flex: 1;
+}
+
+.md-menu-btn,
+.md-drawer-close {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--md-outline);
+  border-radius: 18px;
+  background: var(--md-surface-soft);
+  color: var(--md-on-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .md-page-label {
@@ -643,14 +717,13 @@ textarea {
 }
 
 @media (min-width: 960px) {
-  .md-shell {
-    grid-template-columns: 300px minmax(0, 1fr);
-    align-items: start;
+  .md-main {
+    width: min(86vw, 1120px);
+    padding: 24px;
   }
 
-  .md-sidebar {
-    position: sticky;
-    top: 16px;
+  .md-drawer {
+    width: min(360px, 30vw);
   }
 
   .md-overview-grid,
@@ -676,6 +749,11 @@ textarea {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .md-menu-btn,
+  .md-drawer-close {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 720px) {
@@ -684,6 +762,11 @@ textarea {
   .md-sidebar,
   .md-page-stack {
     gap: 14px;
+  }
+
+  .md-drawer {
+    width: min(88vw, 360px);
+    padding: 12px;
   }
 
   .md-main,
@@ -723,10 +806,19 @@ textarea {
     padding: 10px;
   }
 
+  .md-drawer {
+    width: 90vw;
+    padding: 10px;
+  }
+
   .md-sidebar,
   .md-main {
     border-radius: 20px;
     padding: 14px;
+  }
+
+  .md-main {
+    width: 90vw;
   }
 
   .md-row-actions,

@@ -91,6 +91,9 @@ const pageCatalog = [
     description: '查看本地后端数据、快照与调试验证能力。',
   },
 ]
+const drawerOpenSwipeThreshold = 72
+const drawerCloseSwipeThreshold = 56
+const drawerEdgeFallbackPx = 48
 
 function readJsonCache(key) {
   return readStoredJson(key)
@@ -110,6 +113,26 @@ function downloadJsonFile(filename, payload) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function isPointInsideElement(x, y, element) {
+  if (!element) {
+    return false
+  }
+  const rect = element.getBoundingClientRect()
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+}
+
+function canStartDrawerOpenGesture(touch, mainElement) {
+  if (!mainElement) {
+    return typeof window === 'undefined'
+      ? true
+      : touch.clientX <= Math.max(drawerEdgeFallbackPx, window.innerWidth * 0.16)
+  }
+  if (!isPointInsideElement(touch.clientX, touch.clientY, mainElement)) {
+    return true
+  }
+  return touch.clientX <= Math.max(drawerEdgeFallbackPx, window.innerWidth * 0.12)
 }
 
 function toPayloadLocation(location) {
@@ -404,6 +427,93 @@ function PageButton({ page, active, onClick }) {
       <strong>{page.label}</strong>
       <span>{page.description}</span>
     </button>
+  )
+}
+
+function SidebarContent({
+  currentPage,
+  developerModeEnabled,
+  envText,
+  healthText,
+  identity,
+  latestLocation,
+  locationFreshness,
+  onboardingDone,
+  pageItems,
+  permissionText,
+  showToolsPage,
+  themeState,
+  userId,
+  onClose,
+  onNavigate,
+  onVersionChipClick,
+}) {
+  const statusItems = [
+    ['引导', onboardingDone ? '已完成' : '待完成'],
+    ['定位状态', permissionText],
+    ['后端', healthText],
+    ['位置', formatLocationText(latestLocation)],
+    ['新鲜度', locationFreshness.label],
+    ['最近刷新', locationFreshness.updatedAt],
+    ['当前页面', currentPage.label],
+    ['主题', themeState.label],
+    ['设备 ID', identity.deviceId],
+    ['开发者模式', developerModeEnabled ? '已开启' : '已隐藏'],
+  ]
+
+  return (
+    <>
+      <section className="md-brand">
+        <div className="md-drawer-head">
+          <div>
+            <p className="md-page-label">独行青年安全守护</p>
+            <h1>抽屉侧边栏 MVP</h1>
+          </div>
+          <button type="button" className="md-drawer-close" onClick={onClose} aria-label="关闭侧边栏">
+            ✕
+          </button>
+        </div>
+        <p className="md-brand-copy">可通过左上角按钮或在页面空白处从左向右滑动，呼出侧边栏切换页面。</p>
+        <div className="md-chip-row">
+          <span className="md-chip">{envText}</span>
+          <button type="button" className="md-chip subtle md-chip-button" onClick={onVersionChipClick}>
+            v{appVersion}
+          </button>
+          <span className="md-chip subtle">用户 {userId}</span>
+          <span className={`md-chip ${showToolsPage ? 'subtle' : ''}`}>
+            {showToolsPage ? '本地后端' : '远端后端'}
+          </span>
+        </div>
+      </section>
+
+      {!onboardingDone && <div className="md-banner">首次使用：请先进入“通知配置”完成设置。</div>}
+
+      <nav className="md-nav">
+        {pageItems.map((page) => (
+          <PageButton
+            key={page.id}
+            page={page}
+            active={page.id === currentPage.id}
+            onClick={() => onNavigate(page.id)}
+          />
+        ))}
+      </nav>
+
+      <section className="md-sidebar-status">
+        <div className="md-section-head">
+          <h3>当前状态</h3>
+          <span className="md-chip subtle">概要</span>
+        </div>
+        <div className="md-status-stack">
+          {statusItems.map(([label, value]) => (
+            <div key={label} className="md-status-item">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
   )
 }
 
@@ -1411,6 +1521,7 @@ function App() {
     () => import.meta.env.DEV || readStoredString(developerModeKey) === 'enabled'
   )
   const [activePage, setActivePage] = useState('overview')
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
   const [pendingImport, setPendingImport] = useState(null)
@@ -1436,6 +1547,9 @@ function App() {
   const localBundleInputRef = useRef(null)
   const devTapCountRef = useRef(0)
   const devTapTimerRef = useRef(null)
+  const mainPanelRef = useRef(null)
+  const drawerPanelRef = useRef(null)
+  const touchSessionRef = useRef(null)
 
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
@@ -1487,6 +1601,20 @@ function App() {
     }, 15000)
     return () => clearInterval(timer)
   }, [latestLocation?.capturedAt])
+
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [activePage])
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    if (drawerOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [drawerOpen])
 
   useEffect(() => {
     applyThemeState(themeState)
@@ -1584,6 +1712,59 @@ function App() {
       clearTimeout(devTapTimerRef.current)
       devTapTimerRef.current = null
     }
+  }
+
+  function navigateToPage(pageId) {
+    setActivePage(pageId)
+    setDrawerOpen(false)
+  }
+
+  function openDrawer() {
+    setDrawerOpen(true)
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false)
+  }
+
+  function onPageTouchStart(event) {
+    const touch = event.touches?.[0]
+    if (!touch) {
+      return
+    }
+    touchSessionRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      canOpen: !drawerOpen && canStartDrawerOpenGesture(touch, mainPanelRef.current),
+      canClose: drawerOpen && isPointInsideElement(touch.clientX, touch.clientY, drawerPanelRef.current),
+    }
+  }
+
+  function onPageTouchMove(event) {
+    const touch = event.touches?.[0]
+    const session = touchSessionRef.current
+    if (!touch || !session) {
+      return
+    }
+    const dx = touch.clientX - session.startX
+    const dy = touch.clientY - session.startY
+    if (Math.abs(dy) > 24 && Math.abs(dy) > Math.abs(dx)) {
+      touchSessionRef.current = null
+      return
+    }
+    if (session.canOpen && dx >= drawerOpenSwipeThreshold && Math.abs(dx) > Math.abs(dy)) {
+      setDrawerOpen(true)
+      touchSessionRef.current = null
+      return
+    }
+    if (session.canClose && dx <= -drawerCloseSwipeThreshold && Math.abs(dx) > Math.abs(dy)) {
+      setDrawerOpen(false)
+      touchSessionRef.current = null
+    }
+  }
+
+  function onPageTouchEnd() {
+    touchSessionRef.current = null
   }
 
   async function onVersionChipClick() {
@@ -2233,7 +2414,7 @@ function App() {
             onboardingDone={onboardingDone}
             onArmSos={onArmSos}
             onCancelSos={onCancelSos}
-            onNavigate={setActivePage}
+            onNavigate={navigateToPage}
             onRefreshLocation={onRefreshLocation}
           />
         )
@@ -2282,7 +2463,7 @@ function App() {
             storageDriver={storageDriver}
             themeState={themeState}
             onCheckHealth={onCheckHealth}
-            onNavigate={setActivePage}
+            onNavigate={navigateToPage}
             onRefreshLocation={onRefreshLocation}
             onResetOnboarding={onResetOnboarding}
             showToolsPage={showToolsPage}
@@ -2292,88 +2473,60 @@ function App() {
   }
 
   return (
-    <main className="md-page">
+    <main
+      className="md-page"
+      onTouchEnd={onPageTouchEnd}
+      onTouchMove={onPageTouchMove}
+      onTouchStart={onPageTouchStart}
+    >
+      <div
+        className={`md-drawer-scrim ${drawerOpen ? 'open' : ''}`}
+        onClick={closeDrawer}
+        aria-hidden={!drawerOpen}
+      />
+
+      <aside className={`md-drawer ${drawerOpen ? 'open' : ''}`} aria-hidden={!drawerOpen}>
+        <div ref={drawerPanelRef} className="md-sidebar">
+          <SidebarContent
+            currentPage={currentPage}
+            developerModeEnabled={developerModeEnabled}
+            envText={envText}
+            healthText={healthText}
+            identity={identity}
+            latestLocation={latestLocation}
+            locationFreshness={locationFreshness}
+            onboardingDone={onboardingDone}
+            pageItems={pageItems}
+            permissionText={permissionText}
+            showToolsPage={showToolsPage}
+            themeState={themeState}
+            userId={form.userId}
+            onClose={closeDrawer}
+            onNavigate={navigateToPage}
+            onVersionChipClick={onVersionChipClick}
+          />
+        </div>
+      </aside>
+
       <div className="md-shell">
-        <aside className="md-sidebar">
-          <section className="md-brand">
-            <p className="md-page-label">独行青年安全守护</p>
-            <h1>自适应多页面 MVP</h1>
-            <p className="md-brand-copy">把配置、联系人、SOS、历史、自检拆到独立页面，手机与大屏都更易使用。</p>
-            <div className="md-chip-row">
-              <span className="md-chip">{envText}</span>
-              <button type="button" className="md-chip subtle md-chip-button" onClick={onVersionChipClick}>
-                v{appVersion}
-              </button>
-              <span className="md-chip subtle">用户 {form.userId}</span>
-            </div>
-          </section>
-
-          {!onboardingDone && <div className="md-banner">首次使用：请先进入“通知配置”完成设置。</div>}
-
-          <nav className="md-nav">
-            {pageItems.map((page) => (
-              <PageButton
-                key={page.id}
-                page={page}
-                active={page.id === currentPage.id}
-                onClick={() => setActivePage(page.id)}
-              />
-            ))}
-          </nav>
-
-          <section className="md-sidebar-status">
-            <div className="md-section-head">
-              <h3>当前状态</h3>
-              <span className="md-chip subtle">概要</span>
-            </div>
-            <div className="md-status-stack">
-              <div className="md-status-item">
-                <span>引导</span>
-                <strong>{onboardingDone ? '已完成' : '待完成'}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>定位状态</span>
-                <strong>{permissionText}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>后端</span>
-                <strong>{healthText}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>位置</span>
-                <strong>{formatLocationText(latestLocation)}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>新鲜度</span>
-                <strong>{locationFreshness.label}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>最近刷新</span>
-                <strong>{locationFreshness.updatedAt}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>主题</span>
-                <strong>{themeState.label}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>设备 ID</span>
-                <strong>{identity.deviceId}</strong>
-              </div>
-              <div className="md-status-item">
-                <span>开发者模式</span>
-                <strong>{developerModeEnabled ? '已开启' : '已隐藏'}</strong>
-              </div>
-            </div>
-          </section>
-        </aside>
-
-        <section className="md-main">
+        <section ref={mainPanelRef} className="md-main">
           <header className="md-page-header">
-            <div>
-              <p className="md-page-label">{currentPage.label}</p>
-              <h2>{currentPage.title}</h2>
-              <p>{currentPage.description}</p>
+            <div className="md-page-heading">
+              <button
+                type="button"
+                className="md-menu-btn"
+                onClick={drawerOpen ? closeDrawer : openDrawer}
+                aria-label={drawerOpen ? '收起侧边栏' : '打开侧边栏'}
+              >
+                ☰
+              </button>
+              <div>
+                <p className="md-page-label">{currentPage.label}</p>
+                <h2>{currentPage.title}</h2>
+                <p>{currentPage.description}</p>
+              </div>
             </div>
+            <span className="md-chip subtle">抽屉导航</span>
           </header>
 
           <section className="md-feedback-card">
