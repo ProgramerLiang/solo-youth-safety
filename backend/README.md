@@ -1,14 +1,12 @@
-# Backend Scaffold
+# Backend (FastAPI)
 
-本目录用于放置服务端项目。
+## 运行
+```bash
+cd backend
+python3 -m pip install --user -r requirements.txt
+python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-## MVP 能力
-- 用户与设备绑定
-- SOS 事件上报
-- 实时位置上报与查询
-- 紧急联系人通知触发
-
-## 建议后续初始化
-- Node.js (NestJS/Express) 或 Python (FastAPI)
-- PostgreSQL + Redis
-- WebSocket 或 MQTT（实时消息）
+接口文档：
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`

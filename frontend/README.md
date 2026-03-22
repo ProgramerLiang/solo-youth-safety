@@ -1,13 +1,10 @@
-# Frontend Scaffold
+# Frontend (React + Vite)
 
-本目录用于放置用户端应用（Web 或移动端前端）。
+## 运行
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## 建议后续初始化
-- Web: React + Vite + TypeScript
-- Mobile: React Native / Flutter（按产品决策）
-
-## 目标页面（MVP）
-- 首页（安全状态）
-- SOS 报警页
-- 实时定位页
-- 紧急联系人管理页
+默认地址：`http://127.0.0.1:5173`

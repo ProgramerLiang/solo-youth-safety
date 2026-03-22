@@ -6,6 +6,7 @@
 ## 当前阶段
 - 需求梳理中（见 `神秘组织内部资料.md`）
 - 已初始化 Git 仓库与 Pi 项目配置
+- 已完成 MVP 技术骨架：`frontend`（React + Vite） + `backend`（FastAPI）
 
 ## MVP 目标（建议）
 1. 一键 SOS 报警
