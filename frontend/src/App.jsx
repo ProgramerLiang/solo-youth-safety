@@ -10,6 +10,7 @@ import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
 import { requestInitialPermissions } from './permissions'
 
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
+const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
 
@@ -214,6 +215,36 @@ function App() {
     setResultText('已取消 SOS')
   }
 
+  function onResetOnboarding() {
+    localStorage.removeItem(onboardingKey)
+    setOnboardingDone(false)
+    setActiveTab('setup')
+    setResultText('已重置引导状态，请重新完成配置')
+  }
+
+  function onExportConfig() {
+    const payload = {
+      ...form,
+      exportedAt: new Date().toISOString(),
+      onboardingDone,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'safety-config.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    setResultText('已导出当前配置 JSON')
+  }
+
+  function onApplyTemplate(kind) {
+    const template = kind === 'compact' ? compactTemplate : defaultTemplate
+    setForm((prev) => ({ ...prev, smsTemplate: template }))
+  }
+
   async function executeSos() {
     setArming(false)
     setCountdown(5)
@@ -261,9 +292,17 @@ function App() {
         <div className="md-status-grid">
           <p>权限状态：{permissionText}</p>
           <p>后端健康：{healthText}</p>
-          <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
-            检查后端
-          </button>
+          <div className="md-row-actions">
+            <button type="button" className="md-btn tonal" onClick={onCheckHealth}>
+              检查后端
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
+              重置引导
+            </button>
+            <button type="button" className="md-btn tonal" onClick={onExportConfig}>
+              导出配置
+            </button>
+          </div>
         </div>
 
         {activeTab === 'setup' ? (
@@ -295,6 +334,23 @@ function App() {
               onChange={onChange}
               rows={4}
             />
+
+            <div className="md-template-actions">
+              <button
+                type="button"
+                className="md-btn tonal"
+                onClick={() => onApplyTemplate('default')}
+              >
+                使用默认模板
+              </button>
+              <button
+                type="button"
+                className="md-btn tonal"
+                onClick={() => onApplyTemplate('compact')}
+              >
+                使用简洁模板
+              </button>
+            </div>
 
             <div className="md-helper">
               <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>

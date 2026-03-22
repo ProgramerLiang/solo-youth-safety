@@ -103,6 +103,12 @@ body {
   color: var(--md-on-surface-variant);
 }
 
+.md-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .md-form {
   margin-top: 16px;
   display: grid;
@@ -189,6 +195,12 @@ textarea:focus {
   margin-top: 16px;
   display: grid;
   gap: 10px;
+}
+
+.md-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .md-sos-panel p {
