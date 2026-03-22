@@ -178,6 +178,20 @@ function createMockTrackingPayload(userId, location, count) {
   }
 }
 
+function buildContactsPreview(data) {
+  return {
+    count: data.contacts.length,
+    items: data.contacts.slice(-3).reverse(),
+  }
+}
+
+function buildTrackingPreview(data) {
+  return {
+    count: data.count,
+    items: data.points.slice(-3).reverse(),
+  }
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -192,6 +206,8 @@ function App() {
   const [pendingImportSummary, setPendingImportSummary] = useState(null)
   const [pendingImportDiffs, setPendingImportDiffs] = useState([])
   const [localPanel, setLocalPanel] = useState(null)
+  const [contactsPreview, setContactsPreview] = useState(null)
+  const [trackingPreview, setTrackingPreview] = useState(null)
   const [form, setForm] = useState(createEmptyForm)
   const importInputRef = useRef(null)
 
@@ -219,6 +235,29 @@ function App() {
     }
     const snapshot = await getLocalBackendSnapshot(userId)
     setLocalPanel(snapshot)
+  }
+
+  async function loadContactsPreview(userId = form.userId || DEFAULT_USER) {
+    const data = await listContacts(userId)
+    setContactsPreview(buildContactsPreview(data))
+    return data
+  }
+
+  async function loadTrackingPreview(userId = form.userId || DEFAULT_USER) {
+    const to = new Date()
+    const from = new Date(to.getTime() - 60 * 60 * 1000)
+    const data = await getTrackingTimeline({
+      userId,
+      from: from.toISOString(),
+      to: to.toISOString(),
+    })
+    setTrackingPreview(buildTrackingPreview(data))
+    return data
+  }
+
+  function resetDataPreviews() {
+    setContactsPreview(null)
+    setTrackingPreview(null)
   }
 
   useEffect(() => {
@@ -277,6 +316,7 @@ function App() {
   }, [arming, countdown])
 
   useEffect(() => {
+    resetDataPreviews()
     void refreshLocalPanel(form.userId || DEFAULT_USER)
   }, [form.userId])
 
@@ -424,6 +464,7 @@ function App() {
       setPendingImport(null)
       setPendingImportSummary(null)
       setPendingImportDiffs([])
+      resetDataPreviews()
       setActiveTab('setup')
       await refreshLocalPanel(DEFAULT_USER)
       setResultText('已清空当前用户本地后端数据，并重置引导')
@@ -440,6 +481,7 @@ function App() {
       )
       const data = await createContact(payload)
       await refreshLocalPanel(payload.userId)
+      await loadContactsPreview(payload.userId)
       setResultText(
         `已写入模拟联系人：${payload.contact.name} / ${payload.contact.phone}（当前 ${data.count} 个）`
       )
@@ -458,6 +500,7 @@ function App() {
       const data = await createTrackingPoints(payload)
       const point = payload.points[0]
       await refreshLocalPanel(payload.userId)
+      await loadTrackingPreview(payload.userId)
       setResultText(
         `已写入模拟轨迹点：(${point.lat}, ${point.lng}) @ ${point.timestamp}（本次 ${data.count} 条）`
       )
@@ -468,15 +511,8 @@ function App() {
 
   async function onInspectContacts() {
     try {
-      const data = await listContacts(form.userId || DEFAULT_USER)
-      const preview = data.contacts
-        .slice(-3)
-        .map((item, index) => `${index + 1}. ${item.name} / ${item.phone}`)
-      setResultText([
-        `联系人总数：${data.contacts.length}`,
-        preview.length > 0 ? '最近 3 条：' : '暂无联系人',
-        ...preview,
-      ].join('\n'))
+      const data = await loadContactsPreview(form.userId || DEFAULT_USER)
+      setResultText(`联系人列表已刷新到下方卡片（共 ${data.contacts.length} 条）`)
     } catch (error) {
       setResultText(`读取联系人失败: ${error.message}`)
     }
@@ -484,21 +520,8 @@ function App() {
 
   async function onInspectTracking() {
     try {
-      const to = new Date()
-      const from = new Date(to.getTime() - 60 * 60 * 1000)
-      const data = await getTrackingTimeline({
-        userId: form.userId || DEFAULT_USER,
-        from: from.toISOString(),
-        to: to.toISOString(),
-      })
-      const preview = data.points
-        .slice(-3)
-        .map((point, index) => `${index + 1}. (${point.lat}, ${point.lng}) @ ${point.timestamp}`)
-      setResultText([
-        `最近 1 小时轨迹点：${data.count}`,
-        preview.length > 0 ? '最近 3 条：' : '暂无轨迹点',
-        ...preview,
-      ].join('\n'))
+      const data = await loadTrackingPreview(form.userId || DEFAULT_USER)
+      setResultText(`轨迹列表已刷新到下方卡片（最近 1 小时共 ${data.count} 条）`)
     } catch (error) {
       setResultText(`读取轨迹失败: ${error.message}`)
     }
@@ -637,6 +660,57 @@ function App() {
                 清空本地数据
               </button>
             </div>
+          </section>
+        )}
+
+        {(contactsPreview || trackingPreview) && (
+          <section className="md-preview-section">
+            {contactsPreview && (
+              <article className="md-data-card">
+                <div className="md-data-card-header">
+                  <h3>联系人列表</h3>
+                  <span className="md-chip">{contactsPreview.count} 条</span>
+                </div>
+                {contactsPreview.items.length > 0 ? (
+                  <ul className="md-data-list">
+                    {contactsPreview.items.map((item) => (
+                      <li key={`${item.name}-${item.phone}`} className="md-data-list-item">
+                        <strong>{item.name}</strong>
+                        <span>{item.phone}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="md-data-empty">暂无联系人数据</p>
+                )}
+              </article>
+            )}
+
+            {trackingPreview && (
+              <article className="md-data-card">
+                <div className="md-data-card-header">
+                  <h3>最近 1 小时轨迹</h3>
+                  <span className="md-chip">{trackingPreview.count} 条</span>
+                </div>
+                {trackingPreview.items.length > 0 ? (
+                  <ul className="md-data-list">
+                    {trackingPreview.items.map((point) => (
+                      <li
+                        key={`${point.timestamp}-${point.lat}-${point.lng}`}
+                        className="md-data-list-item"
+                      >
+                        <strong>
+                          ({point.lat}, {point.lng})
+                        </strong>
+                        <span>{formatPanelTime(point.timestamp)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="md-data-empty">最近 1 小时暂无轨迹点</p>
+                )}
+              </article>
+            )}
           </section>
         )}
 

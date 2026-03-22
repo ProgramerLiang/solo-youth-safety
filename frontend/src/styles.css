@@ -166,6 +166,61 @@ body {
   margin: 0 0 10px;
 }
 
+.md-preview-section {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.md-data-card {
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #ddd0ff;
+  padding: 12px;
+}
+
+.md-data-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.md-data-card-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.md-data-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.md-data-list-item {
+  border-radius: 12px;
+  background: #f7f3ff;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.md-data-list-item strong {
+  font-size: 14px;
+}
+
+.md-data-list-item span,
+.md-data-empty {
+  color: var(--md-on-surface-variant);
+}
+
+.md-data-empty {
+  margin: 10px 0 0;
+}
+
 .md-import-card {
   margin-top: 14px;
   border-radius: 14px;
