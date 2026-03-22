@@ -1,5 +1,6 @@
 import { getPersistedIdentity } from './identity'
 import { isNativePlatform } from './nativeActions'
+import { readStoredJson, writeStoredJson } from './storage'
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1'
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
@@ -40,25 +41,20 @@ function renderTemplate(template, payload) {
 }
 
 function loadLocalDb() {
-  try {
-    const raw = localStorage.getItem(localDbKey)
-    if (!raw) {
-      return createEmptyLocalDb()
-    }
-    const parsed = JSON.parse(raw)
-    return {
-      emergencyConfigByUser: parsed.emergencyConfigByUser || {},
-      sosEvents: parsed.sosEvents || [],
-      contactsByUser: parsed.contactsByUser || {},
-      trackingPoints: parsed.trackingPoints || [],
-    }
-  } catch {
+  const parsed = readStoredJson(localDbKey)
+  if (!parsed) {
     return createEmptyLocalDb()
+  }
+  return {
+    emergencyConfigByUser: parsed.emergencyConfigByUser || {},
+    sosEvents: parsed.sosEvents || [],
+    contactsByUser: parsed.contactsByUser || {},
+    trackingPoints: parsed.trackingPoints || [],
   }
 }
 
-function saveLocalDb(db) {
-  localStorage.setItem(localDbKey, JSON.stringify(db))
+async function saveLocalDb(db) {
+  await writeStoredJson(localDbKey, db)
 }
 
 function createContactId() {
@@ -282,7 +278,7 @@ async function saveEmergencyConfigLocal(payload) {
   const normalized = normalizeConfig(payload)
   const db = loadLocalDb()
   db.emergencyConfigByUser[normalized.userId] = normalized
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return normalized
 }
 
@@ -335,7 +331,7 @@ async function triggerSosLocal(payload) {
     notifications,
   }
   db.sosEvents.push(event)
-  saveLocalDb(db)
+  await saveLocalDb(db)
 
   return {
     message: 'sos received (local)',
@@ -361,7 +357,7 @@ async function createTrackingPointsLocal(payload) {
       point,
     })
   }
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return { message: 'points stored', count: payload.points.length }
 }
 
@@ -398,7 +394,7 @@ async function listSosEventsLocal(userId = getDefaultUserId(), limit = 20) {
   const db = loadLocalDb()
   const events = normalizeSosEventList(db.sosEvents)
   db.sosEvents = events
-  saveLocalDb(db)
+  await saveLocalDb(db)
 
   const filtered = events
     .filter((item) => item.userId === userId)
@@ -414,7 +410,7 @@ async function listContactsLocal(userId = getDefaultUserId()) {
   const db = loadLocalDb()
   const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   db.contactsByUser[userId] = contacts
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return { userId, contacts }
 }
 
@@ -428,7 +424,7 @@ async function createContactLocal(payload) {
   const contact = normalizeContactRecord(payload.contact)
   existing.push(contact)
   db.contactsByUser[payload.userId] = existing
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return { message: 'contact added', count: existing.length, contact }
 }
 
@@ -445,7 +441,7 @@ async function updateContactLocal(contactId, payload) {
   }
   existing[index] = { id: contactId, name: payload.contact.name.trim(), phone: payload.contact.phone.trim() }
   db.contactsByUser[payload.userId] = existing
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return { message: 'contact updated', count: existing.length, contact: existing[index] }
 }
 
@@ -461,7 +457,7 @@ async function deleteContactLocal(contactId, userId = getDefaultUserId()) {
     throw new Error('contact not found')
   }
   db.contactsByUser[userId] = next
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return { message: 'contact deleted', count: next.length }
 }
 
@@ -529,7 +525,7 @@ export async function importLocalBackendBundle(payload) {
   db.trackingPoints = db.trackingPoints.filter((item) => item.userId !== bundle.userId)
   db.sosEvents.push(...bundle.sosEvents)
   db.trackingPoints.push(...bundle.trackingPoints)
-  saveLocalDb(db)
+  await saveLocalDb(db)
 
   return {
     bundle,
@@ -543,7 +539,7 @@ export async function clearLocalBackendData(userId = getDefaultUserId()) {
   delete db.contactsByUser[userId]
   db.sosEvents = db.sosEvents.filter((item) => item.userId !== userId)
   db.trackingPoints = db.trackingPoints.filter((item) => item.userId !== userId)
-  saveLocalDb(db)
+  await saveLocalDb(db)
   return getLocalBackendSnapshot(userId)
 }
 

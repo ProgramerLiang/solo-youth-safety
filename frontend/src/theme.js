@@ -5,6 +5,7 @@ import {
   hexFromArgb,
   themeFromSourceColor,
 } from '@material/material-color-utilities'
+import { readStoredJson, writeStoredJson } from './storage'
 
 const themeStorageKey = 'safety_theme_preferences_v1'
 const defaultSeedColor = '#6750A4'
@@ -139,26 +140,21 @@ function buildPalette(theme) {
 }
 
 export function readThemePreferences() {
-  try {
-    const raw = localStorage.getItem(themeStorageKey)
-    if (!raw) {
-      return { ...defaultThemePreferences }
-    }
-    const parsed = JSON.parse(raw)
-    return {
-      mode: ['dynamic', 'preset', 'custom'].includes(parsed?.mode)
-        ? parsed.mode
-        : defaultThemePreferences.mode,
-      presetId: getPresetPalette(parsed?.presetId).id,
-      customSeed: normalizeHexColor(parsed?.customSeed, defaultSeedColor),
-    }
-  } catch {
+  const parsed = readStoredJson(themeStorageKey)
+  if (!parsed) {
     return { ...defaultThemePreferences }
+  }
+  return {
+    mode: ['dynamic', 'preset', 'custom'].includes(parsed?.mode)
+      ? parsed.mode
+      : defaultThemePreferences.mode,
+    presetId: getPresetPalette(parsed?.presetId).id,
+    customSeed: normalizeHexColor(parsed?.customSeed, defaultSeedColor),
   }
 }
 
-export function writeThemePreferences(preferences) {
-  localStorage.setItem(themeStorageKey, JSON.stringify(preferences))
+export async function writeThemePreferences(preferences) {
+  await writeStoredJson(themeStorageKey, preferences)
 }
 
 export async function loadDynamicThemeInfo() {

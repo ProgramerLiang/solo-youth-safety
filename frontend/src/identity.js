@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { readStoredJson, writeStoredJson } from './storage'
 
 const identityStorageKey = 'safety_identity_v1'
 
@@ -32,21 +33,14 @@ function normalizeIdentity(raw) {
 }
 
 export function getPersistedIdentity() {
-  try {
-    const raw = localStorage.getItem(identityStorageKey)
-    const stored = raw ? JSON.parse(raw) : null
-    const identity = normalizeIdentity(stored)
-    localStorage.setItem(identityStorageKey, JSON.stringify(identity))
-    return identity
-  } catch {
-    const identity = normalizeIdentity({ platform: getPlatform() })
-    localStorage.setItem(identityStorageKey, JSON.stringify(identity))
-    return identity
-  }
+  const stored = readStoredJson(identityStorageKey)
+  const identity = normalizeIdentity(stored || { platform: getPlatform() })
+  void writeStoredJson(identityStorageKey, identity)
+  return identity
 }
 
 export function savePersistedIdentity(identity) {
   const next = normalizeIdentity(identity)
-  localStorage.setItem(identityStorageKey, JSON.stringify(next))
+  void writeStoredJson(identityStorageKey, next)
   return next
 }

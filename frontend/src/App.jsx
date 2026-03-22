@@ -28,12 +28,21 @@ import {
   writeThemePreferences,
 } from './theme'
 import { getPersistedIdentity, savePersistedIdentity } from './identity'
+import {
+  getStorageDriverLabel,
+  readStoredJson,
+  readStoredString,
+  removeStoredValue,
+  writeStoredJson,
+  writeStoredString,
+} from './storage'
 
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
 const configVersion = '1.0'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
+const developerModeKey = 'safety_developer_mode_v1'
 const appVersion = __APP_VERSION__
 const pageCatalog = [
   {
@@ -81,16 +90,11 @@ const pageCatalog = [
 ]
 
 function readJsonCache(key) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  return readStoredJson(key)
 }
 
-function writeJsonCache(key, value) {
-  localStorage.setItem(key, JSON.stringify(value))
+async function writeJsonCache(key, value) {
+  await writeStoredJson(key, value)
 }
 
 function downloadJsonFile(filename, payload) {
@@ -320,6 +324,7 @@ function OverviewPage({
   pages,
   permissionText,
   sosHistory,
+  storageDriver,
   themeState,
   onCheckHealth,
   onNavigate,
@@ -401,6 +406,10 @@ function OverviewPage({
             <div className="md-kv-item">
               <span>最近 SOS</span>
               <strong>{latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无'}</strong>
+            </div>
+            <div className="md-kv-item">
+              <span>持久化存储</span>
+              <strong>{storageDriver}</strong>
             </div>
           </div>
           <div className="md-row-actions">
@@ -1099,6 +1108,7 @@ function HistoryPage({ onRefreshSosHistory, selectedSosEvent, setSelectedSosId, 
 function ToolsPage({
   contactsPreview,
   localPanel,
+  storageDriver,
   trackingPreview,
   onAddMockContact,
   onAddMockTracking,
@@ -1117,6 +1127,7 @@ function ToolsPage({
           <span className="md-chip subtle">Debug / 验收辅助</span>
         </div>
         <p className="md-section-hint">这一页承载本地后端面板、快照与 mock 操作，避免与用户主流程混在同一屏。</p>
+        <p className="md-section-hint">当前持久化驱动：{storageDriver}</p>
       </section>
 
       {localPanel ? (
@@ -1240,6 +1251,9 @@ function App() {
   const [loadingInit, setLoadingInit] = useState(true)
   const [identity, setIdentity] = useState(getPersistedIdentity)
   const [onboardingDone, setOnboardingDone] = useState(false)
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(
+    () => import.meta.env.DEV || readStoredString(developerModeKey) === 'enabled'
+  )
   const [activePage, setActivePage] = useState('overview')
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
@@ -1264,12 +1278,15 @@ function App() {
   const [form, setForm] = useState(() => createEmptyForm(identity.userId))
   const importInputRef = useRef(null)
   const localBundleInputRef = useRef(null)
+  const devTapCountRef = useRef(0)
+  const devTapTimerRef = useRef(null)
 
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
     []
   )
-  const showToolsPage = isLocalBackendMode()
+  const storageDriver = getStorageDriverLabel()
+  const showToolsPage = isLocalBackendMode() && developerModeEnabled
   const pageItems = useMemo(
     () => pageCatalog.filter((page) => page.id !== 'tools' || showToolsPage),
     [showToolsPage]
@@ -1302,7 +1319,7 @@ function App() {
 
   useEffect(() => {
     applyThemeState(themeState)
-    writeThemePreferences(themeState.preferences)
+    void writeThemePreferences(themeState.preferences)
   }, [themeState])
 
   useEffect(() => {
@@ -1390,11 +1407,47 @@ function App() {
     })
   }
 
+  function resetDeveloperTapProgress() {
+    devTapCountRef.current = 0
+    if (devTapTimerRef.current) {
+      clearTimeout(devTapTimerRef.current)
+      devTapTimerRef.current = null
+    }
+  }
+
+  async function onVersionChipClick() {
+    devTapCountRef.current += 1
+    if (devTapTimerRef.current) {
+      clearTimeout(devTapTimerRef.current)
+    }
+    devTapTimerRef.current = setTimeout(() => {
+      resetDeveloperTapProgress()
+    }, 1200)
+
+    const remaining = 5 - devTapCountRef.current
+    if (remaining > 0) {
+      setResultText(`再点 ${remaining} 次可切换开发者模式`)
+      return
+    }
+
+    resetDeveloperTapProgress()
+    const nextEnabled = !developerModeEnabled
+    setDeveloperModeEnabled(nextEnabled)
+    if (nextEnabled) {
+      await writeStoredString(developerModeKey, 'enabled')
+      setResultText('已开启开发者模式；若当前处于本地后端模式，工具页现已可见')
+      return
+    }
+
+    await removeStoredValue(developerModeKey)
+    setResultText('已关闭开发者模式，工具页已隐藏')
+  }
+
   useEffect(() => {
     let ignore = false
 
     async function bootstrap() {
-      const done = localStorage.getItem(onboardingKey) === 'done'
+      const done = readStoredString(onboardingKey) === 'done'
       if (!ignore) {
         setOnboardingDone(done)
         setActivePage(done ? 'overview' : 'config')
@@ -1421,7 +1474,7 @@ function App() {
         }
         setForm(merged)
         updateIdentityUserId(merged.userId)
-        writeJsonCache(cacheKey, merged)
+        await writeJsonCache(cacheKey, merged)
         await Promise.all([
           refreshLocalPanel(merged.userId),
           loadContactsPreview(merged.userId),
@@ -1455,6 +1508,8 @@ function App() {
       setActivePage(onboardingDone ? 'overview' : 'config')
     }
   }, [activePage, onboardingDone, showToolsPage])
+
+  useEffect(() => () => resetDeveloperTapProgress(), [])
 
   useEffect(() => {
     resetDataPreviews()
@@ -1490,7 +1545,7 @@ function App() {
       ...form,
       smsTemplate: form.smsTemplate.trim() ? form.smsTemplate : defaultTemplate,
     }
-    writeJsonCache(cacheKey, safeForm)
+    await writeJsonCache(cacheKey, safeForm)
     try {
       const data = await saveEmergencyConfig(safeForm)
       const next = {
@@ -1501,13 +1556,13 @@ function App() {
       }
       setForm(next)
       updateIdentityUserId(next.userId)
-      writeJsonCache(cacheKey, next)
+      await writeJsonCache(cacheKey, next)
       await refreshLocalPanel(next.userId)
       setResultText('配置保存成功，已完成引导，可前往 SOS 页面')
     } catch (error) {
       setResultText(`后端保存失败，已本地保存: ${error.message}`)
     }
-    localStorage.setItem(onboardingKey, 'done')
+    await writeStoredString(onboardingKey, 'done')
     setOnboardingDone(true)
     setActivePage('sos')
   }
@@ -1525,8 +1580,8 @@ function App() {
     setResultText('已取消 SOS')
   }
 
-  function onResetOnboarding() {
-    localStorage.removeItem(onboardingKey)
+  async function onResetOnboarding() {
+    await removeStoredValue(onboardingKey)
     setOnboardingDone(false)
     setActivePage('config')
     setResultText('已重置引导状态，请重新完成配置')
@@ -1576,7 +1631,7 @@ function App() {
     }
     setForm(pendingImport)
     updateIdentityUserId(pendingImport.userId)
-    writeJsonCache(cacheKey, pendingImport)
+    await writeJsonCache(cacheKey, pendingImport)
     await refreshLocalPanel(pendingImport.userId)
     setOnboardingDone(false)
     setPendingImport(null)
@@ -1694,8 +1749,8 @@ function App() {
   async function onClearLocalPanel() {
     try {
       await clearLocalBackendData(form.userId || identity.userId)
-      localStorage.removeItem(cacheKey)
-      localStorage.removeItem(onboardingKey)
+      await removeStoredValue(cacheKey)
+      await removeStoredValue(onboardingKey)
       setForm(createEmptyForm(identity.userId))
       setOnboardingDone(false)
       setPendingImport(null)
@@ -1755,11 +1810,11 @@ function App() {
         : { ...createEmptyForm(), userId: bundle.userId }
       setForm(nextForm)
       updateIdentityUserId(bundle.userId)
-      writeJsonCache(cacheKey, nextForm)
+      await writeJsonCache(cacheKey, nextForm)
       if (bundle.config) {
-        localStorage.setItem(onboardingKey, 'done')
+        await writeStoredString(onboardingKey, 'done')
       } else {
-        localStorage.removeItem(onboardingKey)
+        await removeStoredValue(onboardingKey)
       }
       setOnboardingDone(Boolean(bundle.config))
       setPendingImport(null)
@@ -1939,6 +1994,7 @@ function App() {
           <ToolsPage
             contactsPreview={contactsPreview}
             localPanel={localPanel}
+            storageDriver={storageDriver}
             trackingPreview={trackingPreview}
             onAddMockContact={onAddMockContact}
             onAddMockTracking={onAddMockTracking}
@@ -1964,6 +2020,7 @@ function App() {
             pages={pageItems}
             permissionText={permissionText}
             sosHistory={sosHistory}
+            storageDriver={storageDriver}
             themeState={themeState}
             onCheckHealth={onCheckHealth}
             onNavigate={setActivePage}
@@ -1984,7 +2041,9 @@ function App() {
             <p className="md-brand-copy">把配置、联系人、SOS、历史、自检拆到独立页面，手机与大屏都更易使用。</p>
             <div className="md-chip-row">
               <span className="md-chip">{envText}</span>
-              <span className="md-chip subtle">v{appVersion}</span>
+              <button type="button" className="md-chip subtle md-chip-button" onClick={onVersionChipClick}>
+                v{appVersion}
+              </button>
               <span className="md-chip subtle">用户 {form.userId}</span>
             </div>
           </section>
@@ -2031,6 +2090,10 @@ function App() {
               <div className="md-status-item">
                 <span>设备 ID</span>
                 <strong>{identity.deviceId}</strong>
+              </div>
+              <div className="md-status-item">
+                <span>开发者模式</span>
+                <strong>{developerModeEnabled ? '已开启' : '已隐藏'}</strong>
               </div>
             </div>
           </section>

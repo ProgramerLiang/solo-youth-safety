@@ -36,11 +36,12 @@ npm run android:apk
   - 联系人
   - SOS
   - 历史
-  - 工具（本地后端 / 自检）
+  - 工具（本地后端 / 自检，默认隐藏在开发者模式下）
 - 主题页已支持：
   - Android 12+ 默认壁纸吸色（Material You）
   - 预设调色板
   - 自定义调色板
+  - 主题选择持久化保存
 - 配置项支持：
   - 电话号码（可留空）
   - 短信号码（可留空）
@@ -55,7 +56,7 @@ npm run android:apk
 ## 5) 运行模式（已支持 APK 内前后端一体）
 - **Android APK 内默认启用本地后端模式（local backend）**：
   - 不依赖外部 FastAPI 进程
-  - 紧急配置与 SOS 事件存储在本地 `localStorage`
+  - 紧急配置、主题、身份、本地后端数据已升级为 **Capacitor Preferences** 持久化
   - SOS 通知结果为本地模拟日志 + 原生拨号/短信拉起
 - **Web 开发模式默认走远端 FastAPI**：`http://127.0.0.1:8000/api/v1`
 - 可通过浏览器手动开启本地后端（调试用）：
@@ -75,10 +76,12 @@ APK 本地后端已覆盖 MVP API：
 - `PUT/DELETE /contacts/{contactId}`
 
 说明：
-- 数据存储在本地 `localStorage`（key: `safety_local_backend_v1`）
+- Android 端数据优先存储在 **Capacitor Preferences**（key 如 `safety_local_backend_v1`）
+- Web 端仍使用 `localStorage` 作为浏览器开发存储
 - `tracking/timeline` 同样校验时间范围（`from <= to`）
 - `contacts` 支持按 `userId` 读写
-- App 内已将“本地后端数据面板”收纳到“工具”页面，可查看配置/SOS/联系人/轨迹点计数并支持清空当前用户本地数据
+- App 内已将“本地后端数据面板”收纳到“工具”页面，默认需连续点击版本号 5 次开启开发者模式后显示
+- 工具页可查看配置/SOS/联系人/轨迹点计数并支持清空当前用户本地数据
 - 工具页内提供真机自测按钮：导出本地快照、导入本地快照、添加模拟联系人、写入模拟轨迹、刷新联系人快照、刷新最近 1 小时轨迹
 - 联系人 / 轨迹快照会在工具页内以列表卡片展示，便于直接验收 contacts / tracking 数据
 - 本地快照会导出当前用户的配置、联系人、轨迹点、SOS 事件与汇总信息

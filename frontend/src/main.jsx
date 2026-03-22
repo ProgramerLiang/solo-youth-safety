@@ -1,7 +1,11 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App'
+import { initializeAppStorage } from './storage'
 import './styles.css'
+
+await initializeAppStorage()
+
+const { default: App } = await import('./App')
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

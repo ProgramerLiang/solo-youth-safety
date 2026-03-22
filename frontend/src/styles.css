@@ -147,6 +147,11 @@ button:hover:not(:disabled) {
   color: var(--md-primary);
 }
 
+.md-chip-button {
+  border: none;
+  cursor: pointer;
+}
+
 .md-banner {
   border-radius: 18px;
   padding: 12px 14px;
