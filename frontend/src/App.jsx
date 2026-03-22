@@ -6,6 +6,21 @@ import {
   saveEmergencyConfig,
   triggerSos,
 } from './api'
+import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
+
+function buildSosPayload(userId) {
+  return {
+    userId,
+    deviceId: 'android-device-001',
+    triggerType: 'manual',
+    timestamp: new Date().toISOString(),
+    location: {
+      lat: 31.2304,
+      lng: 121.4737,
+      accuracy: 12,
+    },
+  }
+}
 
 function App() {
   const [healthText, setHealthText] = useState('未检查')
@@ -23,14 +38,15 @@ function App() {
     async function loadConfig() {
       try {
         const data = await getEmergencyConfig(DEFAULT_USER)
-        if (!ignore) {
-          setForm({
-            userId: data.userId,
-            callNumber: data.callNumber ?? '',
-            smsNumber: data.smsNumber ?? '',
-            smsTemplate: data.smsTemplate,
-          })
+        if (ignore) {
+          return
         }
+        setForm({
+          userId: data.userId,
+          callNumber: data.callNumber ?? '',
+          smsNumber: data.smsNumber ?? '',
+          smsTemplate: data.smsTemplate,
+        })
       } catch {
         if (!ignore) {
           setResultText('加载配置失败，请先启动后端服务')
@@ -75,24 +91,20 @@ function App() {
   }
 
   async function onTriggerSos() {
-    const payload = {
-      userId: form.userId,
-      deviceId: 'android-device-001',
-      triggerType: 'manual',
-      timestamp: new Date().toISOString(),
-      location: {
-        lat: 31.2304,
-        lng: 121.4737,
-        accuracy: 12,
-      },
-    }
+    const payload = buildSosPayload(form.userId)
 
     try {
-      const data = await triggerSos(payload)
-      const lines = data.notifications.map(
-        (n) => `${n.channel}: ${n.status} (${n.detail})`
+      const [serverData, nativeLogs] = await Promise.all([
+        triggerSos(payload),
+        triggerNativeEmergency(form, payload),
+      ])
+      const serverLines = serverData.notifications.map(
+        (n) => `server/${n.channel}: ${n.status} (${n.detail})`
       )
-      setResultText(['SOS 已上报', ...lines].join('\n'))
+      const nativeLines = nativeLogs.map(
+        (n) => `native/${n.channel}: ${n.status} (${n.detail})`
+      )
+      setResultText(['SOS 已上报', ...serverLines, ...nativeLines].join('\n'))
     } catch (error) {
       setResultText(`SOS 上报失败: ${error.message}`)
     }
@@ -102,6 +114,7 @@ function App() {
     <main className="page">
       <section className="card">
         <h1>独行青年安全守护（Android MVP）</h1>
+        <p>运行环境：{isNativePlatform() ? 'Android App' : 'Web 浏览器'}</p>
         <p>后端健康状态：{healthText}</p>
         <button type="button" onClick={onCheckHealth}>
           检查后端
@@ -142,7 +155,7 @@ function App() {
 
         <div className="actions">
           <button type="button" className="danger" onClick={onTriggerSos}>
-            触发 SOS（模拟）
+            触发 SOS（服务端模拟 + Android 拨号/短信）
           </button>
         </div>
 
