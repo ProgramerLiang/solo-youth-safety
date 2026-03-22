@@ -7,6 +7,7 @@ import {
   DEFAULT_USER,
   exportLocalBackendBundle,
   getEmergencyConfig,
+  importLocalBackendBundle,
   getLocalBackendSnapshot,
   getTrackingTimeline,
   isLocalBackendMode,
@@ -205,6 +206,16 @@ function buildTrackingPreview(data) {
   }
 }
 
+function buildLocalBundleSummary(bundle) {
+  return {
+    userId: typeof bundle?.userId === 'string' ? bundle.userId : DEFAULT_USER,
+    hasConfig: Boolean(bundle?.config),
+    contactsCount: Array.isArray(bundle?.contacts) ? bundle.contacts.length : 0,
+    trackingCount: Array.isArray(bundle?.trackingPoints) ? bundle.trackingPoints.length : 0,
+    sosCount: Array.isArray(bundle?.sosEvents) ? bundle.sosEvents.length : 0,
+  }
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -223,6 +234,7 @@ function App() {
   const [trackingPreview, setTrackingPreview] = useState(null)
   const [form, setForm] = useState(createEmptyForm)
   const importInputRef = useRef(null)
+  const localBundleInputRef = useRef(null)
 
   const envText = useMemo(
     () => (isNativePlatform() ? 'Android App' : 'Web 浏览器'),
@@ -489,6 +501,60 @@ function App() {
     }
   }
 
+  function onImportLocalBundleClick() {
+    localBundleInputRef.current?.click()
+  }
+
+  async function onImportLocalBundle(event) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+    try {
+      const text = await file.text()
+      const payload = JSON.parse(text)
+      const summary = buildLocalBundleSummary(payload)
+      const confirmed = window.confirm(
+        `将覆盖用户 ${summary.userId} 的本地数据。\n配置：${summary.hasConfig ? '有' : '无'}\n联系人：${summary.contactsCount}\n轨迹点：${summary.trackingCount}\nSOS：${summary.sosCount}`
+      )
+      if (!confirmed) {
+        setResultText('已取消本地快照导入')
+        return
+      }
+      const { bundle } = await importLocalBackendBundle(payload)
+      const nextForm = bundle.config
+        ? {
+            ...createEmptyForm(),
+            ...bundle.config,
+            callNumber: bundle.config.callNumber ?? '',
+            smsNumber: bundle.config.smsNumber ?? '',
+            smsTemplate: bundle.config.smsTemplate || defaultTemplate,
+          }
+        : { ...createEmptyForm(), userId: bundle.userId }
+      setForm(nextForm)
+      writeJsonCache(cacheKey, nextForm)
+      if (bundle.config) {
+        localStorage.setItem(onboardingKey, 'done')
+      } else {
+        localStorage.removeItem(onboardingKey)
+      }
+      setOnboardingDone(Boolean(bundle.config))
+      setPendingImport(null)
+      setPendingImportSummary(null)
+      setPendingImportDiffs([])
+      setActiveTab(bundle.config ? 'sos' : 'setup')
+      await refreshLocalPanel(bundle.userId)
+      await Promise.all([loadContactsPreview(bundle.userId), loadTrackingPreview(bundle.userId)])
+      setResultText(
+        `已导入本地快照：${bundle.userId}（联系人 ${bundle.contacts.length}，轨迹 ${bundle.trackingPoints.length}，SOS ${bundle.sosEvents.length}）`
+      )
+    } catch (error) {
+      setResultText(`导入本地快照失败: ${error.message}`)
+    } finally {
+      event.target.value = ''
+    }
+  }
+
   async function onAddMockContact() {
     try {
       const payload = createMockContactPayload(
@@ -663,6 +729,9 @@ function App() {
               <button type="button" className="md-btn tonal" onClick={onExportLocalBundle}>
                 导出本地快照
               </button>
+              <button type="button" className="md-btn tonal" onClick={onImportLocalBundleClick}>
+                导入本地快照
+              </button>
               <button type="button" className="md-btn tonal" onClick={onAddMockContact}>
                 添加模拟联系人
               </button>
@@ -678,6 +747,13 @@ function App() {
               <button type="button" className="md-btn tonal" onClick={onClearLocalPanel}>
                 清空本地数据
               </button>
+              <input
+                ref={localBundleInputRef}
+                type="file"
+                accept="application/json"
+                className="md-hidden-input"
+                onChange={onImportLocalBundle}
+              />
             </div>
           </section>
         )}

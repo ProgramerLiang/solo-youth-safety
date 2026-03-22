@@ -4,6 +4,7 @@ const API_BASE = 'http://127.0.0.1:8000/api/v1'
 const DEFAULT_USER = 'u_123'
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const localDbKey = 'safety_local_backend_v1'
+const localBundleVersion = '1.0'
 
 function isLocalBackendEnabled() {
   const forced = globalThis?.localStorage?.getItem('safety_force_local_backend') === '1'
@@ -60,6 +61,116 @@ function normalizeConfig(payload) {
     callNumber: call || null,
     smsNumber: sms || null,
     smsTemplate,
+  }
+}
+
+function asTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function toFiniteNumber(value, label) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${label} 必须为数字`)
+  }
+  return parsed
+}
+
+function normalizeImportedLocation(location, label) {
+  if (!location || typeof location !== 'object' || Array.isArray(location)) {
+    throw new Error(`${label} 缺少 location`)
+  }
+  return {
+    lat: toFiniteNumber(location.lat, `${label}.lat`),
+    lng: toFiniteNumber(location.lng, `${label}.lng`),
+    accuracy: Number.isFinite(Number(location.accuracy)) ? Number(location.accuracy) : 12,
+  }
+}
+
+function normalizeImportedContact(contact, index) {
+  const name = asTrimmedString(contact?.name)
+  const phone = asTrimmedString(contact?.phone)
+  if (!name || !phone) {
+    throw new Error(`contacts[${index}] 缺少 name 或 phone`)
+  }
+  return { name, phone }
+}
+
+function normalizeImportedTrackingRecord(item, userId, index) {
+  const label = `trackingPoints[${index}].point`
+  const point = item?.point
+  const timestamp = asTrimmedString(point?.timestamp)
+  if (!timestamp) {
+    throw new Error(`${label}.timestamp 缺失`)
+  }
+  return {
+    userId,
+    deviceId: asTrimmedString(item?.deviceId) || 'android-device-001',
+    point: {
+      lat: toFiniteNumber(point.lat, `${label}.lat`),
+      lng: toFiniteNumber(point.lng, `${label}.lng`),
+      accuracy: Number.isFinite(Number(point.accuracy)) ? Number(point.accuracy) : 12,
+      speed: Number.isFinite(Number(point.speed)) ? Number(point.speed) : 0,
+      heading: Number.isFinite(Number(point.heading)) ? Number(point.heading) : 0,
+      timestamp,
+    },
+  }
+}
+
+function normalizeImportedSosEvent(item, userId, index) {
+  const label = `sosEvents[${index}]`
+  const deviceId = asTrimmedString(item?.deviceId)
+  const timestamp = asTrimmedString(item?.timestamp)
+  if (!deviceId || !timestamp) {
+    throw new Error(`${label} 缺少 deviceId 或 timestamp`)
+  }
+  return {
+    userId,
+    deviceId,
+    triggerType: asTrimmedString(item?.triggerType) || 'manual',
+    timestamp,
+    location: normalizeImportedLocation(item?.location, label),
+  }
+}
+
+function normalizeImportedConfig(config, userId) {
+  const configUserId = asTrimmedString(config?.userId) || userId
+  if (configUserId !== userId) {
+    throw new Error('config.userId 与快照 userId 不一致')
+  }
+  return normalizeConfig({
+    userId,
+    callNumber: config?.callNumber ?? '',
+    smsNumber: config?.smsNumber ?? '',
+    smsTemplate: config?.smsTemplate ?? defaultTemplate,
+  })
+}
+
+function normalizeImportedBundle(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('本地快照格式无效')
+  }
+  if (payload.version && payload.version !== localBundleVersion) {
+    throw new Error(`本地快照版本不匹配，期望 ${localBundleVersion}`)
+  }
+  const userId = asTrimmedString(payload.userId)
+  if (!userId) {
+    throw new Error('本地快照缺少 userId')
+  }
+  return {
+    userId,
+    config: payload.config == null ? null : normalizeImportedConfig(payload.config, userId),
+    contacts: Array.isArray(payload.contacts)
+      ? payload.contacts.map((item, index) => normalizeImportedContact(item, index))
+      : [],
+    trackingPoints: Array.isArray(payload.trackingPoints)
+      ? payload.trackingPoints.map((item, index) =>
+          normalizeImportedTrackingRecord(item, userId, index)
+        )
+      : [],
+    sosEvents: Array.isArray(payload.sosEvents)
+      ? payload.sosEvents.map((item, index) => normalizeImportedSosEvent(item, userId, index))
+      : [],
   }
 }
 
@@ -252,6 +363,7 @@ export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
 
   return {
     mode: 'local',
+    version: localBundleVersion,
     exportedAt: new Date().toISOString(),
     userId,
     config: db.emergencyConfigByUser[userId] || null,
@@ -264,6 +376,29 @@ export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
       trackingCount: trackingPoints.length,
       sosCount: sosEvents.length,
     },
+  }
+}
+
+export async function importLocalBackendBundle(payload) {
+  const bundle = normalizeImportedBundle(payload)
+  const db = loadLocalDb()
+
+  if (bundle.config) {
+    db.emergencyConfigByUser[bundle.userId] = bundle.config
+  } else {
+    delete db.emergencyConfigByUser[bundle.userId]
+  }
+
+  db.contactsByUser[bundle.userId] = bundle.contacts
+  db.sosEvents = db.sosEvents.filter((item) => item.userId !== bundle.userId)
+  db.trackingPoints = db.trackingPoints.filter((item) => item.userId !== bundle.userId)
+  db.sosEvents.push(...bundle.sosEvents)
+  db.trackingPoints.push(...bundle.trackingPoints)
+  saveLocalDb(db)
+
+  return {
+    bundle,
+    snapshot: await getLocalBackendSnapshot(bundle.userId),
   }
 }
 
