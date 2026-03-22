@@ -5,6 +5,7 @@ import {
   createContact,
   createTrackingPoints,
   DEFAULT_USER,
+  deleteContact,
   exportLocalBackendBundle,
   getEmergencyConfig,
   importLocalBackendBundle,
@@ -14,6 +15,7 @@ import {
   listContacts,
   saveEmergencyConfig,
   triggerSos,
+  updateContact,
 } from './api'
 import { isNativePlatform, triggerNativeEmergency } from './nativeActions'
 import { requestInitialPermissions } from './permissions'
@@ -154,6 +156,13 @@ function createEmptyForm() {
   }
 }
 
+function createEmptyContactForm() {
+  return {
+    name: '',
+    phone: '',
+  }
+}
+
 function formatPanelTime(value) {
   if (!value) {
     return '暂无'
@@ -230,8 +239,11 @@ function App() {
   const [pendingImportSummary, setPendingImportSummary] = useState(null)
   const [pendingImportDiffs, setPendingImportDiffs] = useState([])
   const [localPanel, setLocalPanel] = useState(null)
+  const [contactsList, setContactsList] = useState([])
   const [contactsPreview, setContactsPreview] = useState(null)
   const [trackingPreview, setTrackingPreview] = useState(null)
+  const [contactForm, setContactForm] = useState(createEmptyContactForm)
+  const [editingContactId, setEditingContactId] = useState(null)
   const [form, setForm] = useState(createEmptyForm)
   const importInputRef = useRef(null)
   const localBundleInputRef = useRef(null)
@@ -264,6 +276,7 @@ function App() {
 
   async function loadContactsPreview(userId = form.userId || DEFAULT_USER) {
     const data = await listContacts(userId)
+    setContactsList(data.contacts)
     setContactsPreview(buildContactsPreview(data))
     return data
   }
@@ -283,6 +296,12 @@ function App() {
   function resetDataPreviews() {
     setContactsPreview(null)
     setTrackingPreview(null)
+  }
+
+  function resetContactManager() {
+    setContactsList([])
+    setContactForm(createEmptyContactForm())
+    setEditingContactId(null)
   }
 
   useEffect(() => {
@@ -316,7 +335,7 @@ function App() {
         }
         setForm(merged)
         writeJsonCache(cacheKey, merged)
-        await refreshLocalPanel(merged.userId)
+        await Promise.all([refreshLocalPanel(merged.userId), loadContactsPreview(merged.userId)])
       } finally {
         if (!ignore) {
           setLoadingInit(false)
@@ -342,7 +361,11 @@ function App() {
 
   useEffect(() => {
     resetDataPreviews()
-    void refreshLocalPanel(form.userId || DEFAULT_USER)
+    resetContactManager()
+    void Promise.all([
+      refreshLocalPanel(form.userId || DEFAULT_USER),
+      loadContactsPreview(form.userId || DEFAULT_USER),
+    ])
   }, [form.userId])
 
   function onChange(event) {
@@ -471,6 +494,72 @@ function App() {
     setForm((prev) => ({ ...prev, smsTemplate: template }))
   }
 
+  function onContactFormChange(event) {
+    const { name, value } = event.target
+    setContactForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function onStartEditContact(contact) {
+    setEditingContactId(contact.id)
+    setContactForm({ name: contact.name, phone: contact.phone })
+  }
+
+  function onCancelEditContact() {
+    setEditingContactId(null)
+    setContactForm(createEmptyContactForm())
+  }
+
+  function onApplyContactNumber(field, phone) {
+    setOnboardingDone(false)
+    setForm((prev) => ({ ...prev, [field]: phone }))
+    setActiveTab('setup')
+    setResultText(`已将联系人号码填入${field === 'callNumber' ? '电话' : '短信'}字段，请记得保存配置`)
+  }
+
+  async function onSubmitContact(event) {
+    event.preventDefault()
+    const name = contactForm.name.trim()
+    const phone = contactForm.phone.trim()
+    if (!name || !phone) {
+      setResultText('联系人姓名和电话不能为空')
+      return
+    }
+
+    const payload = { userId: form.userId || DEFAULT_USER, contact: { name, phone } }
+    try {
+      if (editingContactId) {
+        await updateContact(editingContactId, payload)
+        setResultText(`已更新联系人：${name}`)
+      } else {
+        await createContact(payload)
+        setResultText(`已新增联系人：${name}`)
+      }
+      onCancelEditContact()
+      await refreshLocalPanel(payload.userId)
+      await loadContactsPreview(payload.userId)
+    } catch (error) {
+      setResultText(`${editingContactId ? '更新' : '新增'}联系人失败: ${error.message}`)
+    }
+  }
+
+  async function onDeleteContact(contact) {
+    const confirmed = window.confirm(`确认删除联系人 ${contact.name} 吗？`)
+    if (!confirmed) {
+      return
+    }
+    try {
+      await deleteContact(contact.id, form.userId || DEFAULT_USER)
+      if (editingContactId === contact.id) {
+        onCancelEditContact()
+      }
+      await refreshLocalPanel(form.userId || DEFAULT_USER)
+      await loadContactsPreview(form.userId || DEFAULT_USER)
+      setResultText(`已删除联系人：${contact.name}`)
+    } catch (error) {
+      setResultText(`删除联系人失败: ${error.message}`)
+    }
+  }
+
   async function onClearLocalPanel() {
     try {
       await clearLocalBackendData(form.userId || DEFAULT_USER)
@@ -482,6 +571,7 @@ function App() {
       setPendingImportSummary(null)
       setPendingImportDiffs([])
       resetDataPreviews()
+      resetContactManager()
       setActiveTab('setup')
       await refreshLocalPanel(DEFAULT_USER)
       setResultText('已清空当前用户本地后端数据，并重置引导')
@@ -542,6 +632,7 @@ function App() {
       setPendingImport(null)
       setPendingImportSummary(null)
       setPendingImportDiffs([])
+      onCancelEditContact()
       setActiveTab(bundle.config ? 'sos' : 'setup')
       await refreshLocalPanel(bundle.userId)
       await Promise.all([loadContactsPreview(bundle.userId), loadTrackingPreview(bundle.userId)])
@@ -769,7 +860,7 @@ function App() {
                 {contactsPreview.items.length > 0 ? (
                   <ul className="md-data-list">
                     {contactsPreview.items.map((item) => (
-                      <li key={`${item.name}-${item.phone}`} className="md-data-list-item">
+                      <li key={item.id || `${item.name}-${item.phone}`} className="md-data-list-item">
                         <strong>{item.name}</strong>
                         <span>{item.phone}</span>
                       </li>
@@ -844,69 +935,159 @@ function App() {
         )}
 
         {activeTab === 'setup' ? (
-          <form className="md-form" onSubmit={onSaveConfig}>
-            <h2>紧急通知配置</h2>
-            <label htmlFor="callNumber">电话号码（可留空）</label>
-            <input
-              id="callNumber"
-              name="callNumber"
-              value={form.callNumber}
-              onChange={onChange}
-              placeholder="例如 110 或联系人号码"
-            />
+          <section className="md-setup-stack">
+            <form className="md-form md-section-card" onSubmit={onSaveConfig}>
+              <h2>紧急通知配置</h2>
+              <label htmlFor="callNumber">电话号码（可留空）</label>
+              <input
+                id="callNumber"
+                name="callNumber"
+                value={form.callNumber}
+                onChange={onChange}
+                placeholder="例如 110 或联系人号码"
+              />
 
-            <label htmlFor="smsNumber">短信号码（可留空）</label>
-            <input
-              id="smsNumber"
-              name="smsNumber"
-              value={form.smsNumber}
-              onChange={onChange}
-              placeholder="例如 13800000000"
-            />
+              <label htmlFor="smsNumber">短信号码（可留空）</label>
+              <input
+                id="smsNumber"
+                name="smsNumber"
+                value={form.smsNumber}
+                onChange={onChange}
+                placeholder="例如 13800000000"
+              />
 
-            <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
-            <textarea
-              id="smsTemplate"
-              name="smsTemplate"
-              value={form.smsTemplate}
-              onChange={onChange}
-              rows={4}
-            />
+              <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
+              <textarea
+                id="smsTemplate"
+                name="smsTemplate"
+                value={form.smsTemplate}
+                onChange={onChange}
+                rows={4}
+              />
 
-            <div className="md-template-actions">
-              <button
-                type="button"
-                className="md-btn tonal"
-                onClick={() => onApplyTemplate('default')}
-              >
-                使用默认模板
+              <div className="md-template-actions">
+                <button
+                  type="button"
+                  className="md-btn tonal"
+                  onClick={() => onApplyTemplate('default')}
+                >
+                  使用默认模板
+                </button>
+                <button
+                  type="button"
+                  className="md-btn tonal"
+                  onClick={() => onApplyTemplate('compact')}
+                >
+                  使用简洁模板
+                </button>
+              </div>
+
+              <div className="md-helper">
+                <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+                {validationHints.length > 0 && (
+                  <ul className="md-warn-list">
+                    {validationHints.map((hint) => (
+                      <li key={hint}>{hint}</li>
+                    ))}
+                  </ul>
+                )}
+                <p>短信预览：</p>
+                <pre className="md-preview">{smsPreview}</pre>
+              </div>
+
+              <button type="submit" className="md-btn" disabled={loadingInit}>
+                保存配置
               </button>
-              <button
-                type="button"
-                className="md-btn tonal"
-                onClick={() => onApplyTemplate('compact')}
-              >
-                使用简洁模板
-              </button>
-            </div>
+            </form>
 
-            <div className="md-helper">
-              <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
-              {validationHints.length > 0 && (
-                <ul className="md-warn-list">
-                  {validationHints.map((hint) => (
-                    <li key={hint}>{hint}</li>
+            <section className="md-section-card md-contact-section">
+              <div className="md-data-card-header">
+                <h2>紧急联系人管理</h2>
+                <span className="md-chip">{contactsList.length} 人</span>
+              </div>
+              <p className="md-section-hint">可新增、编辑、删除联系人，并一键将号码填入电话或短信配置。</p>
+
+              <form className="md-contact-form" onSubmit={onSubmitContact}>
+                <div className="md-contact-form-grid">
+                  <div>
+                    <label htmlFor="contactName">联系人姓名</label>
+                    <input
+                      id="contactName"
+                      name="name"
+                      value={contactForm.name}
+                      onChange={onContactFormChange}
+                      placeholder="例如 家人 / 室友 / 朋友"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="contactPhone">联系电话</label>
+                    <input
+                      id="contactPhone"
+                      name="phone"
+                      value={contactForm.phone}
+                      onChange={onContactFormChange}
+                      placeholder="例如 13800000000"
+                    />
+                  </div>
+                </div>
+                <div className="md-row-actions">
+                  <button type="submit" className="md-btn">
+                    {editingContactId ? '保存联系人' : '新增联系人'}
+                  </button>
+                  {editingContactId && (
+                    <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
+                      取消编辑
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {contactsList.length > 0 ? (
+                <ul className="md-contact-list">
+                  {contactsList.map((contact) => (
+                    <li key={contact.id} className="md-contact-item">
+                      <div className="md-contact-main">
+                        <strong>{contact.name}</strong>
+                        <span>{contact.phone}</span>
+                      </div>
+                      <div className="md-row-actions">
+                        <button
+                          type="button"
+                          className="md-btn tonal"
+                          onClick={() => onApplyContactNumber('callNumber', contact.phone)}
+                        >
+                          设为电话
+                        </button>
+                        <button
+                          type="button"
+                          className="md-btn tonal"
+                          onClick={() => onApplyContactNumber('smsNumber', contact.phone)}
+                        >
+                          设为短信
+                        </button>
+                        <button
+                          type="button"
+                          className="md-btn tonal"
+                          onClick={() => onStartEditContact(contact)}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="md-btn tonal"
+                          onClick={() => onDeleteContact(contact)}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </li>
                   ))}
                 </ul>
+              ) : (
+                <p className="md-data-empty">当前用户还没有联系人，请先新增至少 1 位可信联系人。</p>
               )}
-              <p>短信预览：</p>
-              <pre className="md-preview">{smsPreview}</pre>
-            </div>
-
-            <button type="submit" className="md-btn" disabled={loadingInit}>
-              保存配置
-            </button>
-          </form>
+            </section>
+          </section>
         ) : (
           <section className="md-sos-panel">
             <h2>SOS 快速操作</h2>

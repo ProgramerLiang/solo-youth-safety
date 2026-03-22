@@ -257,6 +257,70 @@ body {
   color: #0b3d91;
 }
 
+.md-setup-stack {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.md-section-card {
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #ddd0ff;
+  padding: 14px;
+}
+
+.md-section-hint {
+  margin: 8px 0 0;
+  color: var(--md-on-surface-variant);
+}
+
+.md-contact-section {
+  display: grid;
+  gap: 12px;
+}
+
+.md-contact-form {
+  display: grid;
+  gap: 10px;
+}
+
+.md-contact-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.md-contact-form-grid label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.md-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.md-contact-item {
+  border-radius: 14px;
+  background: #f7f3ff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.md-contact-main {
+  display: grid;
+  gap: 4px;
+}
+
+.md-contact-main span {
+  color: var(--md-on-surface-variant);
+}
+
 .md-form {
   margin-top: 16px;
   display: grid;

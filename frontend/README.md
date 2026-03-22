@@ -33,6 +33,11 @@ npm run android:apk
   - 电话号码（可留空）
   - 短信号码（可留空）
   - 短信模板（自定义）
+- 配置页内已提供正式联系人管理：
+  - 新增联系人
+  - 编辑联系人
+  - 删除联系人
+  - 一键将联系人号码填入电话 / 短信字段
 
 ## 5) 运行模式（已支持 APK 内前后端一体）
 - **Android APK 内默认启用本地后端模式（local backend）**：
@@ -53,6 +58,7 @@ APK 本地后端已覆盖 MVP API：
 - `POST /tracking/points`
 - `GET /tracking/timeline`
 - `GET/POST /contacts`
+- `PUT/DELETE /contacts/{contactId}`
 
 说明：
 - 数据存储在本地 `localStorage`（key: `safety_local_backend_v1`）

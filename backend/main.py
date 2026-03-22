@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,14 +46,18 @@ class TrackingPayload(BaseModel):
     points: list[TrackingPoint] = Field(min_length=1)
 
 
-class Contact(BaseModel):
+class ContactInput(BaseModel):
     name: str = Field(min_length=1)
     phone: str = Field(min_length=3)
 
 
+class Contact(ContactInput):
+    id: str = Field(min_length=1)
+
+
 class ContactPayload(BaseModel):
     userId: str = Field(min_length=1)
-    contact: Contact
+    contact: ContactInput
 
 
 class EmergencyConfig(BaseModel):
@@ -173,6 +178,18 @@ def simulate_notify(event: SosEvent) -> list[NotificationLog]:
     return logs
 
 
+def build_contact_record(payload: ContactPayload) -> Contact:
+    return Contact(id=uuid4().hex, name=payload.contact.name, phone=payload.contact.phone)
+
+
+def find_contact_index(user_id: str, contact_id: str) -> int:
+    contacts = contacts_by_user.get(user_id, [])
+    for index, contact in enumerate(contacts):
+        if contact.id == contact_id:
+            return index
+    raise HTTPException(status_code=404, detail="contact not found")
+
+
 @app.get("/api/v1/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", time=datetime.now(timezone.utc))
@@ -234,6 +251,24 @@ def list_contacts(userId: str = Query(min_length=1)) -> ContactsResponse:
 @app.post("/api/v1/contacts", response_model=ActionResponse)
 def create_contact(payload: ContactPayload) -> ActionResponse:
     existing = contacts_by_user.get(payload.userId, [])
-    existing.append(payload.contact)
+    existing.append(build_contact_record(payload))
     contacts_by_user[payload.userId] = existing
     return ActionResponse(message="contact added", count=len(existing))
+
+
+@app.put("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
+def update_contact(contact_id: str, payload: ContactPayload) -> ActionResponse:
+    index = find_contact_index(payload.userId, contact_id)
+    contacts = contacts_by_user.get(payload.userId, [])
+    contacts[index] = Contact(id=contact_id, name=payload.contact.name, phone=payload.contact.phone)
+    contacts_by_user[payload.userId] = contacts
+    return ActionResponse(message="contact updated", count=len(contacts))
+
+
+@app.delete("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
+def delete_contact(contact_id: str, userId: str = Query(min_length=1)) -> ActionResponse:
+    index = find_contact_index(userId, contact_id)
+    contacts = contacts_by_user.get(userId, [])
+    del contacts[index]
+    contacts_by_user[userId] = contacts
+    return ActionResponse(message="contact deleted", count=len(contacts))

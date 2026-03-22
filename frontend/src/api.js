@@ -51,6 +51,28 @@ function saveLocalDb(db) {
   localStorage.setItem(localDbKey, JSON.stringify(db))
 }
 
+function createContactId() {
+  const random = Math.random().toString(36).slice(2, 10)
+  return `contact_${Date.now()}_${random}`
+}
+
+function normalizeContactRecord(contact) {
+  const name = asTrimmedString(contact?.name)
+  const phone = asTrimmedString(contact?.phone)
+  if (!name || !phone) {
+    return null
+  }
+  return {
+    id: asTrimmedString(contact?.id) || createContactId(),
+    name,
+    phone,
+  }
+}
+
+function normalizeContactList(contacts = []) {
+  return contacts.map((contact) => normalizeContactRecord(contact)).filter(Boolean)
+}
+
 function normalizeConfig(payload) {
   const call = typeof payload.callNumber === 'string' ? payload.callNumber.trim() : ''
   const sms = typeof payload.smsNumber === 'string' ? payload.smsNumber.trim() : ''
@@ -88,12 +110,11 @@ function normalizeImportedLocation(location, label) {
 }
 
 function normalizeImportedContact(contact, index) {
-  const name = asTrimmedString(contact?.name)
-  const phone = asTrimmedString(contact?.phone)
-  if (!name || !phone) {
+  const normalized = normalizeContactRecord(contact)
+  if (!normalized) {
     throw new Error(`contacts[${index}] 缺少 name 或 phone`)
   }
-  return { name, phone }
+  return normalized
 }
 
 function normalizeImportedTrackingRecord(item, userId, index) {
@@ -317,7 +338,10 @@ async function listContactsLocal(userId = DEFAULT_USER) {
     throw new Error('userId is required')
   }
   const db = loadLocalDb()
-  return { userId, contacts: db.contactsByUser[userId] || [] }
+  const contacts = normalizeContactList(db.contactsByUser[userId] || [])
+  db.contactsByUser[userId] = contacts
+  saveLocalDb(db)
+  return { userId, contacts }
 }
 
 async function createContactLocal(payload) {
@@ -326,11 +350,45 @@ async function createContactLocal(payload) {
   }
 
   const db = loadLocalDb()
-  const existing = db.contactsByUser[payload.userId] || []
-  existing.push({ name: payload.contact.name, phone: payload.contact.phone })
+  const existing = normalizeContactList(db.contactsByUser[payload.userId] || [])
+  const contact = normalizeContactRecord(payload.contact)
+  existing.push(contact)
   db.contactsByUser[payload.userId] = existing
   saveLocalDb(db)
-  return { message: 'contact added', count: existing.length }
+  return { message: 'contact added', count: existing.length, contact }
+}
+
+async function updateContactLocal(contactId, payload) {
+  if (!contactId || !payload?.userId || !payload?.contact?.name || !payload?.contact?.phone) {
+    throw new Error('invalid contact payload')
+  }
+
+  const db = loadLocalDb()
+  const existing = normalizeContactList(db.contactsByUser[payload.userId] || [])
+  const index = existing.findIndex((item) => item.id === contactId)
+  if (index === -1) {
+    throw new Error('contact not found')
+  }
+  existing[index] = { id: contactId, name: payload.contact.name.trim(), phone: payload.contact.phone.trim() }
+  db.contactsByUser[payload.userId] = existing
+  saveLocalDb(db)
+  return { message: 'contact updated', count: existing.length, contact: existing[index] }
+}
+
+async function deleteContactLocal(contactId, userId = DEFAULT_USER) {
+  if (!contactId || !userId) {
+    throw new Error('contactId/userId are required')
+  }
+
+  const db = loadLocalDb()
+  const existing = normalizeContactList(db.contactsByUser[userId] || [])
+  const next = existing.filter((item) => item.id !== contactId)
+  if (next.length === existing.length) {
+    throw new Error('contact not found')
+  }
+  db.contactsByUser[userId] = next
+  saveLocalDb(db)
+  return { message: 'contact deleted', count: next.length }
 }
 
 export function isLocalBackendMode() {
@@ -339,7 +397,7 @@ export function isLocalBackendMode() {
 
 export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
   const db = loadLocalDb()
-  const contacts = db.contactsByUser[userId] || []
+  const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
   const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
   const latestSos = sosEvents.at(-1)?.timestamp || null
@@ -357,7 +415,7 @@ export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
 
 export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
   const db = loadLocalDb()
-  const contacts = db.contactsByUser[userId] || []
+  const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
   const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
 
@@ -480,6 +538,26 @@ export async function createContact(payload) {
   return request('/contacts', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export async function updateContact(contactId, payload) {
+  if (isLocalBackendEnabled()) {
+    return updateContactLocal(contactId, payload)
+  }
+  return request(`/contacts/${contactId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteContact(contactId, userId = DEFAULT_USER) {
+  if (isLocalBackendEnabled()) {
+    return deleteContactLocal(contactId, userId)
+  }
+  const q = new URLSearchParams({ userId })
+  return request(`/contacts/${contactId}?${q.toString()}`, {
+    method: 'DELETE',
   })
 }
 

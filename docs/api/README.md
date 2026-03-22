@@ -70,3 +70,27 @@
 ## 5) 紧急联系人
 - `GET /contacts?userId=u_123`
 - `POST /contacts`
+- `PUT /contacts/{contactId}`
+- `DELETE /contacts/{contactId}?userId=u_123`
+
+### 新增联系人
+```json
+{
+  "userId": "u_123",
+  "contact": {
+    "name": "妈妈",
+    "phone": "13800000000"
+  }
+}
+```
+
+### 更新联系人
+```json
+{
+  "userId": "u_123",
+  "contact": {
+    "name": "室友",
+    "phone": "13900000000"
+  }
+}
+```
