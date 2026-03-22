@@ -45,5 +45,5 @@
 - [ ] `npm run build` 成功
 - [ ] `npm run android:sync` 成功
 - [ ] `npm run android:apk` 成功
-- [ ] 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.0-debug.apk`
+- [ ] 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.1-debug.apk`
 - [ ] 安装生成的版本化 APK 后可正常打开运行

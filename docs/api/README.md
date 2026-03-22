@@ -3,6 +3,10 @@
 ## Base Path
 `/api/v1`
 
+补充说明：
+- 远端 FastAPI 当前已使用 SQLite 持久化
+- 默认数据库文件：`backend/data/safety.db`
+
 ## 0) 健康检查
 - `GET /health`
 

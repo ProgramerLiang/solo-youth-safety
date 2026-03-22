@@ -1,4 +1,8 @@
+import os
+import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
@@ -6,7 +10,16 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
-app = FastAPI(title="Solo Youth Safety API", version="0.2.0")
+APP_VERSION = "0.2.1"
+DEFAULT_TEMPLATE = "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}"
+DB_PATH = Path(
+    os.getenv(
+        "SAFETY_DB_PATH",
+        Path(__file__).resolve().parent / "data" / "safety.db",
+    )
+)
+
+app = FastAPI(title="Solo Youth Safety API", version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,7 +77,7 @@ class EmergencyConfig(BaseModel):
     userId: str = Field(min_length=1)
     callNumber: str | None = Field(default=None, max_length=32)
     smsNumber: str | None = Field(default=None, max_length=32)
-    smsTemplate: str = Field(default="[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}")
+    smsTemplate: str = Field(default=DEFAULT_TEMPLATE)
 
     @field_validator("callNumber", "smsNumber", mode="before")
     @classmethod
@@ -97,12 +110,6 @@ class ContactsResponse(BaseModel):
     contacts: list[Contact]
 
 
-class StoredPoint(BaseModel):
-    userId: str
-    deviceId: str
-    point: TrackingPoint
-
-
 class NotificationLog(BaseModel):
     channel: Literal["call", "sms"]
     destination: str | None
@@ -128,10 +135,148 @@ class SosResponse(BaseModel):
     notifications: list[NotificationLog]
 
 
-sos_events: list[SosHistoryItem] = []
-stored_points: list[StoredPoint] = []
-contacts_by_user: dict[str, list[Contact]] = {}
-config_by_user: dict[str, EmergencyConfig] = {}
+
+def ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+
+def serialize_datetime(value: datetime) -> str:
+    return ensure_utc(value).isoformat()
+
+
+
+def to_epoch_seconds(value: datetime) -> float:
+    return ensure_utc(value).timestamp()
+
+
+
+def parse_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+
+def create_connection() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
+
+
+@contextmanager
+def db_connection():
+    connection = create_connection()
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+
+def init_db() -> None:
+    with db_connection() as connection:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS emergency_configs (
+                user_id TEXT PRIMARY KEY,
+                call_number TEXT,
+                sms_number TEXT,
+                sms_template TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS contacts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                phone TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS tracking_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                device_id TEXT NOT NULL,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                accuracy REAL NOT NULL,
+                speed REAL NOT NULL,
+                heading REAL NOT NULL,
+                timestamp_text TEXT NOT NULL,
+                timestamp_epoch REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sos_events (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                device_id TEXT NOT NULL,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                accuracy REAL NOT NULL,
+                trigger_type TEXT NOT NULL,
+                timestamp_text TEXT NOT NULL,
+                timestamp_epoch REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sos_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                destination TEXT,
+                status TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                FOREIGN KEY(event_id) REFERENCES sos_events(id) ON DELETE CASCADE
+            );
+            """
+        )
+
+
+
+def row_to_config(row: sqlite3.Row | None, user_id: str) -> EmergencyConfig:
+    if row is None:
+        return EmergencyConfig(userId=user_id)
+    return EmergencyConfig(
+        userId=row["user_id"],
+        callNumber=row["call_number"],
+        smsNumber=row["sms_number"],
+        smsTemplate=row["sms_template"],
+    )
+
+
+
+def row_to_contact(row: sqlite3.Row) -> Contact:
+    return Contact(id=row["id"], name=row["name"], phone=row["phone"])
+
+
+
+def row_to_tracking_point(row: sqlite3.Row) -> TrackingPoint:
+    return TrackingPoint(
+        lat=row["lat"],
+        lng=row["lng"],
+        accuracy=row["accuracy"],
+        speed=row["speed"],
+        heading=row["heading"],
+        timestamp=parse_datetime(row["timestamp_text"]),
+    )
+
+
+
+def get_config(connection: sqlite3.Connection, user_id: str) -> EmergencyConfig:
+    row = connection.execute(
+        """
+        SELECT user_id, call_number, sms_number, sms_template
+        FROM emergency_configs
+        WHERE user_id = ?
+        """,
+        (user_id,),
+    ).fetchone()
+    return row_to_config(row, user_id)
+
 
 
 def build_sms_content(event: SosEvent, cfg: EmergencyConfig) -> str:
@@ -140,12 +285,13 @@ def build_sms_content(event: SosEvent, cfg: EmergencyConfig) -> str:
         deviceId=event.deviceId,
         lat=event.location.lat,
         lng=event.location.lng,
-        time=event.timestamp.isoformat(),
+        time=serialize_datetime(event.timestamp),
     )
 
 
-def simulate_notify(event: SosEvent) -> list[NotificationLog]:
-    cfg = config_by_user.get(event.userId, EmergencyConfig(userId=event.userId))
+
+def simulate_notify(connection: sqlite3.Connection, event: SosEvent) -> list[NotificationLog]:
+    cfg = get_config(connection, event.userId)
     logs: list[NotificationLog] = []
 
     if cfg.callNumber:
@@ -168,13 +314,12 @@ def simulate_notify(event: SosEvent) -> list[NotificationLog]:
         )
 
     if cfg.smsNumber:
-        sms = build_sms_content(event, cfg)
         logs.append(
             NotificationLog(
                 channel="sms",
                 destination=cfg.smsNumber,
                 status="sent",
-                detail=f"simulated sms: {sms}",
+                detail=f"simulated sms: {build_sms_content(event, cfg)}",
             )
         )
     else:
@@ -190,16 +335,40 @@ def simulate_notify(event: SosEvent) -> list[NotificationLog]:
     return logs
 
 
-def build_contact_record(payload: ContactPayload) -> Contact:
-    return Contact(id=uuid4().hex, name=payload.contact.name, phone=payload.contact.phone)
+
+def get_notifications(connection: sqlite3.Connection, event_id: str) -> list[NotificationLog]:
+    rows = connection.execute(
+        """
+        SELECT channel, destination, status, detail
+        FROM sos_notifications
+        WHERE event_id = ?
+        ORDER BY id ASC
+        """,
+        (event_id,),
+    ).fetchall()
+    return [NotificationLog(**dict(row)) for row in rows]
 
 
-def find_contact_index(user_id: str, contact_id: str) -> int:
-    contacts = contacts_by_user.get(user_id, [])
-    for index, contact in enumerate(contacts):
-        if contact.id == contact_id:
-            return index
-    raise HTTPException(status_code=404, detail="contact not found")
+
+def row_to_sos_item(connection: sqlite3.Connection, row: sqlite3.Row) -> SosHistoryItem:
+    return SosHistoryItem(
+        id=row["id"],
+        userId=row["user_id"],
+        deviceId=row["device_id"],
+        triggerType=row["trigger_type"],
+        timestamp=parse_datetime(row["timestamp_text"]),
+        location=Location(lat=row["lat"], lng=row["lng"], accuracy=row["accuracy"]),
+        notifications=get_notifications(connection, row["id"]),
+    )
+
+
+
+def get_count(connection: sqlite3.Connection, table_name: str) -> int:
+    row = connection.execute(f"SELECT COUNT(*) AS count FROM {table_name}").fetchone()
+    return int(row["count"] if row else 0)
+
+
+init_db()
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -209,24 +378,67 @@ def health() -> HealthResponse:
 
 @app.post("/api/v1/emergency/config", response_model=EmergencyConfig)
 def upsert_emergency_config(payload: EmergencyConfig) -> EmergencyConfig:
-    config_by_user[payload.userId] = payload
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO emergency_configs (user_id, call_number, sms_number, sms_template)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                call_number = excluded.call_number,
+                sms_number = excluded.sms_number,
+                sms_template = excluded.sms_template
+            """,
+            (payload.userId, payload.callNumber, payload.smsNumber, payload.smsTemplate),
+        )
     return payload
 
 
 @app.get("/api/v1/emergency/config", response_model=EmergencyConfig)
 def get_emergency_config(userId: str = Query(min_length=1)) -> EmergencyConfig:
-    return config_by_user.get(userId, EmergencyConfig(userId=userId))
+    with db_connection() as connection:
+        return get_config(connection, userId)
 
 
 @app.post("/api/v1/sos/events", response_model=SosResponse)
 def create_sos_event(payload: SosEvent) -> SosResponse:
-    notifications = simulate_notify(payload)
-    event = SosHistoryItem(id=uuid4().hex, notifications=notifications, **payload.model_dump())
-    sos_events.append(event)
+    with db_connection() as connection:
+        notifications = simulate_notify(connection, payload)
+        event_id = uuid4().hex
+        connection.execute(
+            """
+            INSERT INTO sos_events (
+                id, user_id, device_id, lat, lng, accuracy,
+                trigger_type, timestamp_text, timestamp_epoch
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                payload.userId,
+                payload.deviceId,
+                payload.location.lat,
+                payload.location.lng,
+                payload.location.accuracy,
+                payload.triggerType,
+                serialize_datetime(payload.timestamp),
+                to_epoch_seconds(payload.timestamp),
+            ),
+        )
+        connection.executemany(
+            """
+            INSERT INTO sos_notifications (event_id, channel, destination, status, detail)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (event_id, item.channel, item.destination, item.status, item.detail)
+                for item in notifications
+            ],
+        )
+        count = get_count(connection, "sos_events")
     return SosResponse(
         message="sos received",
-        count=len(sos_events),
-        eventId=event.id,
+        count=count,
+        eventId=event_id,
         notifications=notifications,
     )
 
@@ -236,16 +448,51 @@ def list_sos_events(
     userId: str = Query(min_length=1),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> SosHistoryResponse:
-    items = [event for event in sos_events if event.userId == userId]
-    items.sort(key=lambda event: event.timestamp, reverse=True)
-    return SosHistoryResponse(userId=userId, count=len(items), items=items[:limit])
+    with db_connection() as connection:
+        total_row = connection.execute(
+            "SELECT COUNT(*) AS count FROM sos_events WHERE user_id = ?",
+            (userId,),
+        ).fetchone()
+        rows = connection.execute(
+            """
+            SELECT id, user_id, device_id, lat, lng, accuracy,
+                   trigger_type, timestamp_text
+            FROM sos_events
+            WHERE user_id = ?
+            ORDER BY timestamp_epoch DESC
+            LIMIT ?
+            """,
+            (userId, limit),
+        ).fetchall()
+        items = [row_to_sos_item(connection, row) for row in rows]
+    return SosHistoryResponse(userId=userId, count=int(total_row["count"]), items=items)
 
 
 @app.post("/api/v1/tracking/points", response_model=ActionResponse)
 def create_tracking_points(payload: TrackingPayload) -> ActionResponse:
-    for point in payload.points:
-        stored_points.append(
-            StoredPoint(userId=payload.userId, deviceId=payload.deviceId, point=point)
+    with db_connection() as connection:
+        connection.executemany(
+            """
+            INSERT INTO tracking_points (
+                user_id, device_id, lat, lng, accuracy,
+                speed, heading, timestamp_text, timestamp_epoch
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    payload.userId,
+                    payload.deviceId,
+                    point.lat,
+                    point.lng,
+                    point.accuracy,
+                    point.speed,
+                    point.heading,
+                    serialize_datetime(point.timestamp),
+                    to_epoch_seconds(point.timestamp),
+                )
+                for point in payload.points
+            ],
         )
     return ActionResponse(message="points stored", count=len(payload.points))
 
@@ -259,40 +506,82 @@ def get_timeline(
     if from_time > to:
         raise HTTPException(status_code=400, detail="from must be earlier than to")
 
-    points = [
-        item.point
-        for item in stored_points
-        if item.userId == userId and from_time <= item.point.timestamp <= to
-    ]
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT lat, lng, accuracy, speed, heading, timestamp_text
+            FROM tracking_points
+            WHERE user_id = ? AND timestamp_epoch BETWEEN ? AND ?
+            ORDER BY timestamp_epoch ASC
+            """,
+            (userId, to_epoch_seconds(from_time), to_epoch_seconds(to)),
+        ).fetchall()
+        points = [row_to_tracking_point(row) for row in rows]
     return TimelineResponse(userId=userId, count=len(points), points=points)
 
 
 @app.get("/api/v1/contacts", response_model=ContactsResponse)
 def list_contacts(userId: str = Query(min_length=1)) -> ContactsResponse:
-    return ContactsResponse(userId=userId, contacts=contacts_by_user.get(userId, []))
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, name, phone
+            FROM contacts
+            WHERE user_id = ?
+            ORDER BY rowid ASC
+            """,
+            (userId,),
+        ).fetchall()
+        contacts = [row_to_contact(row) for row in rows]
+    return ContactsResponse(userId=userId, contacts=contacts)
 
 
 @app.post("/api/v1/contacts", response_model=ActionResponse)
 def create_contact(payload: ContactPayload) -> ActionResponse:
-    existing = contacts_by_user.get(payload.userId, [])
-    existing.append(build_contact_record(payload))
-    contacts_by_user[payload.userId] = existing
-    return ActionResponse(message="contact added", count=len(existing))
+    contact_id = uuid4().hex
+    with db_connection() as connection:
+        connection.execute(
+            "INSERT INTO contacts (id, user_id, name, phone) VALUES (?, ?, ?, ?)",
+            (contact_id, payload.userId, payload.contact.name, payload.contact.phone),
+        )
+        row = connection.execute(
+            "SELECT COUNT(*) AS count FROM contacts WHERE user_id = ?",
+            (payload.userId,),
+        ).fetchone()
+    return ActionResponse(message="contact added", count=int(row["count"]))
 
 
 @app.put("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
 def update_contact(contact_id: str, payload: ContactPayload) -> ActionResponse:
-    index = find_contact_index(payload.userId, contact_id)
-    contacts = contacts_by_user.get(payload.userId, [])
-    contacts[index] = Contact(id=contact_id, name=payload.contact.name, phone=payload.contact.phone)
-    contacts_by_user[payload.userId] = contacts
-    return ActionResponse(message="contact updated", count=len(contacts))
+    with db_connection() as connection:
+        cursor = connection.execute(
+            """
+            UPDATE contacts
+            SET name = ?, phone = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (payload.contact.name, payload.contact.phone, contact_id, payload.userId),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="contact not found")
+        row = connection.execute(
+            "SELECT COUNT(*) AS count FROM contacts WHERE user_id = ?",
+            (payload.userId,),
+        ).fetchone()
+    return ActionResponse(message="contact updated", count=int(row["count"]))
 
 
 @app.delete("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
 def delete_contact(contact_id: str, userId: str = Query(min_length=1)) -> ActionResponse:
-    index = find_contact_index(userId, contact_id)
-    contacts = contacts_by_user.get(userId, [])
-    del contacts[index]
-    contacts_by_user[userId] = contacts
-    return ActionResponse(message="contact deleted", count=len(contacts))
+    with db_connection() as connection:
+        cursor = connection.execute(
+            "DELETE FROM contacts WHERE id = ? AND user_id = ?",
+            (contact_id, userId),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="contact not found")
+        row = connection.execute(
+            "SELECT COUNT(*) AS count FROM contacts WHERE user_id = ?",
+            (userId,),
+        ).fetchone()
+    return ActionResponse(message="contact deleted", count=int(row["count"]))

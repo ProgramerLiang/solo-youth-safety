@@ -58,7 +58,7 @@ npm run android:apk
   - 不依赖外部 FastAPI 进程
   - 紧急配置、主题、身份、本地后端数据已升级为 **Capacitor Preferences** 持久化
   - SOS 通知结果为本地模拟日志 + 原生拨号/短信拉起
-- **Web 开发模式默认走远端 FastAPI**：`http://127.0.0.1:8000/api/v1`
+- **Web 开发模式默认走远端 FastAPI + SQLite**：`http://127.0.0.1:8000/api/v1`
 - 可通过浏览器手动开启本地后端（调试用）：
   ```js
   localStorage.setItem('safety_force_local_backend', '1')
