@@ -56,28 +56,36 @@ body {
   font-size: 13px;
 }
 
-.md-stepper {
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+.md-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff3cd;
+  color: #7a5200;
 }
 
-.md-stepper li {
-  padding: 8px 10px;
+.md-tabs {
+  margin-top: 14px;
+  display: inline-flex;
+  background: var(--md-surface-container);
   border-radius: 999px;
-  text-align: center;
-  background: #ece7f2;
-  color: #655f6f;
-  font-size: 13px;
+  padding: 4px;
+  gap: 4px;
 }
 
-.md-stepper li.active {
+.md-tab {
+  border: none;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.md-tab.active {
   background: var(--md-primary-container);
   color: #381e72;
-  font-weight: 600;
 }
 
 .md-status-grid {
@@ -101,7 +109,8 @@ body {
   gap: 8px;
 }
 
-.md-form h2 {
+.md-form h2,
+.md-sos-panel h2 {
   margin: 8px 0;
   font-size: 18px;
 }
@@ -150,10 +159,6 @@ textarea:focus {
   background: var(--md-error);
 }
 
-.md-actions {
-  margin-top: 14px;
-}
-
 .md-helper {
   background: var(--md-surface-container);
   border-radius: 14px;
@@ -178,6 +183,17 @@ textarea:focus {
   border-radius: 10px;
   padding: 10px;
   white-space: pre-wrap;
+}
+
+.md-sos-panel {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.md-sos-panel p {
+  margin: 0;
+  color: var(--md-on-surface-variant);
 }
 
 .md-log {

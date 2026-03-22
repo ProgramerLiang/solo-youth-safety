@@ -11,18 +11,19 @@ import { requestInitialPermissions } from './permissions'
 
 const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const cacheKey = 'safety_emergency_config_v1'
+const onboardingKey = 'safety_onboarding_done_v1'
 
-function readCachedConfig() {
+function readJsonCache(key) {
   try {
-    const raw = localStorage.getItem(cacheKey)
+    const raw = localStorage.getItem(key)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-function cacheConfig(config) {
-  localStorage.setItem(cacheKey, JSON.stringify(config))
+function writeJsonCache(key, value) {
+  localStorage.setItem(key, JSON.stringify(value))
 }
 
 function createSosPayload(userId, location) {
@@ -45,21 +46,10 @@ function renderTemplate(template, payload) {
     .replaceAll('{time}', payload.timestamp)
 }
 
-function formatLogs(serverData, nativeLogs) {
-  const serverLines = serverData.notifications.map(
-    (n) => `server/${n.channel}: ${n.status} (${n.detail})`
-  )
-  const nativeLines = nativeLogs.map(
-    (n) => `native/${n.channel}: ${n.status} (${n.detail})`
-  )
-  return ['SOS 已上报', ...serverLines, ...nativeLines].join('\n')
-}
-
 function getValidationHints(form) {
   const hints = []
   const callEmpty = !form.callNumber.trim()
   const smsEmpty = !form.smsNumber.trim()
-
   if (callEmpty && smsEmpty) {
     hints.push('当前电话与短信号码都为空：SOS 仅会上报后端，不会拉起拨号或短信。')
   }
@@ -72,15 +62,26 @@ function getValidationHints(form) {
   return hints
 }
 
+function formatLogs(serverData, nativeLogs) {
+  const serverLines = serverData.notifications.map(
+    (n) => `server/${n.channel}: ${n.status} (${n.detail})`
+  )
+  const nativeLines = nativeLogs.map(
+    (n) => `native/${n.channel}: ${n.status} (${n.detail})`
+  )
+  return ['SOS 已上报', ...serverLines, ...nativeLines].join('\n')
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
   const [permissionText, setPermissionText] = useState('首次启动将自动申请权限')
   const [latestLocation, setLatestLocation] = useState(null)
   const [loadingInit, setLoadingInit] = useState(true)
+  const [onboardingDone, setOnboardingDone] = useState(false)
+  const [activeTab, setActiveTab] = useState('setup')
   const [arming, setArming] = useState(false)
   const [countdown, setCountdown] = useState(5)
-  const [configSaved, setConfigSaved] = useState(false)
   const [form, setForm] = useState({
     userId: DEFAULT_USER,
     callNumber: '',
@@ -105,18 +106,17 @@ function App() {
 
   const validationHints = useMemo(() => getValidationHints(form), [form])
 
-  const stepState = useMemo(() => {
-    if (loadingInit) {
-      return 1
-    }
-    return configSaved ? 3 : 2
-  }, [loadingInit, configSaved])
-
   useEffect(() => {
     let ignore = false
 
     async function bootstrap() {
-      const cached = readCachedConfig()
+      const done = localStorage.getItem(onboardingKey) === 'done'
+      if (!ignore) {
+        setOnboardingDone(done)
+        setActiveTab(done ? 'sos' : 'setup')
+      }
+
+      const cached = readJsonCache(cacheKey)
       if (cached && !ignore) {
         setForm((prev) => ({ ...prev, ...cached }))
       }
@@ -136,12 +136,7 @@ function App() {
           smsTemplate: remote.smsTemplate || cached?.smsTemplate || defaultTemplate,
         }
         setForm(merged)
-        cacheConfig(merged)
-        setResultText('步骤 2：请检查并保存紧急通知配置')
-      } catch {
-        if (!ignore) {
-          setResultText('后端不可用，已使用本地配置，可继续配置与测试')
-        }
+        writeJsonCache(cacheKey, merged)
       } finally {
         if (!ignore) {
           setLoadingInit(false)
@@ -167,7 +162,7 @@ function App() {
 
   function onChange(event) {
     const { name, value } = event.target
-    setConfigSaved(false)
+    setOnboardingDone(false)
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -186,7 +181,7 @@ function App() {
       ...form,
       smsTemplate: form.smsTemplate.trim() ? form.smsTemplate : defaultTemplate,
     }
-    cacheConfig(safeForm)
+    writeJsonCache(cacheKey, safeForm)
     try {
       const data = await saveEmergencyConfig(safeForm)
       const next = {
@@ -196,13 +191,14 @@ function App() {
         smsTemplate: data.smsTemplate,
       }
       setForm(next)
-      cacheConfig(next)
-      setConfigSaved(true)
-      setResultText('步骤 3：配置完成，已可触发 SOS')
+      writeJsonCache(cacheKey, next)
+      setResultText('配置保存成功，已完成引导，可切换到 SOS 页')
     } catch (error) {
-      setConfigSaved(true)
       setResultText(`后端保存失败，已本地保存: ${error.message}`)
     }
+    localStorage.setItem(onboardingKey, 'done')
+    setOnboardingDone(true)
+    setActiveTab('sos')
   }
 
   function onArmSos() {
@@ -241,11 +237,26 @@ function App() {
           <span className="md-chip">{envText}</span>
         </header>
 
-        <ol className="md-stepper">
-          <li className={stepState >= 1 ? 'active' : ''}>1. 权限申请</li>
-          <li className={stepState >= 2 ? 'active' : ''}>2. 紧急配置</li>
-          <li className={stepState >= 3 ? 'active' : ''}>3. 完成引导</li>
-        </ol>
+        {!onboardingDone && (
+          <div className="md-banner">首次使用：请先完成配置，再进入 SOS 页。</div>
+        )}
+
+        <div className="md-tabs">
+          <button
+            type="button"
+            className={`md-tab ${activeTab === 'setup' ? 'active' : ''}`}
+            onClick={() => setActiveTab('setup')}
+          >
+            配置
+          </button>
+          <button
+            type="button"
+            className={`md-tab ${activeTab === 'sos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sos')}
+          >
+            SOS
+          </button>
+        </div>
 
         <div className="md-status-grid">
           <p>权限状态：{permissionText}</p>
@@ -255,69 +266,80 @@ function App() {
           </button>
         </div>
 
-        <form className="md-form" onSubmit={onSaveConfig}>
-          <h2>步骤 2：紧急通知配置</h2>
-          <label htmlFor="callNumber">电话号码（可留空）</label>
-          <input
-            id="callNumber"
-            name="callNumber"
-            value={form.callNumber}
-            onChange={onChange}
-            placeholder="例如 110 或联系人号码"
-          />
+        {activeTab === 'setup' ? (
+          <form className="md-form" onSubmit={onSaveConfig}>
+            <h2>紧急通知配置</h2>
+            <label htmlFor="callNumber">电话号码（可留空）</label>
+            <input
+              id="callNumber"
+              name="callNumber"
+              value={form.callNumber}
+              onChange={onChange}
+              placeholder="例如 110 或联系人号码"
+            />
 
-          <label htmlFor="smsNumber">短信号码（可留空）</label>
-          <input
-            id="smsNumber"
-            name="smsNumber"
-            value={form.smsNumber}
-            onChange={onChange}
-            placeholder="例如 13800000000"
-          />
+            <label htmlFor="smsNumber">短信号码（可留空）</label>
+            <input
+              id="smsNumber"
+              name="smsNumber"
+              value={form.smsNumber}
+              onChange={onChange}
+              placeholder="例如 13800000000"
+            />
 
-          <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
-          <textarea
-            id="smsTemplate"
-            name="smsTemplate"
-            value={form.smsTemplate}
-            onChange={onChange}
-            rows={4}
-          />
+            <label htmlFor="smsTemplate">短信模板（支持自定义）</label>
+            <textarea
+              id="smsTemplate"
+              name="smsTemplate"
+              value={form.smsTemplate}
+              onChange={onChange}
+              rows={4}
+            />
 
-          <div className="md-helper">
-            <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
-            {validationHints.length > 0 && (
-              <ul className="md-warn-list">
-                {validationHints.map((hint) => (
-                  <li key={hint}>{hint}</li>
-                ))}
-              </ul>
+            <div className="md-helper">
+              <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+              {validationHints.length > 0 && (
+                <ul className="md-warn-list">
+                  {validationHints.map((hint) => (
+                    <li key={hint}>{hint}</li>
+                  ))}
+                </ul>
+              )}
+              <p>短信预览：</p>
+              <pre className="md-preview">{smsPreview}</pre>
+            </div>
+
+            <button type="submit" className="md-btn" disabled={loadingInit}>
+              保存配置
+            </button>
+          </form>
+        ) : (
+          <section className="md-sos-panel">
+            <h2>SOS 快速操作</h2>
+            <p>完成配置后即可一键触发，支持 5 秒倒计时取消。</p>
+            {!arming ? (
+              <button
+                type="button"
+                className="md-btn danger"
+                onClick={onArmSos}
+                disabled={loadingInit}
+              >
+                触发 SOS（倒计时 5 秒）
+              </button>
+            ) : (
+              <button type="button" className="md-btn" onClick={onCancelSos}>
+                取消 SOS（剩余 {countdown}s）
+              </button>
             )}
-            <p>短信预览：</p>
-            <pre className="md-preview">{smsPreview}</pre>
-          </div>
-
-          <button type="submit" className="md-btn" disabled={loadingInit}>
-            保存配置并完成引导
-          </button>
-        </form>
-
-        <section className="md-actions">
-          {!arming ? (
             <button
               type="button"
-              className="md-btn danger"
-              onClick={onArmSos}
-              disabled={loadingInit}
+              className="md-btn tonal"
+              onClick={() => setActiveTab('setup')}
             >
-              触发 SOS（倒计时 5 秒）
+              返回配置页
             </button>
-          ) : (
-            <button type="button" className="md-btn" onClick={onCancelSos}>
-              取消 SOS（剩余 {countdown}s）
-            </button>
-          )}
-        </section>
+          </section>
+        )}
 
         <pre className="md-log">{resultText}</pre>
       </section>
