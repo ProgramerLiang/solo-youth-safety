@@ -44,6 +44,7 @@
 {
   "message": "sos received",
   "count": 1,
+  "eventId": "sos_xxx",
   "notifications": [
     {
       "channel": "call",
@@ -60,6 +61,9 @@
   ]
 }
 ```
+
+### 查询 SOS 历史
+- `GET /sos/events?userId=u_123&limit=20`
 
 ## 3) 上报位置点
 - `POST /tracking/points`

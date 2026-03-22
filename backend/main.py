@@ -110,13 +110,25 @@ class NotificationLog(BaseModel):
     detail: str
 
 
+class SosHistoryItem(SosEvent):
+    id: str = Field(min_length=1)
+    notifications: list[NotificationLog] = Field(default_factory=list)
+
+
+class SosHistoryResponse(BaseModel):
+    userId: str
+    count: int
+    items: list[SosHistoryItem]
+
+
 class SosResponse(BaseModel):
     message: str
     count: int
+    eventId: str
     notifications: list[NotificationLog]
 
 
-sos_events: list[SosEvent] = []
+sos_events: list[SosHistoryItem] = []
 stored_points: list[StoredPoint] = []
 contacts_by_user: dict[str, list[Contact]] = {}
 config_by_user: dict[str, EmergencyConfig] = {}
@@ -208,13 +220,25 @@ def get_emergency_config(userId: str = Query(min_length=1)) -> EmergencyConfig:
 
 @app.post("/api/v1/sos/events", response_model=SosResponse)
 def create_sos_event(payload: SosEvent) -> SosResponse:
-    sos_events.append(payload)
     notifications = simulate_notify(payload)
+    event = SosHistoryItem(id=uuid4().hex, notifications=notifications, **payload.model_dump())
+    sos_events.append(event)
     return SosResponse(
         message="sos received",
         count=len(sos_events),
+        eventId=event.id,
         notifications=notifications,
     )
+
+
+@app.get("/api/v1/sos/events", response_model=SosHistoryResponse)
+def list_sos_events(
+    userId: str = Query(min_length=1),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> SosHistoryResponse:
+    items = [event for event in sos_events if event.userId == userId]
+    items.sort(key=lambda event: event.timestamp, reverse=True)
+    return SosHistoryResponse(userId=userId, count=len(items), items=items[:limit])
 
 
 @app.post("/api/v1/tracking/points", response_model=ActionResponse)

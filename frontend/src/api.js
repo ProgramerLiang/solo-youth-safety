@@ -56,6 +56,56 @@ function createContactId() {
   return `contact_${Date.now()}_${random}`
 }
 
+function createSosEventId() {
+  const random = Math.random().toString(36).slice(2, 10)
+  return `sos_${Date.now()}_${random}`
+}
+
+function normalizeNotificationRecord(item) {
+  const channel = asTrimmedString(item?.channel)
+  const status = asTrimmedString(item?.status)
+  if (!['call', 'sms'].includes(channel) || !['sent', 'skipped'].includes(status)) {
+    return null
+  }
+  return {
+    channel,
+    destination: asTrimmedString(item?.destination) || null,
+    status,
+    detail: asTrimmedString(item?.detail),
+  }
+}
+
+function normalizeNotificationList(notifications = []) {
+  return notifications.map((item) => normalizeNotificationRecord(item)).filter(Boolean)
+}
+
+function normalizeSosEventRecord(item, index = 0) {
+  const label = `sosEvents[${index}]`
+  const userId = asTrimmedString(item?.userId)
+  const deviceId = asTrimmedString(item?.deviceId)
+  const timestamp = asTrimmedString(item?.timestamp)
+  if (!userId || !deviceId || !timestamp) {
+    return null
+  }
+  try {
+    return {
+      id: asTrimmedString(item?.id) || createSosEventId(),
+      userId,
+      deviceId,
+      triggerType: asTrimmedString(item?.triggerType) || 'manual',
+      timestamp,
+      location: normalizeImportedLocation(item?.location, label),
+      notifications: normalizeNotificationList(item?.notifications || []),
+    }
+  } catch {
+    return null
+  }
+}
+
+function normalizeSosEventList(events = []) {
+  return events.map((item, index) => normalizeSosEventRecord(item, index)).filter(Boolean)
+}
+
 function normalizeContactRecord(contact) {
   const name = asTrimmedString(contact?.name)
   const phone = asTrimmedString(contact?.phone)
@@ -139,19 +189,11 @@ function normalizeImportedTrackingRecord(item, userId, index) {
 }
 
 function normalizeImportedSosEvent(item, userId, index) {
-  const label = `sosEvents[${index}]`
-  const deviceId = asTrimmedString(item?.deviceId)
-  const timestamp = asTrimmedString(item?.timestamp)
-  if (!deviceId || !timestamp) {
-    throw new Error(`${label} 缺少 deviceId 或 timestamp`)
+  const normalized = normalizeSosEventRecord({ ...item, userId }, index)
+  if (!normalized) {
+    throw new Error(`sosEvents[${index}] 格式无效`)
   }
-  return {
-    userId,
-    deviceId,
-    triggerType: asTrimmedString(item?.triggerType) || 'manual',
-    timestamp,
-    location: normalizeImportedLocation(item?.location, label),
-  }
+  return normalized
 }
 
 function normalizeImportedConfig(config, userId) {
@@ -240,9 +282,6 @@ async function triggerSosLocal(payload) {
   }
 
   const db = loadLocalDb()
-  db.sosEvents.push(payload)
-  saveLocalDb(db)
-
   const cfg =
     db.emergencyConfigByUser[payload.userId] ||
     normalizeConfig({ userId: payload.userId, callNumber: '', smsNumber: '', smsTemplate: '' })
@@ -280,9 +319,18 @@ async function triggerSosLocal(payload) {
     })
   }
 
+  const event = {
+    id: createSosEventId(),
+    ...payload,
+    notifications,
+  }
+  db.sosEvents.push(event)
+  saveLocalDb(db)
+
   return {
     message: 'sos received (local)',
     count: db.sosEvents.length,
+    eventId: event.id,
     notifications,
   }
 }
@@ -331,6 +379,22 @@ async function getTrackingTimelineLocal(userId, from, to) {
     })
 
   return { userId, count: points.length, points }
+}
+
+async function listSosEventsLocal(userId = DEFAULT_USER, limit = 20) {
+  if (!userId) {
+    throw new Error('userId is required')
+  }
+  const db = loadLocalDb()
+  const events = normalizeSosEventList(db.sosEvents)
+  db.sosEvents = events
+  saveLocalDb(db)
+
+  const filtered = events
+    .filter((item) => item.userId === userId)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+  return { userId, count: filtered.length, items: filtered.slice(0, limit) }
 }
 
 async function listContactsLocal(userId = DEFAULT_USER) {
@@ -399,8 +463,11 @@ export async function getLocalBackendSnapshot(userId = DEFAULT_USER) {
   const db = loadLocalDb()
   const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
-  const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
-  const latestSos = sosEvents.at(-1)?.timestamp || null
+  const sosEvents = normalizeSosEventList(db.sosEvents).filter((item) => item.userId === userId)
+  const latestSos = sosEvents
+    .slice()
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .at(-1)?.timestamp || null
 
   return {
     enabled: isLocalBackendEnabled(),
@@ -417,7 +484,7 @@ export async function exportLocalBackendBundle(userId = DEFAULT_USER) {
   const db = loadLocalDb()
   const contacts = normalizeContactList(db.contactsByUser[userId] || [])
   const trackingPoints = db.trackingPoints.filter((item) => item.userId === userId)
-  const sosEvents = db.sosEvents.filter((item) => item.userId === userId)
+  const sosEvents = normalizeSosEventList(db.sosEvents).filter((item) => item.userId === userId)
 
   return {
     mode: 'local',
@@ -503,6 +570,14 @@ export async function triggerSos(payload) {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export async function listSosEvents(userId = DEFAULT_USER, limit = 20) {
+  if (isLocalBackendEnabled()) {
+    return listSosEventsLocal(userId, limit)
+  }
+  const q = new URLSearchParams({ userId, limit: String(limit) })
+  return request(`/sos/events?${q.toString()}`)
 }
 
 export async function createTrackingPoints(payload) {

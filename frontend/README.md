@@ -55,6 +55,7 @@ APK 本地后端已覆盖 MVP API：
 - `GET /health`
 - `GET/POST /emergency/config`
 - `POST /sos/events`
+- `GET /sos/events`
 - `POST /tracking/points`
 - `GET /tracking/timeline`
 - `GET/POST /contacts`
@@ -76,6 +77,7 @@ APK 本地后端已覆盖 MVP API：
   2. 尝试打开系统拨号（`tel:`）
   3. 尝试打开系统短信（`sms:`）并填充模板内容
 - 若号码留空，会自动跳过对应动作
+- SOS 页内已提供历史记录区，可查看最近事件的时间、位置、通知结果
 
 ## 8) 打开 Android Studio（可选）
 ```bash

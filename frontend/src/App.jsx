@@ -13,6 +13,7 @@ import {
   getTrackingTimeline,
   isLocalBackendMode,
   listContacts,
+  listSosEvents,
   saveEmergencyConfig,
   triggerSos,
   updateContact,
@@ -225,6 +226,10 @@ function buildLocalBundleSummary(bundle) {
   }
 }
 
+function summarizeNotifications(notifications = []) {
+  return notifications.map((item) => `${item.channel}:${item.status}`).join(' / ') || '暂无通知记录'
+}
+
 function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
@@ -242,6 +247,8 @@ function App() {
   const [contactsList, setContactsList] = useState([])
   const [contactsPreview, setContactsPreview] = useState(null)
   const [trackingPreview, setTrackingPreview] = useState(null)
+  const [sosHistory, setSosHistory] = useState([])
+  const [selectedSosId, setSelectedSosId] = useState(null)
   const [contactForm, setContactForm] = useState(createEmptyContactForm)
   const [editingContactId, setEditingContactId] = useState(null)
   const [form, setForm] = useState(createEmptyForm)
@@ -264,6 +271,10 @@ function App() {
   )
 
   const validationHints = useMemo(() => getValidationHints(form), [form])
+  const selectedSosEvent = useMemo(
+    () => sosHistory.find((item) => item.id === selectedSosId) || sosHistory[0] || null,
+    [selectedSosId, sosHistory]
+  )
 
   async function refreshLocalPanel(userId = form.userId || DEFAULT_USER) {
     if (!isLocalBackendMode()) {
@@ -293,6 +304,15 @@ function App() {
     return data
   }
 
+  async function loadSosHistory(userId = form.userId || DEFAULT_USER) {
+    const data = await listSosEvents(userId)
+    setSosHistory(data.items)
+    setSelectedSosId((current) =>
+      data.items.some((item) => item.id === current) ? current : (data.items[0]?.id ?? null)
+    )
+    return data
+  }
+
   function resetDataPreviews() {
     setContactsPreview(null)
     setTrackingPreview(null)
@@ -302,6 +322,11 @@ function App() {
     setContactsList([])
     setContactForm(createEmptyContactForm())
     setEditingContactId(null)
+  }
+
+  function resetSosHistory() {
+    setSosHistory([])
+    setSelectedSosId(null)
   }
 
   useEffect(() => {
@@ -335,7 +360,11 @@ function App() {
         }
         setForm(merged)
         writeJsonCache(cacheKey, merged)
-        await Promise.all([refreshLocalPanel(merged.userId), loadContactsPreview(merged.userId)])
+        await Promise.all([
+          refreshLocalPanel(merged.userId),
+          loadContactsPreview(merged.userId),
+          loadSosHistory(merged.userId),
+        ])
       } finally {
         if (!ignore) {
           setLoadingInit(false)
@@ -362,9 +391,11 @@ function App() {
   useEffect(() => {
     resetDataPreviews()
     resetContactManager()
+    resetSosHistory()
     void Promise.all([
       refreshLocalPanel(form.userId || DEFAULT_USER),
       loadContactsPreview(form.userId || DEFAULT_USER),
+      loadSosHistory(form.userId || DEFAULT_USER),
     ])
   }, [form.userId])
 
@@ -572,6 +603,7 @@ function App() {
       setPendingImportDiffs([])
       resetDataPreviews()
       resetContactManager()
+      resetSosHistory()
       setActiveTab('setup')
       await refreshLocalPanel(DEFAULT_USER)
       setResultText('已清空当前用户本地后端数据，并重置引导')
@@ -633,9 +665,14 @@ function App() {
       setPendingImportSummary(null)
       setPendingImportDiffs([])
       onCancelEditContact()
+      resetSosHistory()
       setActiveTab(bundle.config ? 'sos' : 'setup')
       await refreshLocalPanel(bundle.userId)
-      await Promise.all([loadContactsPreview(bundle.userId), loadTrackingPreview(bundle.userId)])
+      await Promise.all([
+        loadContactsPreview(bundle.userId),
+        loadTrackingPreview(bundle.userId),
+        loadSosHistory(bundle.userId),
+      ])
       setResultText(
         `已导入本地快照：${bundle.userId}（联系人 ${bundle.contacts.length}，轨迹 ${bundle.trackingPoints.length}，SOS ${bundle.sosEvents.length}）`
       )
@@ -700,6 +737,15 @@ function App() {
     }
   }
 
+  async function onRefreshSosHistory() {
+    try {
+      const data = await loadSosHistory(form.userId || DEFAULT_USER)
+      setResultText(`SOS 历史已刷新（共 ${data.count} 条）`)
+    } catch (error) {
+      setResultText(`读取 SOS 历史失败: ${error.message}`)
+    }
+  }
+
   async function executeSos() {
     setArming(false)
     setCountdown(5)
@@ -709,7 +755,7 @@ function App() {
         triggerSos(payload),
         triggerNativeEmergency(form, payload),
       ])
-      await refreshLocalPanel(payload.userId)
+      await Promise.all([refreshLocalPanel(payload.userId), loadSosHistory(payload.userId)])
       setResultText(formatLogs(serverData, nativeLogs))
     } catch (error) {
       setResultText(`SOS 上报失败: ${error.message}`)
@@ -1089,30 +1135,118 @@ function App() {
             </section>
           </section>
         ) : (
-          <section className="md-sos-panel">
-            <h2>SOS 快速操作</h2>
-            <p>完成配置后即可一键触发，支持 5 秒倒计时取消。</p>
-            {!arming ? (
+          <section className="md-setup-stack">
+            <section className="md-sos-panel md-section-card">
+              <h2>SOS 快速操作</h2>
+              <p>完成配置后即可一键触发，支持 5 秒倒计时取消。</p>
+              {!arming ? (
+                <button
+                  type="button"
+                  className="md-btn danger"
+                  onClick={onArmSos}
+                  disabled={loadingInit}
+                >
+                  触发 SOS（倒计时 5 秒）
+                </button>
+              ) : (
+                <button type="button" className="md-btn" onClick={onCancelSos}>
+                  取消 SOS（剩余 {countdown}s）
+                </button>
+              )}
               <button
                 type="button"
-                className="md-btn danger"
-                onClick={onArmSos}
-                disabled={loadingInit}
+                className="md-btn tonal"
+                onClick={() => setActiveTab('setup')}
               >
-                触发 SOS（倒计时 5 秒）
+                返回配置页
               </button>
-            ) : (
-              <button type="button" className="md-btn" onClick={onCancelSos}>
-                取消 SOS（剩余 {countdown}s）
-              </button>
-            )}
-            <button
-              type="button"
-              className="md-btn tonal"
-              onClick={() => setActiveTab('setup')}
-            >
-              返回配置页
-            </button>
+            </section>
+
+            <section className="md-section-card md-history-section">
+              <div className="md-data-card-header">
+                <h2>SOS 历史记录</h2>
+                <span className="md-chip">最近 {sosHistory.length} 条</span>
+              </div>
+              <p className="md-section-hint">可查看最近报警事件的时间、位置与通知结果。</p>
+              <div className="md-row-actions">
+                <button type="button" className="md-btn tonal" onClick={onRefreshSosHistory}>
+                  刷新历史
+                </button>
+              </div>
+
+              {sosHistory.length > 0 ? (
+                <div className="md-history-layout">
+                  <ul className="md-history-list">
+                    {sosHistory.map((event) => (
+                      <li key={event.id}>
+                        <button
+                          type="button"
+                          className={`md-history-item ${selectedSosEvent?.id === event.id ? 'active' : ''}`}
+                          onClick={() => setSelectedSosId(event.id)}
+                        >
+                          <strong>{formatPanelTime(event.timestamp)}</strong>
+                          <span>{event.triggerType === 'manual' ? '手动触发' : '自动触发'}</span>
+                          <span>{summarizeNotifications(event.notifications)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {selectedSosEvent && (
+                    <article className="md-history-detail">
+                      <div className="md-history-detail-grid">
+                        <p>
+                          <strong>事件 ID：</strong>
+                          {selectedSosEvent.id}
+                        </p>
+                        <p>
+                          <strong>触发时间：</strong>
+                          {formatPanelTime(selectedSosEvent.timestamp)}
+                        </p>
+                        <p>
+                          <strong>触发方式：</strong>
+                          {selectedSosEvent.triggerType === 'manual' ? '手动' : '自动'}
+                        </p>
+                        <p>
+                          <strong>设备：</strong>
+                          {selectedSosEvent.deviceId}
+                        </p>
+                        <p>
+                          <strong>位置：</strong>
+                          ({selectedSosEvent.location.lat}, {selectedSosEvent.location.lng})
+                        </p>
+                        <p>
+                          <strong>精度：</strong>
+                          {selectedSosEvent.location.accuracy}
+                        </p>
+                      </div>
+
+                      <h3 className="md-history-subtitle">通知结果</h3>
+                      {selectedSosEvent.notifications.length > 0 ? (
+                        <ul className="md-data-list">
+                          {selectedSosEvent.notifications.map((item, index) => (
+                            <li
+                              key={`${selectedSosEvent.id}-${item.channel}-${index}`}
+                              className="md-data-list-item"
+                            >
+                              <strong>
+                                {item.channel.toUpperCase()} / {item.status}
+                              </strong>
+                              <span>{item.destination || '未设置号码'}</span>
+                              <span>{item.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="md-data-empty">该事件暂无通知详情。</p>
+                      )}
+                    </article>
+                  )}
+                </div>
+              ) : (
+                <p className="md-data-empty">当前用户暂无 SOS 历史记录，触发一次 SOS 后会在这里展示。</p>
+              )}
+            </section>
           </section>
         )}
 
