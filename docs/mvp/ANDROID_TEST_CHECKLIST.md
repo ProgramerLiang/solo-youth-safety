@@ -69,9 +69,10 @@
 - [ ] `npm run android:apk` 成功
 - [ ] `npm run android:release:setup-signing` 成功
 - [ ] `npm run android:release` 成功
-- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.8-debug.apk`
-- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.8-release.apk`
-- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.2.8-release.aab`
+- [ ] debug 输出文件名包含版本号，例如 `solo-youth-safety-v0.3.0-debug.apk`
+- [ ] release 输出文件名包含版本号，例如 `solo-youth-safety-v0.3.0-release.apk`
+- [ ] release AAB 输出文件名包含版本号，例如 `solo-youth-safety-v0.3.0-release.aab`
+- [ ] 默认迭代打包流程按 `npm run build -> npm run android:sync -> npm run android:apk -> npm run android:release` 执行，确认 release 产物不被遗漏
 - [ ] 项目外签名主目录存在：`/home/crp/.solo-youth-safety/signing`
 - [ ] 项目外签名备份目录存在：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 - [ ] 安装生成的版本化 APK 后可正常打开运行

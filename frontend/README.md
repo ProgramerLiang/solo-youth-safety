@@ -79,13 +79,16 @@ npm run android:release
 说明：
 - `android:apk` 生成 debug APK，便于开发联调与真机快速安装
 - `android:release` 会自动执行 release APK + release AAB 构建
+- 上面的默认流程以 `npm run android:release` 收尾，release APK / AAB 属于每次前端功能迭代完成后的默认打包验收范围，不是可省略的附加步骤
 - release 构建依赖签名文件：
   - `/home/crp/.solo-youth-safety/signing/release-signing.properties`
   - `/home/crp/.solo-youth-safety/signing/solo-youth-safety-release.jks`
 - 若签名配置路径有变，可设置环境变量：`SAFETY_SIGNING_PROPERTIES_FILE`
 - 每次功能迭代完成后，除代码与打包外，也要同步更新相关开发文档（至少包括本 README；如涉及能力边界、路线图、接口或验收方式变化，还需同步更新对应 `docs/` 文档）
+- 若是预发 / 生产打包，还必须同步检查 `VITE_API_BASE_URL` 是否已指向目标环境后端，避免将回环地址打进产物
 
 版本约定：
+- 当前前端版本基线为 `0.3.0`（以 `frontend/package.json` 为准）
 - 应优先修改 `frontend/package.json` 中的版本号
 - 每次常规迭代至少递增补丁位（patch）
 - Vite 注入的 `__APP_VERSION__`、Android `versionName` 以及 APK/AAB 文件名都会同步使用该版本号

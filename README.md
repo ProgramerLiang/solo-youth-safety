@@ -7,6 +7,11 @@
 - 位置记录与轨迹查询
 - Android APK 独立运行（内置本地后端模式）
 
+## 当前版本
+- 统一主版本：`0.3.0`
+- 前端版本源：`frontend/package.json`
+- 后端默认通过环境变量 `SAFETY_APP_VERSION` 跟随该版本
+
 ## 当前阶段
 当前项目已完成 **MVP 演示闭环**：
 - `frontend`：React + Vite
@@ -81,6 +86,8 @@ npm run android:apk
 APK 输出路径（按版本命名）：
 `frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
 
+> 默认前端迭代打包流程不仅包含 debug APK，也包含 release APK / AAB；完成 `build + sync + debug APK` 后，继续执行 release 打包。
+
 ### Android release APK / AAB
 首次生成签名资产（仅需一次）：
 ```bash
@@ -93,6 +100,17 @@ npm run android:release:setup-signing
 cd frontend
 npm run android:release
 ```
+
+默认迭代验收打包顺序：
+```bash
+cd frontend
+npm run build
+npm run android:sync
+npm run android:apk
+npm run android:release
+```
+
+> 预发 / 生产打包前，请先确认 `VITE_API_BASE_URL` 已指向目标后端环境。
 
 Release 输出路径：
 - `frontend/android/app/build/outputs/apk/release/solo-youth-safety-v<version>-release.apk`

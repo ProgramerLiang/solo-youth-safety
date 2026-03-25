@@ -1,5 +1,17 @@
 # Backend (FastAPI)
 
+## 环境变量
+可选环境变量：
+
+```bash
+SAFETY_APP_VERSION=0.3.0
+SAFETY_DB_PATH=/absolute/path/to/safety.db
+```
+
+说明：
+- `SAFETY_APP_VERSION` 默认跟随当前前端主版本
+- `SAFETY_DB_PATH` 可用于覆盖 SQLite 数据库文件位置
+
 ## 运行
 ```bash
 cd backend
@@ -25,6 +37,7 @@ python3 -m unittest discover -s tests -v
 - 远端后端已使用 SQLite 持久化
 - 默认数据库路径：`backend/data/safety.db`
 - 可通过环境变量覆盖：`SAFETY_DB_PATH=/path/to/custom.db`
+- 当前后端默认版本：`SAFETY_APP_VERSION=0.3.0`
 
 ## 当前持久化内容
 - 紧急通知配置

@@ -30,6 +30,8 @@ jobs:
         run: npm test
 
       - name: Build frontend
+        env:
+          VITE_API_BASE_URL: https://ci.invalid
         run: npm run build
 
   backend:
