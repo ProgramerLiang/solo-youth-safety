@@ -35,6 +35,7 @@
 - Android 原生直拨电话 / 直接发送短信（需授予 `CALL_PHONE` / `SEND_SMS`）
 - 工具页内本地数据面板、联系人 / 轨迹预览（开发者模式隐藏入口）
 - 本地快照导出 / 导入
+- 基础前端逻辑测试、FastAPI 接口测试与 GitHub Actions CI
 
 ## 目录说明
 - `frontend/`：React + Vite + Capacitor Android 前端
@@ -57,6 +58,16 @@ npm run dev
 cd backend
 python3 -m pip install --user -r requirements.txt
 python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 基础测试
+```bash
+cd frontend
+npm test
+
+cd ../backend
+python3 -m pip install --user -r requirements-dev.txt
+python3 -m unittest discover -s tests -v
 ```
 
 ### Android debug APK
@@ -92,12 +103,13 @@ Release 输出路径：
 - 备份目录：`/home/crp/Desktop/solo-youth-safety-signing-backup`
 
 ## 下一阶段重点
-详见：`docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
+详见：
+- `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
+- `docs/mvp/PROJECT_IMPROVEMENTS_REVIEW.md`
+- `docs/mvp/TASKS.md`
 
-当前最优先的方向是：
-1. 前后端基础自动化测试与 CI
-2. 联系人角色 / 通知策略补强
-3. SOS 历史筛选与地图化增强
-4. 远端身份 / 鉴权模型补强
-5. 发布素材与分发说明收口
-6. 后续前台服务 / 后台守护能力评估
+当前这一轮已确认先做文档同步，再进入实现；其中“前后端基础自动化测试与 CI”基础版已接入，接下来最优先的方向是：
+1. 远端身份 / 鉴权基线与 CORS 收口
+2. 继续拆分大文件、整理模块边界
+3. 统一版本与配置入口
+4. 收敛本地后端与远端后端 API 契约一致性

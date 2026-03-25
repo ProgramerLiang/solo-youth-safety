@@ -7,6 +7,12 @@
 - 远端 FastAPI 当前已使用 SQLite 持久化
 - 默认数据库文件：`backend/data/safety.db`
 
+## 当前契约约束（2026-03-24）
+- 本地后端应尽量视为远端 API 的镜像实现
+- 同名接口在本地 / 远端模式下应保持主要响应字段一致
+- 若本地模式需要额外调试信息，应尽量放在调试工具路径或显式调试接口，不应默认混入业务响应
+- 本轮会优先收敛响应结构、错误结构与契约测试基线
+
 ## 0) 健康检查
 - `GET /health`
 
@@ -26,7 +32,8 @@
 说明：
 - `callNumber` 可为空字符串或 `null`（表示不拨号）
 - `smsNumber` 可为空字符串或 `null`（表示不发短信）
-- `smsTemplate` 支持占位符：`{userId}` `{deviceId}` `{lat}` `{lng}` `{time}`
+- `smsTemplate` 仅支持占位符：`{userId}` `{deviceId}` `{lat}` `{lng}` `{time}`
+- 若 `smsTemplate` 含未知占位符或花括号不匹配，后端会返回 `400`
 
 ### 读取配置
 - `GET /emergency/config?userId=u_123`
