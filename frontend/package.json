@@ -1,11 +1,12 @@
 {
   "name": "solo-youth-safety-frontend",
   "private": true,
-  "version": "0.2.8",
+  "version": "0.2.16",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node --test",
     "preview": "vite preview",
     "android:init": "npx cap add android",
     "android:sync": "npx cap sync android",
