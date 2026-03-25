@@ -1,242 +1,73 @@
 # 项目可改进点评审
 
-更新时间：2026-03-24
+更新时间：2026-03-25
 
 ## 结论
 
-项目已经具备 **可运行、可构建、可演示** 的 Android MVP 闭环；但如果要从“演示可用”走向“可试用、可持续迭代”，当前最需要优先补的是 **工程基线**，而不是继续横向堆功能。
+项目已具备 **可运行、可构建、可演示** 的 Android MVP 闭环；若要从“演示可用”进入“可信试用”，当前应优先补齐工程基线，而不是继续在本文件扩写新的产品/工程大规划。
 
-本轮已确认采用以下策略：
-- **先补文档，再进入实现**
-- **只优先推进 5 个方向**：`1 / 2 / 4 / 5 / 6`
+本文件本轮只保留最小评审结论，详细分析统一下沉到以下 3 份主文档：
+- `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`
+- `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`
+- `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
 
-对应为：
+## 当前已确认的优先顺序
+
 1. 前后端基础自动化测试与 CI
 2. 远端身份 / 鉴权基线与 CORS 收口
 3. 继续拆分大文件、整理模块边界
 4. 统一版本与配置入口
-5. 收敛本地后端与远端后端的 API 契约一致性
-
-当前进度：
-- [x] 第 1 项基础版已完成（前端基础逻辑测试、后端基础接口测试、GitHub Actions CI）
-- [x] Android 定位双通道已完成首轮收束（GMS fused -> System `LocationManager` fallback）
-- [ ] 第 2 ~ 5 项待继续推进
-
----
-
-## 本次评审已确认的现状依据
-
-### 已验证通过
-- `frontend`：`npm run build` 可通过
-- `backend/main.py`：`python3 -m py_compile` 可通过
-
-### 已观察到的工程问题
-- 已接入基础前端测试、后端接口测试与 CI，但覆盖仍偏薄
-- `backend/main.py` 当前仍是单文件，且包含 schema、路由、SQLite 初始化、业务逻辑
-- `frontend/src/App.jsx`、`frontend/src/pageComponents.jsx`、`frontend/src/api.js` 文件体量仍偏大
-- `frontend/src/api.js` 中 `API_BASE` 仍是硬编码
-- `backend/main.py` 中 `APP_VERSION` 与前端版本已存在漂移风险
-- 远端接口当前尚未建立正式鉴权，CORS 仍是全开放
-- 本地后端与远端后端的响应结构并未完全镜像，后续存在模式切换漂移风险
-
-### 当前体量参考
-- `frontend/src/pageComponents.jsx`：约 1375 行
-- `frontend/src/App.jsx`：约 1290 行
-- `frontend/src/api.js`：约 636 行
-- `backend/main.py`：约 656 行
-
----
-
-## 本轮优先范围
-
-以下内容是本轮明确要推进的范围；未列入者不在本轮主线中优先处理。
-
-### 优先项 1：前后端基础自动化测试与 CI
-
-#### 当前状态
-- 已补 `frontend` 基础测试脚本
-- 已补 `backend/tests/` 基础接口测试目录
-- 已补 `.github/workflows/ci.yml`，覆盖前端 build/test 与后端测试
-
-#### 风险
-- 每次改动都主要依赖手工回归
-- 当前项目已进入“多页面 + 本地后端 + 远端后端 + Android 原生桥接”的复杂阶段，后续回归成本会越来越高
-
-#### 本轮目标
-1. 后端建立最小可用接口测试
-2. 前端建立最小可用逻辑测试
-3. 建立 CI，至少执行 build + test
-
-#### 建议首批覆盖
-- 后端：
-  - `GET /health`
-  - `GET/POST /emergency/config`
-  - `POST /sos/events`
-  - `GET /tracking/timeline` 时间范围校验
-  - 联系人 CRUD
-- 前端：
-  - 短信模板校验 / 渲染
-  - 导入快照基础校验
-  - 本地/远端模式切换下的关键数据结构约束
-
-#### 验收标准
-- 本地可一键执行前后端测试
-- CI 能在提交后自动执行最小校验
-- 核心接口与模板逻辑变更后可被测试及时拦截
-
----
-
-### 优先项 2：远端身份 / 鉴权基线与 CORS 收口
-
-#### 现状
-- 远端接口当前主要依赖 `userId` 传参识别数据归属
-- `backend/main.py` 当前 CORS 仍是全开放配置
-
-#### 风险
-- 远端模式下存在明显越权风险
-- 联系人、轨迹、SOS 历史均属于敏感数据
-
-#### 本轮目标
-1. 建立 MVP 级鉴权占位方案
-2. 后端根据鉴权身份做最小归属校验
-3. CORS 按环境区分，避免继续全开放
-
-#### 本轮约束
-- 本轮先做“安全基线”，不在这一轮内扩展完整账号体系
-- 允许先采用 token / device token / session 任一简单方案，但必须能支撑接口归属判断
-
-#### 验收标准
-- 远端接口不再仅凭任意 `userId` 直接读写数据
-- CORS 可通过环境变量配置白名单
-- README / roadmap / API 文档都明确新的远端访问约束
-
----
-
-### 优先项 4：继续拆分大文件、整理模块边界
-
-#### 现状
-- 前端虽已开始把部分逻辑拆到 hooks，但主控文件仍偏大
-- `pageComponents.jsx` 仍承载多个页面组件
-- 后端仍集中在 `backend/main.py`
-
-#### 风险
-- 维护成本高
-- 功能改动容易产生跨页面副作用
-- 测试编写与复用都不方便
-
-#### 本轮目标
-1. 前端进一步拆出页面、hooks、utils、service 边界
-2. 后端按 router / schema / db / service 方向做拆分准备或首轮拆分
-3. 不做无关重构，只解决当前最明显的大文件问题
-
-#### 推荐拆分方向
-- 前端：
-  - `pages/`
-  - `components/`
-  - `hooks/`
-  - `services/`
-  - `utils/`
-- 后端：
-  - `app/schemas.py`
-  - `app/db.py`
-  - `app/routers/*.py`
-  - `app/services/*.py`
-
-#### 验收标准
-- `App.jsx` 不再继续膨胀
-- `pageComponents.jsx` 不再承载全部页面
-- `backend/main.py` 不再同时承担所有职责
-
----
-
-### 优先项 5：统一版本与配置入口
-
-#### 现状
-- 前后端版本存在漂移风险
-- 前端 API 地址仍是硬编码
-- 文档中的版本描述与实际实现容易不同步
-
-#### 风险
-- 构建环境切换困难
-- staging / release / 本地联调配置容易混乱
-- 文档和代码不一致时排查成本高
-
-#### 本轮目标
-1. 将前端 API 地址配置化
-2. 明确前后端版本同步策略
-3. 收敛环境变量入口与默认值说明
-
-#### 本轮建议
-- 前端引入 `VITE_API_BASE_URL`
-- 后端明确版本来源或同步规则
-- 在 README / frontend README / backend README 中统一说明环境配置
-
-#### 验收标准
-- 前端不再硬编码远端 API 地址
-- 版本号与文档说明有单一来源或明确同步规则
-- 开发 / 测试 / 发布环境切换路径清晰
-
----
-
-### 优先项 6：收敛本地后端与远端后端 API 契约一致性
-
-#### 现状
-- 本地后端是前端内模拟实现
-- 远端后端是 FastAPI + SQLite
-- 个别接口的响应结构已经存在轻微漂移风险
-
-#### 风险
-- 页面如果依赖本地特有字段，切到远端模式会出现行为差异
-- 后续补测试时会因为契约不稳导致重复返工
-
-#### 本轮目标
-1. 明确“本地后端 = 远端 API 镜像”的原则
-2. 收敛响应结构与错误结构
-3. 建立最小契约测试或契约对照检查
-
-#### 本轮约束
-- 本地模拟层不应随意附加远端没有的业务字段
-- 若必须提供调试信息，应明确放在调试接口或调试工具路径下
-
-#### 验收标准
-- 本地 / 远端同名接口的主要字段一致
-- 文档中明确接口契约约束
-- 至少一组关键接口具备契约校验
-
----
-
-## 本轮暂不优先的内容
-
-以下内容仍然重要，但不在本轮主线的最前面：
-- 联系人角色 / 通知策略补强
-- SOS 历史地图化增强
-- 风险区域提示
-- 安全路线推荐
-- 本地存储从 Preferences 升级到 SQLite
-- 前台服务 / 后台守护能力评估
-
-这些内容会继续保留在 roadmap 中，但排序低于当前 5 个工程基线项。
-
----
-
-## 建议执行顺序
-
-建议严格按以下顺序推进：
-1. 文档同步
-2. 测试与 CI 基线
-3. 鉴权与 CORS 收口
-4. 文件拆分与模块边界整理
-5. 版本 / 配置统一
-6. API 契约一致性收口
+5. 收敛本地后端与远端后端 API 契约一致性
 
 说明：
-- 之所以把“版本 / 配置统一”和“契约一致性”放在拆分之后，是因为拆分过程中会顺带暴露当前真实依赖边界，更利于一次性收敛。
-- 若在实施中发现鉴权方案会直接影响 API 契约文档，可先补文档约束，再落代码。
+- 本轮原则仍是“先补文档，再进入实现”。
+- 更细的阶段划分、原始承诺差异、文档/代码 mismatch，请不要继续堆回本文件，统一查看上述 3 份主文档。
 
----
+## 本轮仅保留的评审共识
 
-## 本次文档更新目的
+- 当前项目已经不是“能不能跑起来”的问题，而是“能否形成可信、可验证、可继续维护的 MVP 基线”。
+- README、Roadmap、TASKS、API 文档必须各司其职，避免把“规划中 / 约定中”的能力写成“当前已具备”。
+- 版本口径需要继续收口；若代码与文档现状不同，应以 `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md` 作为审查入口，而不是在本文件重复展开。
+- 鉴权、归属校验、CORS 白名单等内容目前仍应按“待实现或联调约定”表述，不能在评审结论里上升为“已落地能力”。
 
-这份文档不替代现有 roadmap，而是作为 **当前这一轮工程化补强的执行依据**。
+## 参考入口
 
-后续实现阶段应以本文件、`docs/mvp/TASKS.md`、`docs/mvp/PROJECT_STATUS_AND_ROADMAP.md` 三者保持同步为准。
+- 路线图摘要：`docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
+- 执行清单：`docs/mvp/TASKS.md`
+- Android 测试清单：`docs/mvp/ANDROID_TEST_CHECKLIST.md`
+- 总览：`README.md`
+
+## Soldier Review 最终清单（2026-03-25）
+
+### 最终保留文件
+- `README.md`
+- `backend/README.md`
+- `frontend/README.md`
+- `docs/api/README.md`
+- `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
+- `docs/mvp/TASKS.md`
+- `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`
+- `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
+- `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`
+
+说明：
+- 上述文件保留的前提是：它们承担的是总览、API 边界、路线图、任务拆分、原始承诺差异与文档/代码 mismatch 审查职责。
+- 其中 `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md` 必须继续作为“代码现状优先”的审查入口，避免后续再次把规划表述误写成已实现能力。
+
+### 已回退文件
+- `.gitignore`：已回退本轮越界新增的 `.ant-colony/` 忽略规则。
+- `backend/main.py`：已回退到规划任务开始前状态；后端 FastAPI / OpenAPI 版本口径恢复为硬编码 `0.2.1`，不再宣称支持通过 `SAFETY_APP_VERSION` 覆盖。
+
+### 版本口径结论
+- **已完成的收口**：文档层面已明确区分“前端 / Android 产物版本基线”与“后端 OpenAPI 当前版本”，不再要求所有端强行共享同一版本号。
+- **当前可信现状**：
+  - 前端 / Android 产物版本基线：`0.3.0`
+  - 后端 OpenAPI / FastAPI 当前版本：`0.2.1`
+- **仍需保持的约束**：
+  - 不应再把 `SAFETY_APP_VERSION` 写成当前后端已具备的配置能力。
+  - 鉴权、归属校验、CORS 白名单仍只可表述为“待实现 / 联调约定 / 后续收口目标”。
+- **审查结论**：版本语义已经比此前更清楚，但“跨端统一发布版本策略”仍未完成；现阶段应接受“前端 0.3.0、后端 OpenAPI 0.2.1 并存”的明确口径，而不是把它误写为已经统一。
+
+### 对 `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md` 的最终要求
+- 该文档当前应以“后端版本仍为硬编码 `0.2.1`、未实现 `SAFETY_APP_VERSION` 覆盖”为准。
+- 若后续代码再次引入版本环境变量能力，必须同步更新该文档，否则会重新制造审查失真。

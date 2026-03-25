@@ -1,9 +1,11 @@
 # MVP 开发任务清单
 
-更新时间：2026-03-24
+更新时间：2026-03-25
 
 ## 本轮优先任务（已确认）
 本轮先做文档同步，再进入实现；当前已完成第 1 项基础版，其余继续按以下顺序推进。
+
+> 规划归档说明：详细差异分析与阶段路线请优先查看 `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`、`docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`、`docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`；本文件只保留执行清单，不继续扩写新的大段规划说明。
 
 ### 1. 前后端基础自动化测试与 CI
 - [x] 后端引入测试依赖并建立基础接口测试目录
@@ -12,26 +14,49 @@
 - [x] 为关键接口与模板逻辑补回归校验
 
 ### 2. 远端身份 / 鉴权基线与 CORS 收口
-- [ ] 明确 MVP 级鉴权占位方案
-- [ ] 后端按鉴权身份补最小归属校验
+- [ ] 明确 MVP 级鉴权占位方案（`userId + deviceId + 请求头身份声明`）
+- [ ] 后端按鉴权身份补最小归属校验（头/体一致、资源归属、越权拒绝）
 - [ ] CORS 改为按环境配置白名单
+- [ ] 前端统一远端请求头注入与 4xx 身份错误提示
+- [ ] 为跨用户读写、头/体不一致、缺失请求头补接口测试
 - [ ] README / API 文档同步远端访问约束
 
-### 3. 继续拆分大文件、整理模块边界
+### 3. SOS 失败恢复与 Android 后台限制边界
+- [ ] 明确定位失败、联网失败、短信失败、拨号失败时的用户可见反馈
+- [ ] 补齐 SOS 状态机与失败恢复提示
+- [ ] 产出 Android 后台限制 / 前台服务边界说明与真机验证记录
+- [ ] 明确哪些守护能力仅为研究 / PoC，哪些不进入近期承诺
+
+### 4. 继续拆分大文件、整理模块边界
 - [ ] 继续拆分 `frontend/src/App.jsx`
 - [ ] 继续拆分 `frontend/src/pageComponents.jsx`
 - [ ] 继续整理 `frontend/src/api.js` 的本地 / 远端边界
 - [ ] 规划并开始拆分 `backend/main.py`
 
-### 4. 统一版本与配置入口
+### 5. 统一版本与配置入口 / 收敛本地后端与远端后端 API 契约一致性
 - [ ] 前端 API 地址改为环境变量配置
 - [ ] 明确前后端版本同步策略
 - [ ] 收敛 README / 前端 README / 后端 README 的环境配置说明
-
-### 5. 收敛本地后端与远端后端 API 契约一致性
 - [ ] 明确“本地后端 = 远端 API 镜像”原则
 - [ ] 对齐主要响应结构与错误结构
 - [ ] 为关键接口补契约测试或契约对照检查
+
+---
+
+## 规划文档入口（保留最小索引）
+
+以下 3 份文档负责承载较完整的规划分析；本文件只保留执行入口，不再重复展开长篇 roadmap：
+
+1. `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`
+   - 查看原因：需要理解为什么当前优先补工程基线，以及“建议立即做 / 建议延后 / 不建议近期做”的分组依据。
+
+2. `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`
+   - 查看原因：需要核对原始承诺与当前实现状态时使用。
+
+3. `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
+   - 查看原因：需要核对版本口径、安全约定、文档与代码是否一致时使用。
+
+---
 
 ## 已完成（当前 MVP）
 - [x] 明确技术栈与部署方案（FastAPI + React/Vite + Capacitor Android）
@@ -58,32 +83,18 @@
 - [x] 完成 SOS 原生直拨 / 直发短信链路（权限申请 + 原生日志）
 - [x] 完成 debug / release / AAB 构建链路
 
-## P0（下一阶段必须）
-- [x] 正式联系人管理 UI（新增 / 编辑 / 删除）
-- [x] SOS 历史记录页与详情页
-- [x] 用户 / 设备标识持久化（移除硬编码）
-- [x] 本地持久化升级（Android `localStorage` → Capacitor Preferences）
-- [x] 远端后端数据库持久化（FastAPI → SQLite）
-- [x] Release APK / AAB 与签名配置
-- [x] 位置新鲜度判断与提示
-- [x] 前后端基础自动化测试与 CI
-
-## P1（应做）
-- [x] 位置刷新入口与状态展示
-- [x] 周期轨迹写入 / 弱网补偿策略
-- [ ] 风险区域提示
-- [ ] 安全路线推荐（占位版）
-- [ ] 报警事件历史回放（地图 / 时间轴）
-- [ ] 配置导入字段级差异标记（新增 / 删除 / 修改）
-
-## P2（可选）
-- [ ] AI 情绪陪伴
-- [ ] 伪装语音辅助
-- [ ] 偷拍检测
-- [ ] 深度安全导航能力
+## 当前执行共识（最小同步）
+- [x] 基础测试与 CI 已接入
+- [ ] 远端身份 / 鉴权 / CORS 仍待收口
+- [ ] SOS 失败恢复与 Android 后台限制边界仍待收口
+- [ ] 模块边界与大文件拆分仍待推进
+- [ ] 版本与配置入口 / 本地远端 API 契约一致性仍待统一
 
 ## 参考文档
 - `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
 - `docs/mvp/ANDROID_TEST_CHECKLIST.md`
+- `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`
+- `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`
+- `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
 - `frontend/README.md`
 - `backend/README.md`

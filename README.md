@@ -8,9 +8,10 @@
 - Android APK 独立运行（内置本地后端模式）
 
 ## 当前版本
-- 统一主版本：`0.3.0`
-- 前端版本源：`frontend/package.json`
-- 后端默认通过环境变量 `SAFETY_APP_VERSION` 跟随该版本
+- 前端 / Android 产物版本：跟随 `frontend/package.json`（当前基线：`0.3.0`）
+- 后端 OpenAPI / 文档版本：以 `backend/main.py` 当前代码为准（当前默认：`0.2.1`）
+- 当前前后端版本口径尚未完全统一；已确认的不一致点见 `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
+- `SAFETY_APP_VERSION` 目前**不是**后端现状能力；若文档提到它，只能视为后续配置收口方向，不能视为已支持的环境变量
 
 ## 当前阶段
 当前项目已完成 **MVP 演示闭环**：
@@ -47,8 +48,11 @@
 - `backend/`：FastAPI 后端服务
 - `docs/api/`：接口说明
 - `docs/mvp/TASKS.md`：当前任务清单
+- `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`：文档与代码不一致点（文档可信度 / 版本漂移）
 - `docs/mvp/ANDROID_TEST_CHECKLIST.md`：Android 实机测试清单
 - `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`：项目现状评估与下一阶段路线图
+- `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`：从当前 Android MVP 向原始愿景能力靠拢的总路线图
+- `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`：原始承诺与当前实现状态对照表
 
 ## 运行与构建
 ### 前端（Web）
@@ -122,6 +126,9 @@ Release 输出路径：
 
 ## 下一阶段重点
 详见：
+- `docs/mvp/ALIGNMENT_PLAN_FROM_ANDROID_MVP_TO_ORIGINAL_VISION.md`（统一总路线图，含“建议立即做 / 建议延后 / 不建议近期做”分组）
+- `docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`（原始承诺与当前实现状态对照）
+- `docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`（文档与代码已确认不一致点）
 - `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
 - `docs/mvp/PROJECT_IMPROVEMENTS_REVIEW.md`
 - `docs/mvp/TASKS.md`

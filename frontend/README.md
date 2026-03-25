@@ -88,10 +88,12 @@ npm run android:release
 - 若是预发 / 生产打包，还必须同步检查 `VITE_API_BASE_URL` 是否已指向目标环境后端，避免将回环地址打进产物
 
 版本约定：
-- 当前前端版本基线为 `0.3.0`（以 `frontend/package.json` 为准）
+- 当前前端 / Android 产物版本基线为 `0.3.0`（以 `frontend/package.json` 为准）
 - 应优先修改 `frontend/package.json` 中的版本号
 - 每次常规迭代至少递增补丁位（patch）
 - Vite 注入的 `__APP_VERSION__`、Android `versionName` 以及 APK/AAB 文件名都会同步使用该版本号
+- 后端 OpenAPI / 文档版本当前仍以 `backend/main.py` 为准，现状默认值为 `0.2.1`，与前端产物版本未完全统一；差异说明见 `../docs/mvp/DOCUMENTATION_CODE_MISMATCHES.md`
+- `SAFETY_APP_VERSION` 目前不是后端现状能力，因此不要把它当作可用的版本覆盖入口
 
 常用产物路径：
 - Debug APK：`frontend/android/app/build/outputs/apk/debug/solo-youth-safety-v<version>-debug.apk`
