@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MaterialThemeBridgePlugin.class);
         registerPlugin(EmergencyActionsPlugin.class);
+        registerPlugin(SystemLocationBridgePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -1,4 +1,5 @@
 import { Geolocation } from '@capacitor/geolocation'
+import { getNativeCurrentPosition } from './nativeLocation'
 import { isNativePlatform } from './nativeActions'
 
 const defaultPositionOptions = {
@@ -6,6 +7,8 @@ const defaultPositionOptions = {
   timeout: 10000,
   maximumAge: 3000,
 }
+
+const knownPermissionStates = new Set(['prompt', 'prompt-with-rationale', 'granted', 'denied'])
 
 const samplingProfiles = {
   initial: {
@@ -34,18 +37,115 @@ const samplingProfiles = {
   },
 }
 
-function parsePermissionState(status) {
-  if (!status) {
+function normalizePermissionState(value) {
+  if (typeof value !== 'string') {
     return 'unknown'
   }
-  return status.location ?? status.coarseLocation ?? 'unknown'
+  const normalized = value.trim()
+  return knownPermissionStates.has(normalized) ? normalized : 'unknown'
+}
+
+function mergePermissionStates(...states) {
+  const normalizedStates = states.map(normalizePermissionState)
+  if (normalizedStates.includes('granted')) {
+    return 'granted'
+  }
+  if (normalizedStates.includes('prompt-with-rationale')) {
+    return 'prompt-with-rationale'
+  }
+  if (normalizedStates.includes('prompt')) {
+    return 'prompt'
+  }
+  if (normalizedStates.includes('denied')) {
+    return 'denied'
+  }
+  return 'unknown'
+}
+
+function parsePermissionState(status) {
+  const location = normalizePermissionState(status?.location)
+  const coarseLocation = normalizePermissionState(status?.coarseLocation)
+  const preciseGranted = location === 'granted'
+  const coarseGranted = coarseLocation === 'granted'
+  const canAccessLocation = preciseGranted || coarseGranted
+
+  return {
+    location,
+    coarseLocation,
+    effective: canAccessLocation ? 'granted' : mergePermissionStates(location, coarseLocation),
+    preciseGranted,
+    coarseGranted,
+    canAccessLocation,
+  }
+}
+
+function formatPermissionStateLabel(state) {
+  switch (normalizePermissionState(state)) {
+    case 'granted':
+      return '已允许'
+    case 'prompt':
+      return '待申请'
+    case 'prompt-with-rationale':
+      return '待再次确认'
+    case 'denied':
+      return '已拒绝'
+    default:
+      return '未知'
+  }
+}
+
+function buildPermissionStateSummary(permissionState) {
+  if (!permissionState) {
+    return ''
+  }
+  return `权限状态：精确=${formatPermissionStateLabel(permissionState.location)}，大致=${formatPermissionStateLabel(permissionState.coarseLocation)}`
 }
 
 function getErrorMessage(error) {
   if (typeof error?.message === 'string' && error.message.trim()) {
-    return error.message
+    return error.message.trim()
   }
   return 'unknown error'
+}
+
+function localizeLocationError(rawMessage, platform) {
+  const message = typeof rawMessage === 'string' && rawMessage.trim() ? rawMessage.trim() : 'unknown error'
+  if (message.startsWith('双通道定位失败：GMS=')) {
+    const body = message.replace('双通道定位失败：GMS=', '')
+    const [gmsPart = '', systemPart = ''] = body.split('；System=')
+    return `双通道定位失败：GMS=${localizeLocationError(gmsPart, platform)}；System=${localizeLocationError(systemPart, platform)}`
+  }
+
+  const normalized = message.toLowerCase()
+  if (normalized.includes('location services are not enabled') || normalized.includes('location disabled')) {
+    return '系统定位服务未开启，请先在系统设置中打开定位服务'
+  }
+  if (normalized.includes('google play services not available')) {
+    return '设备缺少 Google Play 服务'
+  }
+  if (
+    normalized.includes('location permission was denied') ||
+    normalized.includes('user denied geolocation') ||
+    normalized.includes('permission denied')
+  ) {
+    return platform === 'web' ? '浏览器定位权限被拒绝' : '定位权限被拒绝，请允许应用访问位置'
+  }
+  if (normalized.includes('timeout')) {
+    return '定位超时，请移动到空旷区域、窗口附近或室外后重试'
+  }
+  if (normalized.includes('location unavailable')) {
+    return '当前位置暂时不可用，请稍后重试'
+  }
+  return message
+}
+
+function buildPermissionDeniedMessage(permissionState) {
+  const summary = buildPermissionStateSummary(permissionState)
+  const hint =
+    permissionState?.effective === 'denied'
+      ? '定位权限未授予，无法刷新当前位置'
+      : '定位权限状态未知，无法刷新当前位置'
+  return summary ? `${hint}；${summary}` : hint
 }
 
 function wait(ms) {
@@ -102,6 +202,7 @@ export function describeLocationAccuracy(accuracy) {
 function buildLocation(position, source) {
   const accuracy = roundAccuracy(position.coords.accuracy)
   const accuracyInfo = describeLocationAccuracy(accuracy)
+  const resolvedSource = typeof position?.sourceLabel === 'string' ? position.sourceLabel : source
 
   return {
     lat: position.coords.latitude,
@@ -113,7 +214,10 @@ function buildLocation(position, source) {
     speed: Number.isFinite(Number(position.coords.speed)) ? Number(position.coords.speed) : 0,
     heading: Number.isFinite(Number(position.coords.heading)) ? Number(position.coords.heading) : 0,
     capturedAt: new Date(position.timestamp ?? Date.now()).toISOString(),
-    source,
+    source: resolvedSource,
+    providerChannel: typeof position?.providerChannel === 'string' ? position.providerChannel : resolvedSource,
+    providerName: typeof position?.providerName === 'string' ? position.providerName : '',
+    fallbackFrom: typeof position?.fallbackFrom === 'string' ? position.fallbackFrom : '',
   }
 }
 
@@ -129,21 +233,22 @@ function getBrowserPosition(options) {
 
 async function getNativePermissionState(requestIfNeeded) {
   let permission = await Geolocation.checkPermissions()
-  let state = parsePermissionState(permission)
-  if (state !== 'granted' && requestIfNeeded) {
+  let parsed = parsePermissionState(permission)
+  if (!parsed.canAccessLocation && requestIfNeeded) {
     permission = await Geolocation.requestPermissions()
-    state = parsePermissionState(permission)
+    parsed = parsePermissionState(permission)
   }
-  return state
+  return parsed
 }
 
 function buildSamplingProfile(reason) {
   return samplingProfiles[reason] || samplingProfiles.manual
 }
 
-function buildAttemptOptions(profile, force, attemptIndex) {
+function buildAttemptOptions(profile, force, attemptIndex, enableHighAccuracy = true) {
   return {
     ...defaultPositionOptions,
+    enableHighAccuracy,
     timeout: attemptIndex === 0 ? defaultPositionOptions.timeout : profile.retryTimeout,
     maximumAge: attemptIndex === 0 && !force ? defaultPositionOptions.maximumAge : 0,
   }
@@ -161,7 +266,7 @@ function shouldReplaceBest(bestLocation, nextLocation) {
   return nextScore === bestScore && nextLocation.capturedAt > bestLocation.capturedAt
 }
 
-async function sampleBestLocation(getPosition, source, reason, force) {
+async function sampleBestLocation(getPosition, source, reason, force, enableHighAccuracy = true) {
   const profile = buildSamplingProfile(reason)
   const errors = []
   let bestLocation = null
@@ -171,7 +276,9 @@ async function sampleBestLocation(getPosition, source, reason, force) {
   for (let attemptIndex = 0; attemptIndex < profile.attempts; attemptIndex += 1) {
     attemptedCount = attemptIndex + 1
     try {
-      const position = await getPosition(buildAttemptOptions(profile, force, attemptIndex))
+      const position = await getPosition(
+        buildAttemptOptions(profile, force, attemptIndex, enableHighAccuracy)
+      )
       const location = buildLocation(position, source)
       successCount += 1
       if (shouldReplaceBest(bestLocation, location)) {
@@ -217,25 +324,47 @@ function getSuccessPrefix(reason, platform) {
   return platform === 'web' ? '浏览器已获取当前位置' : '已刷新当前位置'
 }
 
-function buildSuccessMessage(reason, platform, sampling, location) {
-  const prefix = getSuccessPrefix(reason, platform)
-  if (!location || sampling.attemptedCount <= 1) {
-    return prefix
+function appendMessageDetails(message, details) {
+  const normalizedDetails = details.filter(Boolean)
+  if (normalizedDetails.length === 0) {
+    return message
   }
-
-  const outcome = sampling.reachedTarget ? '已采用精度最佳结果' : '已采用当前最佳结果'
-  const partialFailure = sampling.errorCount > 0 ? '，已忽略失败采样' : ''
-  const accuracyInfo = describeLocationAccuracy(location.accuracy)
-  const weakHint = accuracyInfo.level === 'weak' ? '；当前精度仍偏弱' : ''
-  return `${prefix}（${sampling.attemptedCount} 次采样成功 ${sampling.successCount} 次，${outcome}${partialFailure}${weakHint}）`
+  return `${message}；${normalizedDetails.join('；')}`
 }
 
-function buildFailureMessage(platform, sampling, lastError) {
-  const prefix = platform === 'web' ? '浏览器定位失败' : '定位刷新失败'
-  if (sampling.attemptedCount > 1) {
-    return `${prefix}：连续 ${sampling.attemptedCount} 次采样均未成功，最后错误: ${lastError || 'unknown error'}`
+function buildSuccessMessage(reason, platform, sampling, location, permissionState) {
+  const prefix = getSuccessPrefix(reason, platform)
+  let message = prefix
+  if (location && sampling.attemptedCount > 1) {
+    const outcome = sampling.reachedTarget ? '已采用精度最佳结果' : '已采用当前最佳结果'
+    const partialFailure = sampling.errorCount > 0 ? '，已忽略失败采样' : ''
+    const accuracyInfo = describeLocationAccuracy(location.accuracy)
+    const weakHint = accuracyInfo.level === 'weak' ? '；当前精度仍偏弱' : ''
+    message = `${prefix}（${sampling.attemptedCount} 次采样成功 ${sampling.successCount} 次，${outcome}${partialFailure}${weakHint}）`
   }
-  return `${prefix}: ${lastError || 'unknown error'}`
+
+  const details = []
+  if (platform === 'native' && typeof location?.providerChannel === 'string' && location.providerChannel.startsWith('system')) {
+    details.push('已回退到系统定位')
+  }
+  if (platform === 'native' && permissionState?.coarseGranted && !permissionState.preciseGranted) {
+    details.push('当前系统仅授予大致位置')
+  }
+  return appendMessageDetails(message, details)
+}
+
+function buildFailureMessage(platform, sampling, lastError, permissionState) {
+  const prefix = platform === 'web' ? '浏览器定位失败' : '定位刷新失败'
+  const localizedError = localizeLocationError(lastError, platform)
+  const summary = buildPermissionStateSummary(permissionState)
+
+  if (sampling.attemptedCount > 1) {
+    return appendMessageDetails(
+      `${prefix}：连续 ${sampling.attemptedCount} 次采样均未成功，最后错误：${localizedError}`,
+      [summary]
+    )
+  }
+  return appendMessageDetails(`${prefix}：${localizedError}`, [summary])
 }
 
 export async function refreshCurrentLocation({
@@ -249,45 +378,56 @@ export async function refreshCurrentLocation({
       locationPermission: 'not-required',
       location: null,
       sampling: null,
+      permissionDetails: null,
       message: 'web 端不执行原生权限申请',
     }
   }
 
   if (isNativePlatform()) {
     try {
-      const state = await getNativePermissionState(requestIfNeeded)
-      if (state !== 'granted') {
+      const permissionState = await getNativePermissionState(requestIfNeeded)
+      if (!permissionState.canAccessLocation) {
         return {
           platform: 'native',
-          locationPermission: state,
+          locationPermission: permissionState.effective,
           location: null,
           sampling: null,
-          message: '定位权限未授予，无法刷新当前位置',
+          permissionDetails: permissionState,
+          message: buildPermissionDeniedMessage(permissionState),
         }
       }
 
       const sampled = await sampleBestLocation(
-        (options) => Geolocation.getCurrentPosition(options),
+        (options) => getNativeCurrentPosition(options),
         'native',
         reason,
-        force
+        force,
+        permissionState.preciseGranted
       )
       if (!sampled.location) {
         return {
           platform: 'native',
-          locationPermission: state,
+          locationPermission: permissionState.effective,
           location: null,
           sampling: sampled.sampling,
-          message: buildFailureMessage('native', sampled.sampling, sampled.lastError),
+          permissionDetails: permissionState,
+          message: buildFailureMessage('native', sampled.sampling, sampled.lastError, permissionState),
         }
       }
 
       return {
         platform: 'native',
-        locationPermission: state,
+        locationPermission: permissionState.effective,
         location: sampled.location,
         sampling: sampled.sampling,
-        message: buildSuccessMessage(reason, 'native', sampled.sampling, sampled.location),
+        permissionDetails: permissionState,
+        message: buildSuccessMessage(
+          reason,
+          'native',
+          sampled.sampling,
+          sampled.location,
+          permissionState
+        ),
       }
     } catch (error) {
       return {
@@ -295,7 +435,8 @@ export async function refreshCurrentLocation({
         locationPermission: 'error',
         location: null,
         sampling: null,
-        message: `定位刷新失败: ${getErrorMessage(error)}`,
+        permissionDetails: null,
+        message: `定位刷新失败：${localizeLocationError(getErrorMessage(error), 'native')}`,
       }
     }
   }
@@ -308,7 +449,8 @@ export async function refreshCurrentLocation({
         locationPermission: 'error',
         location: null,
         sampling: sampled.sampling,
-        message: buildFailureMessage('web', sampled.sampling, sampled.lastError),
+        permissionDetails: null,
+        message: buildFailureMessage('web', sampled.sampling, sampled.lastError, null),
       }
     }
 
@@ -317,7 +459,8 @@ export async function refreshCurrentLocation({
       locationPermission: 'granted',
       location: sampled.location,
       sampling: sampled.sampling,
-      message: buildSuccessMessage(reason, 'web', sampled.sampling, sampled.location),
+      permissionDetails: null,
+      message: buildSuccessMessage(reason, 'web', sampled.sampling, sampled.location, null),
     }
   } catch (error) {
     return {
@@ -325,7 +468,8 @@ export async function refreshCurrentLocation({
       locationPermission: 'error',
       location: null,
       sampling: null,
-      message: `浏览器定位失败: ${getErrorMessage(error)}`,
+      permissionDetails: null,
+      message: `浏览器定位失败：${localizeLocationError(getErrorMessage(error), 'web')}`,
     }
   }
 }
