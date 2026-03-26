@@ -1,5 +1,11 @@
 # Frontend (React + Vite + Capacitor Android)
 
+## 文档入口
+- 路线图入口：`../docs/mvp/PROJECT_STATUS_AND_ROADMAP.md`
+- 审查总表入口：`../docs/mvp/ORIGINAL_PROMISE_VS_CURRENT_STATUS.md`
+- 整改清单入口：`../docs/mvp/整改清单与审查入口.md`
+- 归档跳转页：`../docs/mvp/FINAL_AUDIT_REPORT_CN.md`、`../docs/mvp/FORMAL_GAP_AUDIT_REPORT.md`、`../docs/mvp/PROJECT_IMPROVEMENTS_REVIEW.md`
+
 ## 1) Web 开发
 ```bash
 cd frontend
@@ -155,6 +161,9 @@ npm run android:release
   - 紧急配置、主题、身份、本地后端数据已升级为 **Capacitor Preferences** 持久化
   - SOS 通知结果为本地模拟日志 + 原生直接短信 / 直接拨号执行结果
 - **Web 开发模式默认走远端 FastAPI + SQLite**：`http://127.0.0.1:8000/api/v1`
+  - 远端模式现已默认附带 MVP 级身份请求头：`X-Safety-User-Id`、`X-Safety-Device-Id`、`X-Safety-Client-Mode: remote`
+  - 若后端未把当前 Web 来源加入 `SAFETY_ALLOWED_ORIGINS`，浏览器跨域请求会被 CORS 拒绝
+  - 这表示远端模式已具备最小授权边界，但仍不是正式账号 / token / 会话系统
 - 可通过浏览器手动开启本地后端（调试用）：
   ```js
   localStorage.setItem('safety_force_local_backend', '1')
@@ -190,8 +199,11 @@ APK 本地后端已覆盖 MVP API：
   3. 调用 APK 内本地后端记录 SOS 与通知日志
   4. 首次需要时申请 `SEND_SMS` / `CALL_PHONE` 权限
   5. 先使用 `SmsManager` 直接发送短信，再使用 `ACTION_CALL` 直接发起拨号
-- 若号码留空，会自动跳过对应动作
-- 若用户拒绝相关权限，App 会保留 SOS 上报结果，并在“最新操作结果”中明确显示对应失败原因
+- 若号码留空，会自动跳过对应动作，并在“最新操作结果”中显示“未填写短信号码 / 拨号号码，已跳过”
+- 若用户拒绝相关权限，App 会保留 SOS 上报结果，并在“最新操作结果”中明确显示“缺少短信权限 / 缺少拨号权限”等失败原因
+- Android 原生插件当前会返回 `failed / skipped / dispatched / triggered` 等细粒度状态；前端 JS 层会把它们映射为中文可见结果。
+- 其中短信“已尝试发送”表示已经调用 `SmsManager`，拨号“已尝试拉起”表示已经启动 `ACTION_CALL`；两者都只是系统调用已发起，不等于已经确认短信送达或电话接通
+- 若出现原生调用异常、设备无可用拨号处理能力、拨号超时等边界情况，App 会在“最新操作结果”中给出对应中文说明
 - 若系统仅授予“大致位置”，App 会自动降级为粗定位采样，并在提示文案中说明
 - 若系统定位服务关闭、设备缺少 GMS 或双通道都失败，App 会在“最新操作结果”中展示更明确的失败原因
 - 若倒计时结束后仍无法获取当前位置，则会取消本次 SOS 上报并提示先刷新位置
@@ -202,3 +214,15 @@ APK 本地后端已覆盖 MVP API：
 cd frontend
 npm run android:open
 ```
+
+## 10) 远端模式口径（更新）
+- 当前 Web → FastAPI 联调链路已具备 **MVP 级最小授权边界** 与 **CORS 白名单收口**。
+- P0-2 所指的 **SOS 失败恢复与用户可见状态机** 已落地：前端会把定位失败、远端失败、短信失败、拨号失败、部分成功等结果统一为可见摘要与补救提示。
+- 下一步聚焦 **P0-3：Android 后台限制 / 前台服务边界澄清**，不是继续把 P0-2 视为待开始事项。
+- 这轮完成的是“最小身份声明 + 最小归属校验 + 白名单来源限制”，不是完整账号体系。
+- 当前仍未提供登录、token 刷新、会话管理、家庭成员共享授权流、多租户组织权限。
+- 若联调时遇到 `401/403/422`，优先检查：
+  1. 当前是否处于 remote 模式；
+  2. 请求是否带上了持久化生成的 `userId/deviceId`；
+  3. 后端 `SAFETY_ALLOWED_ORIGINS` 是否包含当前 Web 来源。
+- 建议联调验证命令：`npm test && npm run build`，并配合后端 `python3 -m unittest discover -s tests -v`。
