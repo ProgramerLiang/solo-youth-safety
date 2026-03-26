@@ -44,6 +44,7 @@
 - 对需要设备归属校验的写接口，`X-Safety-Device-Id` 缺失时会返回 `401`。
 - 若请求头与 body / query 中的身份字段不一致，后端当前会返回 `403`。
 - `X-Safety-Client-Mode` 若提供且不为 `remote`，后端当前会返回 `403`。
+- `GET /health` 保持匿名可访问；其余受保护接口进入该最小身份边界。
 - 这些请求头仍然**不是正式安全凭证**；它们只是 MVP 阶段的最小身份声明与归属约束。
 
 ### 3. 参数约定
@@ -145,6 +146,7 @@ MVP 的最小归属校验边界如下：
   - `failed`：明确失败
   - `sent`：兼容旧契约保留值
   - `attempted` / `permission-denied` / `partial-success`：为前端归一层与后续原生/远端扩展预留
+- 当前后端模拟通知结果约定为：已配置 `callNumber` 时返回 `triggered`，已配置 `smsNumber` 时返回 `dispatched`，未配置号码时返回 `skipped`。
 - `GET /sos/events` 返回的历史项 `notifications` 与 `POST /sos/events` 响应使用相同字段结构与状态枚举，不应在持久化后丢失细粒度结果。
 
 ### 查询 SOS 历史

@@ -338,6 +338,16 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(save_response.status_code, 401)
         self.assertEqual(list_response.status_code, 401)
 
+    def test_rejects_invalid_client_mode_header(self):
+        response = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None, client_mode='local'),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['detail'], 'invalid client mode')
+
     def test_rejects_user_id_mismatch_between_headers_and_payload(self):
         response = self.client.post(
             '/api/v1/sos/events',

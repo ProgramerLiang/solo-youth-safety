@@ -31,7 +31,7 @@
 
 当前仓库现状已较前一轮前进了一步：
 - `backend/main.py` 已不再使用默认全开放 CORS，而是改为通过 `SAFETY_ALLOWED_ORIGINS` 配置白名单；
-- 远端受保护接口已建立最小请求头身份基线；缺失 `X-Safety-User-Id`、头体 `userId/deviceId` 不一致、或 `X-Safety-Client-Mode` 非 `remote` 时会拒绝；
+- 远端受保护接口已建立最小请求头身份基线；缺失 `X-Safety-User-Id`、头体 `userId/deviceId` 不一致、或 `X-Safety-Client-Mode` 非 `remote` 时会拒绝；`GET /api/v1/health` 继续保持匿名可访问；
 - 联系人、轨迹、SOS 历史、紧急配置等接口已进入 MVP 级资源归属校验边界。
 
 但这仍然**不是正式账号体系，也不是完整隐私合规闭环**：
