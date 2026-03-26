@@ -1,15 +1,8 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
-const EmergencyActions = registerPlugin('EmergencyActions')
+import { renderSmsTemplate } from './template.js'
 
-function applyTemplate(template, payload) {
-  return template
-    .replaceAll('{userId}', payload.userId)
-    .replaceAll('{deviceId}', payload.deviceId)
-    .replaceAll('{lat}', String(payload.location.lat))
-    .replaceAll('{lng}', String(payload.location.lng))
-    .replaceAll('{time}', payload.timestamp)
-}
+const EmergencyActions = registerPlugin('EmergencyActions')
 
 function normalizeNumber(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -30,6 +23,14 @@ export function isNativePlatform() {
   return Capacitor.isNativePlatform()
 }
 
+export function buildNativeEmergencyPayload(config, payload) {
+  return {
+    callNumber: normalizeNumber(config.callNumber),
+    smsNumber: normalizeNumber(config.smsNumber),
+    smsBody: renderSmsTemplate(config.smsTemplate, payload),
+  }
+}
+
 export async function triggerNativeEmergency(config, payload) {
   if (!isNativePlatform()) {
     return [
@@ -42,11 +43,7 @@ export async function triggerNativeEmergency(config, payload) {
   }
 
   try {
-    const result = await EmergencyActions.triggerEmergency({
-      callNumber: normalizeNumber(config.callNumber),
-      smsNumber: normalizeNumber(config.smsNumber),
-      smsBody: applyTemplate(config.smsTemplate, payload),
-    })
+    const result = await EmergencyActions.triggerEmergency(buildNativeEmergencyPayload(config, payload))
     const logs = normalizeLogs(result?.logs)
     return logs.length > 0
       ? logs

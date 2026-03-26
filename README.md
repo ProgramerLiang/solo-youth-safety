@@ -43,6 +43,23 @@
 - 本地快照导出 / 导入
 - 基础前端逻辑测试、FastAPI 接口测试与 GitHub Actions CI
 
+## 短信模板占位符
+当前短信模板支持以下占位符：
+- `{userId}`：用户 ID
+- `{deviceId}`：设备 ID
+- `{lat}`：纬度
+- `{lng}`：经度
+- `{time}`：触发时间（对应事件时间戳）
+- `{mapUrl}`：地图链接，当前渲染为高德地图 URI（`https://uri.amap.com/marker?position={lng},{lat}`）
+
+当前前后端统一默认模板为：
+`[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}`
+
+说明：
+- 空模板或仅包含空白字符的模板，会回退到上述默认模板。
+- 若发送时缺少定位信息，`{mapUrl}` 会按现有容错策略回退为 `unknown`。
+- 前端预览、本地后端模拟短信、Android 原生短信发送以及后端短信渲染，当前使用同一套占位符：`{userId}` / `{deviceId}` / `{lat}` / `{lng}` / `{time}` / `{mapUrl}`。
+
 ## 目录说明
 - `frontend/`：React + Vite + Capacitor Android 前端
 - `backend/`：FastAPI 后端服务

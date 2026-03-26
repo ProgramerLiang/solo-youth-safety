@@ -87,11 +87,35 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(fetched.status_code, 200)
         self.assertEqual(fetched.json()['smsTemplate'], '[SOS]{userId} {time}')
 
+    def test_emergency_config_accepts_map_url_placeholder(self):
+        response = self.save_config(smsTemplate='[SOS]{userId} {mapUrl}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['smsTemplate'], '[SOS]{userId} {mapUrl}')
+
+    def test_emergency_config_blank_template_falls_back_to_default_template(self):
+        response = self.save_config(smsTemplate='   ')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['smsTemplate'], self.backend.DEFAULT_TEMPLATE)
+        self.assertIn('{mapUrl}', response.json()['smsTemplate'])
+
+        fetched = self.client.get('/api/v1/emergency/config', params={'userId': self.user_id})
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.json()['smsTemplate'], self.backend.DEFAULT_TEMPLATE)
+        self.assertIn('{mapUrl}', fetched.json()['smsTemplate'])
+
     def test_emergency_config_rejects_invalid_template(self):
         response = self.save_config(smsTemplate='[SOS]{foo}')
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('不支持的占位符', response.json()['detail'])
+
+    def test_build_map_url_generates_amap_marker_link(self):
+        self.assertEqual(
+            self.backend.build_map_url(31.23, 121.47),
+            'https://uri.amap.com/marker?position=121.47,31.23',
+        )
 
     def test_contacts_crud_round_trip(self):
         create_response = self.client.post(
@@ -192,6 +216,47 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(history_body['count'], 1)
         self.assertEqual(history_body['items'][0]['id'], body['eventId'])
         self.assertEqual(len(history_body['items'][0]['notifications']), 2)
+
+    def test_sos_sms_notification_detail_contains_map_url(self):
+        self.save_config(smsTemplate='[SOS]{userId} {mapUrl}', smsNumber='13800000000')
+        event = self.backend.SosEvent(
+            userId=self.user_id,
+            deviceId=self.device_id,
+            location=self.backend.Location(lat=31.23, lng=121.47, accuracy=15),
+            triggerType='manual',
+            timestamp=datetime.fromisoformat(iso_utc()),
+        )
+        cfg = self.backend.EmergencyConfig(
+            userId=self.user_id,
+            callNumber=None,
+            smsNumber='13800000000',
+            smsTemplate='[SOS]{userId} {mapUrl}',
+        )
+
+        sms_content = self.backend.build_sms_content(event, cfg)
+        self.assertEqual(
+            sms_content,
+            '[SOS]u_test https://uri.amap.com/marker?position=121.47,31.23',
+        )
+
+        response = self.client.post(
+            '/api/v1/sos/events',
+            json={
+                'userId': self.user_id,
+                'deviceId': self.device_id,
+                'location': {
+                    'lat': 31.23,
+                    'lng': 121.47,
+                    'accuracy': 15,
+                },
+                'triggerType': 'manual',
+                'timestamp': iso_utc(),
+            },
+        )
+        body = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('https://uri.amap.com/marker?position=121.47,31.23', body['notifications'][1]['detail'])
 
 
 if __name__ == '__main__':

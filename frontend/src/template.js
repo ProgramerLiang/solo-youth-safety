@@ -1,7 +1,7 @@
-export const defaultSmsTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
-export const allowedSmsTemplateVariables = ['userId', 'deviceId', 'lat', 'lng', 'time']
+export const defaultSmsTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}'
+export const allowedSmsTemplateVariables = ['userId', 'deviceId', 'lat', 'lng', 'time', 'mapUrl']
 
-function buildSupportedPlaceholdersText() {
+export function buildSupportedPlaceholdersText() {
   return allowedSmsTemplateVariables.map((item) => `{${item}}`).join(' ')
 }
 
@@ -46,6 +46,15 @@ export function validateSmsTemplate(template) {
   return normalized
 }
 
+export function buildSmsTemplateMapUrl(payload) {
+  const lat = payload?.location?.lat
+  const lng = payload?.location?.lng
+  if (lat == null || lng == null) {
+    return 'unknown'
+  }
+  return `https://uri.amap.com/marker?position=${lng},${lat}`
+}
+
 function resolveTemplateValue(fieldName, payload) {
   switch (fieldName) {
     case 'userId':
@@ -58,6 +67,8 @@ function resolveTemplateValue(fieldName, payload) {
       return String(payload?.location?.lng ?? 'unknown')
     case 'time':
       return String(payload?.timestamp ?? 'unknown')
+    case 'mapUrl':
+      return buildSmsTemplateMapUrl(payload)
     default:
       return ''
   }

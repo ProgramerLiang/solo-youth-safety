@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 APP_VERSION = "0.2.1"
-DEFAULT_TEMPLATE = "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}"
+DEFAULT_TEMPLATE = "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}"
 DB_PATH = Path(
     os.getenv(
         "SAFETY_DB_PATH",
@@ -135,7 +135,7 @@ class SosResponse(BaseModel):
     notifications: list[NotificationLog]
 
 
-SMS_TEMPLATE_FIELDS = ("userId", "deviceId", "lat", "lng", "time")
+SMS_TEMPLATE_FIELDS = ("userId", "deviceId", "lat", "lng", "time", "mapUrl")
 
 
 def build_supported_placeholders_text() -> str:
@@ -323,6 +323,11 @@ def get_config(connection: sqlite3.Connection, user_id: str) -> EmergencyConfig:
 
 
 
+def build_map_url(lat: float, lng: float) -> str:
+    return f"https://uri.amap.com/marker?position={lng},{lat}"
+
+
+
 def build_sms_content(event: SosEvent, cfg: EmergencyConfig) -> str:
     return cfg.smsTemplate.format(
         userId=event.userId,
@@ -330,6 +335,7 @@ def build_sms_content(event: SosEvent, cfg: EmergencyConfig) -> str:
         lat=event.location.lat,
         lng=event.location.lng,
         time=serialize_datetime(event.timestamp),
+        mapUrl=build_map_url(event.location.lat, event.location.lng),
     )
 
 

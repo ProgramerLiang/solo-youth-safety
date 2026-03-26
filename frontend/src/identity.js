@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { readStoredJson, writeStoredJson } from './storage'
+import { readStoredJson, writeStoredJson } from './storage.js'
 
 const identityStorageKey = 'safety_identity_v1'
 

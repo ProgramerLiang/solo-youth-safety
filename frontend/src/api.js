@@ -1,9 +1,9 @@
-import { getPersistedIdentity } from './identity'
-import { isNativePlatform } from './nativeActions'
-import { readStoredJson, writeStoredJson } from './storage'
+import { getPersistedIdentity } from './identity.js'
+import { isNativePlatform } from './nativeActions.js'
+import { readStoredJson, writeStoredJson } from './storage.js'
+import { defaultSmsTemplate, renderSmsTemplate } from './template.js'
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1'
-const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
 const DEFAULT_USER = getPersistedIdentity().userId
 const DEFAULT_DEVICE_ID = getPersistedIdentity().deviceId
 const localDbKey = 'safety_local_backend_v1'
@@ -29,15 +29,6 @@ function createEmptyLocalDb() {
     contactsByUser: {},
     trackingPoints: [],
   }
-}
-
-function renderTemplate(template, payload) {
-  return template
-    .replaceAll('{userId}', payload.userId)
-    .replaceAll('{deviceId}', payload.deviceId)
-    .replaceAll('{lat}', String(payload.location?.lat ?? 'unknown'))
-    .replaceAll('{lng}', String(payload.location?.lng ?? 'unknown'))
-    .replaceAll('{time}', payload.timestamp)
 }
 
 function loadLocalDb() {
@@ -132,7 +123,7 @@ function normalizeContactList(contacts = []) {
 function normalizeConfig(payload) {
   const call = typeof payload.callNumber === 'string' ? payload.callNumber.trim() : ''
   const sms = typeof payload.smsNumber === 'string' ? payload.smsNumber.trim() : ''
-  const smsTemplate = payload.smsTemplate?.trim() ? payload.smsTemplate : defaultTemplate
+  const smsTemplate = payload.smsTemplate?.trim() ? payload.smsTemplate : defaultSmsTemplate
 
   return {
     userId: payload.userId,
@@ -211,7 +202,7 @@ function normalizeImportedConfig(config, userId) {
     userId,
     callNumber: config?.callNumber ?? '',
     smsNumber: config?.smsNumber ?? '',
-    smsTemplate: config?.smsTemplate ?? defaultTemplate,
+    smsTemplate: config?.smsTemplate ?? defaultSmsTemplate,
   })
 }
 
@@ -266,7 +257,7 @@ async function getEmergencyConfigLocal(userId = getDefaultUserId()) {
       userId,
       callNumber: null,
       smsNumber: null,
-      smsTemplate: defaultTemplate,
+      smsTemplate: defaultSmsTemplate,
     }
   )
 }
@@ -314,7 +305,7 @@ async function triggerSosLocal(payload) {
       channel: 'sms',
       destination: cfg.smsNumber,
       status: 'sent',
-      detail: `local simulated sms: ${renderTemplate(cfg.smsTemplate, payload)}`,
+      detail: `local simulated sms: ${renderSmsTemplate(cfg.smsTemplate, payload)}`,
     })
   } else {
     notifications.push({

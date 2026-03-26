@@ -85,13 +85,14 @@ MVP 的最小归属校验目标如下：
   "userId": "u_123",
   "callNumber": "",
   "smsNumber": "13800000000",
-  "smsTemplate": "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}"
+  "smsTemplate": "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}"
 }
 ```
 说明：
 - `callNumber` 可为空字符串或 `null`（表示不拨号）
 - `smsNumber` 可为空字符串或 `null`（表示不发短信）
-- `smsTemplate` 仅支持占位符：`{userId}` `{deviceId}` `{lat}` `{lng}` `{time}`
+- `smsTemplate` 仅支持占位符：`{userId}` `{deviceId}` `{lat}` `{lng}` `{time}` `{mapUrl}`
+- 空模板或仅包含空白字符的模板，会回退为默认模板：`[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}`
 - 若 `smsTemplate` 含未知占位符或花括号不匹配，后端会返回 `400`
 
 ### 读取配置

@@ -50,15 +50,22 @@ import {
   writeStoredJson,
   writeStoredString,
 } from './storage'
+import {
+  buildSupportedPlaceholdersText,
+  defaultSmsTemplate,
+  renderSmsTemplate,
+} from './template'
 
-const defaultTemplate = '[SOS] 用户{userId}触发报警，位置({lat},{lng}) 时间:{time}'
+const defaultTemplate = defaultSmsTemplate
 const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
 const configVersion = '1.0'
 const cacheKey = 'safety_emergency_config_v1'
 const onboardingKey = 'safety_onboarding_done_v1'
 const developerModeKey = 'safety_developer_mode_v1'
 const appVersion = __APP_VERSION__
-const previewFallbackLocation = { lat: 31.2304, lng: 121.4737, accuracy: 12 }
+const previewExampleLocation = { lat: 31.2304, lng: 121.4737, accuracy: 12 }
+const previewExampleTimestamp = '2026-03-25T12:34:56.000Z'
+const previewExampleMapUrl = '地图链接示例（预览专用，实际发送时会替换为真实定位链接）'
 const freshLocationThresholdMs = 30 * 1000
 const staleLocationThresholdMs = 2 * 60 * 1000
 const defaultPageId = 'overview'
@@ -229,19 +236,28 @@ function createSosPayload(userId, deviceId, location) {
 }
 
 function createPreviewSosPayload(userId, deviceId, location) {
-  return (
-    createSosPayload(userId, deviceId, location) ||
-    createSosPayload(userId, deviceId, previewFallbackLocation)
-  )
+  const safeLocation = toPayloadLocation(location)
+  return {
+    userId,
+    deviceId,
+    triggerType: 'manual',
+    timestamp: safeLocation ? new Date().toISOString() : previewExampleTimestamp,
+    location: safeLocation || previewExampleLocation,
+    meta: {
+      usesExampleLocation: !safeLocation,
+    },
+  }
 }
 
-function renderTemplate(template, payload) {
-  return template
-    .replaceAll('{userId}', payload.userId)
-    .replaceAll('{deviceId}', payload.deviceId)
-    .replaceAll('{lat}', String(payload.location.lat))
-    .replaceAll('{lng}', String(payload.location.lng))
-    .replaceAll('{time}', payload.timestamp)
+function renderPreviewSmsTemplate(template, payload) {
+  const normalizedTemplate = typeof template === 'string' ? template : defaultTemplate
+  if (!normalizedTemplate.includes('{mapUrl}')) {
+    return renderSmsTemplate(normalizedTemplate, payload)
+  }
+  if (!payload?.meta?.usesExampleLocation) {
+    return renderSmsTemplate(normalizedTemplate, payload)
+  }
+  return renderSmsTemplate(normalizedTemplate.replaceAll('{mapUrl}', previewExampleMapUrl), payload)
 }
 
 function getValidationHints(form) {
@@ -1358,7 +1374,7 @@ function ConfigPage({
         </div>
 
         <div className="md-helper">
-          <p>可用变量：{'{userId}'} {'{deviceId}'} {'{lat}'} {'{lng}'} {'{time}'}</p>
+          <p>可用变量：{buildSupportedPlaceholdersText()}</p>
           {validationHints.length > 0 && (
             <ul className="md-warn-list">
               {validationHints.map((hint) => (
@@ -1959,7 +1975,7 @@ function App() {
   )
 
   const smsPreview = useMemo(
-    () => renderTemplate(form.smsTemplate || defaultTemplate, previewPayload),
+    () => renderPreviewSmsTemplate(form.smsTemplate || defaultTemplate, previewPayload),
     [form.smsTemplate, previewPayload]
   )
 
