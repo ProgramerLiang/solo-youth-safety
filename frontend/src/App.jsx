@@ -71,18 +71,6 @@ const freshLocationThresholdMs = 30 * 1000
 const staleLocationThresholdMs = 2 * 60 * 1000
 const defaultPageId = 'overview'
 const primaryPageIds = ['overview', 'tracking', 'config', 'contacts', 'sos', 'history']
-/*
-  高风险缺口证据索引（前端页面层）
-  正向证据：当前 pageCatalog 只暴露总览、守护、主题、通知配置、联系人、SOS、历史、工具，和 README 所述 Android MVP 范围一致。
-  反向证据：这里未出现以下需求入口或等价页面，因此可作为“前端 UI 尚未落地”的快速索引：
-  - 偷拍检测 / 检测偷拍
-  - 安全导航 / 安全路线 / 风险区域路线规划
-  - 安全指导
-  - AI 情绪陪伴
-  - AI 伪装声音
-  - 远程指令、围栏规则、异常检测中心
-  注意：这只能证明“页面入口缺失”，不能单独证明后端绝对不存在；需与 backend/main.py 的接口/表结构证据交叉使用。
-*/
 const pageCatalog = [
   {
     id: 'overview',
