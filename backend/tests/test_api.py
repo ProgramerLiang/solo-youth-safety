@@ -2,6 +2,7 @@ import importlib.util
 import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -10,6 +11,26 @@ from fastapi.testclient import TestClient
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 MAIN_PATH = BACKEND_DIR / 'main.py'
+
+
+@contextmanager
+def temp_env(**updates):
+    previous = {}
+    missing = object()
+    for key, value in updates.items():
+        previous[key] = os.environ.get(key, missing)
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is missing:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def load_backend_module(db_path: Path):
@@ -40,8 +61,20 @@ class ApiTestCase(unittest.TestCase):
         self.client.close()
         self.temp_dir.cleanup()
         os.environ.pop('SAFETY_DB_PATH', None)
+        os.environ.pop('SAFETY_ALLOWED_ORIGINS', None)
 
-    def save_config(self, **overrides):
+    def remote_headers(self, user_id: str | None = None, device_id: str | None = None, client_mode: str = 'remote'):
+        headers = {
+            'X-Safety-User-Id': user_id or self.user_id,
+            'X-Safety-Client-Mode': client_mode,
+        }
+        if device_id is not None:
+            headers['X-Safety-Device-Id'] = device_id
+        elif device_id is None and user_id is None:
+            headers['X-Safety-Device-Id'] = self.device_id
+        return headers
+
+    def save_config(self, headers=None, **overrides):
         payload = {
             'userId': self.user_id,
             'callNumber': '',
@@ -49,9 +82,9 @@ class ApiTestCase(unittest.TestCase):
             'smsTemplate': self.backend.DEFAULT_TEMPLATE,
         }
         payload.update(overrides)
-        return self.client.post('/api/v1/emergency/config', json=payload)
+        return self.client.post('/api/v1/emergency/config', json=payload, headers=headers or self.remote_headers())
 
-    def create_tracking_point(self, minutes_offset: int = 0):
+    def create_tracking_point(self, minutes_offset: int = 0, headers=None, **overrides):
         payload = {
             'userId': self.user_id,
             'deviceId': self.device_id,
@@ -66,7 +99,8 @@ class ApiTestCase(unittest.TestCase):
                 }
             ],
         }
-        return self.client.post('/api/v1/tracking/points', json=payload)
+        payload.update(overrides)
+        return self.client.post('/api/v1/tracking/points', json=payload, headers=headers or self.remote_headers())
 
     def test_health_returns_ok(self):
         response = self.client.get('/api/v1/health')
@@ -83,7 +117,11 @@ class ApiTestCase(unittest.TestCase):
         self.assertIsNone(config['callNumber'])
         self.assertEqual(config['smsNumber'], '13800000000')
 
-        fetched = self.client.get('/api/v1/emergency/config', params={'userId': self.user_id})
+        fetched = self.client.get(
+            '/api/v1/emergency/config',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
         self.assertEqual(fetched.status_code, 200)
         self.assertEqual(fetched.json()['smsTemplate'], '[SOS]{userId} {time}')
 
@@ -100,7 +138,11 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(response.json()['smsTemplate'], self.backend.DEFAULT_TEMPLATE)
         self.assertIn('{mapUrl}', response.json()['smsTemplate'])
 
-        fetched = self.client.get('/api/v1/emergency/config', params={'userId': self.user_id})
+        fetched = self.client.get(
+            '/api/v1/emergency/config',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
         self.assertEqual(fetched.status_code, 200)
         self.assertEqual(fetched.json()['smsTemplate'], self.backend.DEFAULT_TEMPLATE)
         self.assertIn('{mapUrl}', fetched.json()['smsTemplate'])
@@ -127,11 +169,16 @@ class ApiTestCase(unittest.TestCase):
                     'phone': '13800000000',
                 },
             },
+            headers=self.remote_headers(device_id=None),
         )
         self.assertEqual(create_response.status_code, 200)
         self.assertEqual(create_response.json()['count'], 1)
 
-        listed = self.client.get('/api/v1/contacts', params={'userId': self.user_id})
+        listed = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
         contacts = listed.json()['contacts']
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(len(contacts), 1)
@@ -146,15 +193,21 @@ class ApiTestCase(unittest.TestCase):
                     'phone': '13900000000',
                 },
             },
+            headers=self.remote_headers(device_id=None),
         )
         self.assertEqual(update_response.status_code, 200)
 
-        updated = self.client.get('/api/v1/contacts', params={'userId': self.user_id})
+        updated = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
         self.assertEqual(updated.json()['contacts'][0]['name'], '室友')
 
         delete_response = self.client.delete(
             f'/api/v1/contacts/{contact_id}',
             params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
         )
         self.assertEqual(delete_response.status_code, 200)
         self.assertEqual(delete_response.json()['count'], 0)
@@ -170,6 +223,7 @@ class ApiTestCase(unittest.TestCase):
                 'from': iso_utc(-5),
                 'to': iso_utc(5),
             },
+            headers=self.remote_headers(device_id=None),
         )
         self.assertEqual(timeline.status_code, 200)
         self.assertEqual(timeline.json()['count'], 1)
@@ -181,6 +235,7 @@ class ApiTestCase(unittest.TestCase):
                 'from': iso_utc(5),
                 'to': iso_utc(-5),
             },
+            headers=self.remote_headers(device_id=None),
         )
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(invalid.json()['detail'], 'from must be earlier than to')
@@ -201,6 +256,7 @@ class ApiTestCase(unittest.TestCase):
                 'triggerType': 'manual',
                 'timestamp': iso_utc(),
             },
+            headers=self.remote_headers(),
         )
         body = response.json()
 
@@ -208,14 +264,22 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(body['message'], 'sos received')
         self.assertEqual(len(body['notifications']), 2)
         self.assertEqual(body['notifications'][0]['channel'], 'call')
+        self.assertEqual(body['notifications'][0]['status'], 'triggered')
         self.assertEqual(body['notifications'][1]['channel'], 'sms')
+        self.assertEqual(body['notifications'][1]['status'], 'dispatched')
 
-        history = self.client.get('/api/v1/sos/events', params={'userId': self.user_id, 'limit': 20})
+        history = self.client.get(
+            '/api/v1/sos/events',
+            params={'userId': self.user_id, 'limit': 20},
+            headers=self.remote_headers(device_id=None),
+        )
         history_body = history.json()
         self.assertEqual(history.status_code, 200)
         self.assertEqual(history_body['count'], 1)
         self.assertEqual(history_body['items'][0]['id'], body['eventId'])
         self.assertEqual(len(history_body['items'][0]['notifications']), 2)
+        self.assertEqual(history_body['items'][0]['notifications'][0]['status'], 'triggered')
+        self.assertEqual(history_body['items'][0]['notifications'][1]['status'], 'dispatched')
 
     def test_sos_sms_notification_detail_contains_map_url(self):
         self.save_config(smsTemplate='[SOS]{userId} {mapUrl}', smsNumber='13800000000')
@@ -252,11 +316,138 @@ class ApiTestCase(unittest.TestCase):
                 'triggerType': 'manual',
                 'timestamp': iso_utc(),
             },
+            headers=self.remote_headers(),
         )
         body = response.json()
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('https://uri.amap.com/marker?position=121.47,31.23', body['notifications'][1]['detail'])
+
+    def test_protected_routes_require_remote_identity_headers(self):
+        save_response = self.client.post(
+            '/api/v1/emergency/config',
+            json={
+                'userId': self.user_id,
+                'callNumber': '',
+                'smsNumber': '13800000000',
+                'smsTemplate': self.backend.DEFAULT_TEMPLATE,
+            },
+        )
+        list_response = self.client.get('/api/v1/contacts', params={'userId': self.user_id})
+
+        self.assertEqual(save_response.status_code, 401)
+        self.assertEqual(list_response.status_code, 401)
+
+    def test_rejects_user_id_mismatch_between_headers_and_payload(self):
+        response = self.client.post(
+            '/api/v1/sos/events',
+            json={
+                'userId': self.user_id,
+                'deviceId': self.device_id,
+                'location': {
+                    'lat': 31.23,
+                    'lng': 121.47,
+                    'accuracy': 15,
+                },
+                'triggerType': 'manual',
+                'timestamp': iso_utc(),
+            },
+            headers=self.remote_headers(user_id='u_other', device_id=self.device_id),
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_rejects_device_id_mismatch_between_headers_and_payload(self):
+        response = self.create_tracking_point(
+            headers=self.remote_headers(device_id='d_other'),
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_rejects_cross_user_contact_reads_and_deletes(self):
+        create_response = self.client.post(
+            '/api/v1/contacts',
+            json={
+                'userId': self.user_id,
+                'contact': {
+                    'name': '妈妈',
+                    'phone': '13800000000',
+                },
+            },
+            headers=self.remote_headers(device_id=None),
+        )
+        self.assertEqual(create_response.status_code, 200)
+
+        listed = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
+        contact_id = listed.json()['contacts'][0]['id']
+
+        other_headers = self.remote_headers(user_id='u_other', device_id=None)
+        read_response = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=other_headers,
+        )
+        delete_response = self.client.delete(
+            f'/api/v1/contacts/{contact_id}',
+            params={'userId': self.user_id},
+            headers=other_headers,
+        )
+
+        self.assertEqual(read_response.status_code, 403)
+        self.assertEqual(delete_response.status_code, 403)
+
+    def test_valid_remote_identity_headers_allow_protected_requests(self):
+        create_response = self.client.post(
+            '/api/v1/contacts',
+            json={
+                'userId': self.user_id,
+                'contact': {
+                    'name': '朋友',
+                    'phone': '13800000001',
+                },
+            },
+            headers=self.remote_headers(device_id=None),
+        )
+        list_response = self.client.get(
+            '/api/v1/contacts',
+            params={'userId': self.user_id},
+            headers=self.remote_headers(device_id=None),
+        )
+        tracking_response = self.create_tracking_point(headers=self.remote_headers())
+
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(tracking_response.status_code, 200)
+
+    def test_cors_allowed_origins_are_loaded_from_environment(self):
+        with temp_env(SAFETY_ALLOWED_ORIGINS='http://127.0.0.1:5173,https://app.example.com'):
+            backend = load_backend_module(self.db_path)
+            client = TestClient(backend.app)
+            try:
+                allowed = client.options(
+                    '/api/v1/contacts',
+                    headers={
+                        'Origin': 'http://127.0.0.1:5173',
+                        'Access-Control-Request-Method': 'GET',
+                    },
+                )
+                blocked = client.options(
+                    '/api/v1/contacts',
+                    headers={
+                        'Origin': 'https://evil.example.com',
+                        'Access-Control-Request-Method': 'GET',
+                    },
+                )
+            finally:
+                client.close()
+
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5173')
+        self.assertNotIn('access-control-allow-origin', blocked.headers)
 
 
 if __name__ == '__main__':

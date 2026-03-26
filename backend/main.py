@@ -6,12 +6,16 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 APP_VERSION = "0.2.1"
 DEFAULT_TEMPLATE = "[SOS] 用户{userId}触发报警，位置({lat},{lng}) 地图:{mapUrl} 时间:{time}"
+SAFETY_USER_ID_HEADER = "X-Safety-User-Id"
+SAFETY_DEVICE_ID_HEADER = "X-Safety-Device-Id"
+SAFETY_CLIENT_MODE_HEADER = "X-Safety-Client-Mode"
+SAFETY_ALLOWED_ORIGINS_ENV = "SAFETY_ALLOWED_ORIGINS"
 DB_PATH = Path(
     os.getenv(
         "SAFETY_DB_PATH",
@@ -21,12 +25,24 @@ DB_PATH = Path(
 
 app = FastAPI(title="Solo Youth Safety API", version=APP_VERSION)
 
+
+# 当前仅建立“最小请求头身份基线”，并非完整账号体系：
+# - 受保护接口会校验请求头中的 userId / deviceId 与 query/body 是否一致，并阻断跨用户资源访问；
+# - 仍未引入登录态、token、session、角色体系、设备注册审批、细粒度授权与审计追踪；
+# - 因此这里只能视为 MVP 远端接口的最小授权边界，而非正式安全后端。
+# 相关待办与对外口径见 README / docs/mvp/PROJECT_STATUS_AND_ROADMAP.md / docs/mvp/TASKS.md。
+def get_allowed_origins() -> list[str]:
+    raw_value = os.getenv(SAFETY_ALLOWED_ORIGINS_ENV, "")
+    origins = [item.strip() for item in raw_value.split(",") if item.strip()]
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", SAFETY_USER_ID_HEADER, SAFETY_DEVICE_ID_HEADER, SAFETY_CLIENT_MODE_HEADER],
 )
 
 
@@ -110,10 +126,23 @@ class ContactsResponse(BaseModel):
     contacts: list[Contact]
 
 
+NotificationChannel = Literal["call", "sms"]
+NotificationStatus = Literal[
+    "sent",
+    "skipped",
+    "failed",
+    "dispatched",
+    "triggered",
+    "attempted",
+    "permission-denied",
+    "partial-success",
+]
+
+
 class NotificationLog(BaseModel):
-    channel: Literal["call", "sms"]
+    channel: NotificationChannel
     destination: str | None
-    status: Literal["sent", "skipped"]
+    status: NotificationStatus
     detail: str
 
 
@@ -179,6 +208,40 @@ def validate_sms_template(template: str | None) -> str:
     return normalized
 
 
+class IdentityHeaders(BaseModel):
+    user_id: str = Field(min_length=1)
+    device_id: str | None = None
+    client_mode: str | None = None
+
+
+def require_identity(
+    x_safety_user_id: str | None = Header(default=None, alias=SAFETY_USER_ID_HEADER),
+    x_safety_device_id: str | None = Header(default=None, alias=SAFETY_DEVICE_ID_HEADER),
+    x_safety_client_mode: str | None = Header(default=None, alias=SAFETY_CLIENT_MODE_HEADER),
+) -> IdentityHeaders:
+    if not x_safety_user_id or not x_safety_user_id.strip():
+        raise HTTPException(status_code=401, detail=f"missing required header: {SAFETY_USER_ID_HEADER}")
+    if x_safety_client_mode is not None and x_safety_client_mode.strip().lower() != "remote":
+        raise HTTPException(status_code=403, detail="invalid client mode")
+    return IdentityHeaders(
+        user_id=x_safety_user_id.strip(),
+        device_id=x_safety_device_id.strip() if isinstance(x_safety_device_id, str) and x_safety_device_id.strip() else None,
+        client_mode=x_safety_client_mode.strip().lower() if isinstance(x_safety_client_mode, str) and x_safety_client_mode.strip() else None,
+    )
+
+
+def ensure_user_matches(identity: IdentityHeaders, target_user_id: str) -> None:
+    if identity.user_id != target_user_id:
+        raise HTTPException(status_code=403, detail="user identity does not match requested resource")
+
+
+def ensure_device_matches(identity: IdentityHeaders, target_device_id: str) -> None:
+    if not identity.device_id:
+        raise HTTPException(status_code=401, detail=f"missing required header: {SAFETY_DEVICE_ID_HEADER}")
+    if identity.device_id != target_device_id:
+        raise HTTPException(status_code=403, detail="device identity does not match request payload")
+
+
 
 def ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
@@ -228,6 +291,11 @@ def init_db() -> None:
     with db_connection() as connection:
         connection.executescript(
             """
+            -- 高风险缺口证据索引（数据模型层）
+            -- 正向证据：当前库只初始化 5 张核心表，分别覆盖通知配置、联系人、轨迹点、SOS 事件、通知日志，能够支撑 Android MVP 的基础闭环。
+            -- 反向证据：此处未见 geofences / alert_rules / remote_commands / media_evidence / risk_zones / safety_guides / camera_scan_results 等表，
+            -- 因而不能把当前 SQLite 结构解读为已经支持围栏、规则引擎、远程控制、取证媒体、风险区域导航、偷拍检测、安全指导等能力。
+            -- 若后续 worker 要补实现，可直接从本 executescript 追加表结构，并同步补迁移、Pydantic 模型、增删查接口与鉴权校验。
             CREATE TABLE IF NOT EXISTS emergency_configs (
                 user_id TEXT PRIMARY KEY,
                 call_number TEXT,
@@ -349,8 +417,8 @@ def simulate_notify(connection: sqlite3.Connection, event: SosEvent) -> list[Not
             NotificationLog(
                 channel="call",
                 destination=cfg.callNumber,
-                status="sent",
-                detail="simulated call dispatch",
+                status="triggered",
+                detail="simulated call trigger",
             )
         )
     else:
@@ -368,8 +436,8 @@ def simulate_notify(connection: sqlite3.Connection, event: SosEvent) -> list[Not
             NotificationLog(
                 channel="sms",
                 destination=cfg.smsNumber,
-                status="sent",
-                detail=f"simulated sms: {build_sms_content(event, cfg)}",
+                status="dispatched",
+                detail=f"simulated sms dispatch: {build_sms_content(event, cfg)}",
             )
         )
     else:
@@ -421,13 +489,22 @@ def get_count(connection: sqlite3.Connection, table_name: str) -> int:
 init_db()
 
 
+# 高风险缺口证据索引（接口层）
+# 正向证据：当前对外 API 仅覆盖 health、通知配置、SOS 事件、SOS 历史、轨迹点上报/时间线、联系人增删改查。
+# 反向证据：本文件未暴露 geofence、rules、remote-commands、media-evidence、camera-detection、risk-zone、navigation、safety-guide、AI-assistant 等路由；
+# 因此“检测偷拍 / 安全导航 / 安全路线 / 安全指导 / AI 辅助 / 远程指令 / 规则引擎”目前不能视为已有后端接口基线。
+# 若后续 worker 需要实施对应能力，可直接从这里扩展 REST 路由，并同步补数据模型、鉴权、审计与联调契约。
 @app.get("/api/v1/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", time=datetime.now(timezone.utc))
 
 
 @app.post("/api/v1/emergency/config", response_model=EmergencyConfig)
-def upsert_emergency_config(payload: EmergencyConfig) -> EmergencyConfig:
+def upsert_emergency_config(
+    payload: EmergencyConfig,
+    identity: IdentityHeaders = Depends(require_identity),
+) -> EmergencyConfig:
+    ensure_user_matches(identity, payload.userId)
     normalized_payload = payload.model_copy(
         update={"smsTemplate": validate_sms_template(payload.smsTemplate)}
     )
@@ -452,13 +529,22 @@ def upsert_emergency_config(payload: EmergencyConfig) -> EmergencyConfig:
 
 
 @app.get("/api/v1/emergency/config", response_model=EmergencyConfig)
-def get_emergency_config(userId: str = Query(min_length=1)) -> EmergencyConfig:
+def get_emergency_config(
+    userId: str = Query(min_length=1),
+    identity: IdentityHeaders = Depends(require_identity),
+) -> EmergencyConfig:
+    ensure_user_matches(identity, userId)
     with db_connection() as connection:
         return get_config(connection, userId)
 
 
 @app.post("/api/v1/sos/events", response_model=SosResponse)
-def create_sos_event(payload: SosEvent) -> SosResponse:
+def create_sos_event(
+    payload: SosEvent,
+    identity: IdentityHeaders = Depends(require_identity),
+) -> SosResponse:
+    ensure_user_matches(identity, payload.userId)
+    ensure_device_matches(identity, payload.deviceId)
     with db_connection() as connection:
         notifications = simulate_notify(connection, payload)
         event_id = uuid4().hex
@@ -505,7 +591,9 @@ def create_sos_event(payload: SosEvent) -> SosResponse:
 def list_sos_events(
     userId: str = Query(min_length=1),
     limit: int = Query(default=20, ge=1, le=100),
+    identity: IdentityHeaders = Depends(require_identity),
 ) -> SosHistoryResponse:
+    ensure_user_matches(identity, userId)
     with db_connection() as connection:
         total_row = connection.execute(
             "SELECT COUNT(*) AS count FROM sos_events WHERE user_id = ?",
@@ -527,7 +615,12 @@ def list_sos_events(
 
 
 @app.post("/api/v1/tracking/points", response_model=ActionResponse)
-def create_tracking_points(payload: TrackingPayload) -> ActionResponse:
+def create_tracking_points(
+    payload: TrackingPayload,
+    identity: IdentityHeaders = Depends(require_identity),
+) -> ActionResponse:
+    ensure_user_matches(identity, payload.userId)
+    ensure_device_matches(identity, payload.deviceId)
     with db_connection() as connection:
         connection.executemany(
             """
@@ -560,7 +653,9 @@ def get_timeline(
     userId: str = Query(min_length=1),
     from_time: datetime = Query(alias="from"),
     to: datetime = Query(),
+    identity: IdentityHeaders = Depends(require_identity),
 ) -> TimelineResponse:
+    ensure_user_matches(identity, userId)
     if from_time > to:
         raise HTTPException(status_code=400, detail="from must be earlier than to")
 
@@ -579,7 +674,11 @@ def get_timeline(
 
 
 @app.get("/api/v1/contacts", response_model=ContactsResponse)
-def list_contacts(userId: str = Query(min_length=1)) -> ContactsResponse:
+def list_contacts(
+    userId: str = Query(min_length=1),
+    identity: IdentityHeaders = Depends(require_identity),
+) -> ContactsResponse:
+    ensure_user_matches(identity, userId)
     with db_connection() as connection:
         rows = connection.execute(
             """
@@ -595,7 +694,11 @@ def list_contacts(userId: str = Query(min_length=1)) -> ContactsResponse:
 
 
 @app.post("/api/v1/contacts", response_model=ActionResponse)
-def create_contact(payload: ContactPayload) -> ActionResponse:
+def create_contact(
+    payload: ContactPayload,
+    identity: IdentityHeaders = Depends(require_identity),
+) -> ActionResponse:
+    ensure_user_matches(identity, payload.userId)
     contact_id = uuid4().hex
     with db_connection() as connection:
         connection.execute(
@@ -610,7 +713,12 @@ def create_contact(payload: ContactPayload) -> ActionResponse:
 
 
 @app.put("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
-def update_contact(contact_id: str, payload: ContactPayload) -> ActionResponse:
+def update_contact(
+    contact_id: str,
+    payload: ContactPayload,
+    identity: IdentityHeaders = Depends(require_identity),
+) -> ActionResponse:
+    ensure_user_matches(identity, payload.userId)
     with db_connection() as connection:
         cursor = connection.execute(
             """
@@ -630,7 +738,12 @@ def update_contact(contact_id: str, payload: ContactPayload) -> ActionResponse:
 
 
 @app.delete("/api/v1/contacts/{contact_id}", response_model=ActionResponse)
-def delete_contact(contact_id: str, userId: str = Query(min_length=1)) -> ActionResponse:
+def delete_contact(
+    contact_id: str,
+    userId: str = Query(min_length=1),
+    identity: IdentityHeaders = Depends(require_identity),
+) -> ActionResponse:
+    ensure_user_matches(identity, userId)
     with db_connection() as connection:
         cursor = connection.execute(
             "DELETE FROM contacts WHERE id = ? AND user_id = ?",
