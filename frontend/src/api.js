@@ -8,6 +8,17 @@ const DEFAULT_USER = getPersistedIdentity().userId
 const DEFAULT_DEVICE_ID = getPersistedIdentity().deviceId
 const localDbKey = 'safety_local_backend_v1'
 const localBundleVersion = '1.0'
+const NOTIFICATION_CHANNELS = ['call', 'sms']
+const NOTIFICATION_STATUSES = [
+  'sent',
+  'skipped',
+  'failed',
+  'dispatched',
+  'triggered',
+  'attempted',
+  'permission-denied',
+  'partial-success',
+]
 
 function getDefaultUserId() {
   return getPersistedIdentity().userId
@@ -61,7 +72,7 @@ function createSosEventId() {
 function normalizeNotificationRecord(item) {
   const channel = asTrimmedString(item?.channel)
   const status = asTrimmedString(item?.status)
-  if (!['call', 'sms'].includes(channel) || !['sent', 'skipped'].includes(status)) {
+  if (!NOTIFICATION_CHANNELS.includes(channel) || !NOTIFICATION_STATUSES.includes(status)) {
     return null
   }
   return {
@@ -234,14 +245,97 @@ function normalizeImportedBundle(payload) {
   }
 }
 
+export function getStandardErrorMessage(status, fallback = '') {
+  if (status === 401) {
+    return '身份信息缺失，请刷新页面后重试'
+  }
+  if (status === 403) {
+    return '当前身份无权访问该数据，请确认使用的是同一用户/设备'
+  }
+  if (status === 422) {
+    return '请求参数不完整或身份信息格式无效，请检查后重试'
+  }
+  if (status >= 500) {
+    return '服务暂时不可用，请稍后重试。'
+  }
+  return fallback || '请求失败，请稍后重试。'
+}
+
+function extractErrorDetail(payload) {
+  if (!payload) {
+    return ''
+  }
+  if (typeof payload === 'string') {
+    return payload.trim()
+  }
+  if (typeof payload.detail === 'string') {
+    return payload.detail.trim()
+  }
+  if (Array.isArray(payload.detail)) {
+    const message = payload.detail
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item.trim()
+        }
+        if (item && typeof item.msg === 'string') {
+          return item.msg.trim()
+        }
+        return ''
+      })
+      .filter(Boolean)
+      .join('；')
+    return message
+  }
+  if (typeof payload.message === 'string') {
+    return payload.message.trim()
+  }
+  return ''
+}
+
+async function readErrorPayload(res) {
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await res.json()
+      return extractErrorDetail(data)
+    } catch {
+      return ''
+    }
+  }
+
+  try {
+    const text = (await res.text()).trim()
+    if (!text) {
+      return ''
+    }
+    if (text.startsWith('<')) {
+      return ''
+    }
+    return text
+  } catch {
+    return ''
+  }
+}
+
+function buildRemoteRequestHeaders(customHeaders = {}) {
+  const identity = getPersistedIdentity()
+  return {
+    'Content-Type': 'application/json',
+    'X-Safety-User-Id': identity.userId,
+    'X-Safety-Device-Id': identity.deviceId,
+    'X-Safety-Client-Mode': 'remote',
+    ...customHeaders,
+  }
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: buildRemoteRequestHeaders(options.headers),
   })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || 'request failed')
+    const detail = await readErrorPayload(res)
+    throw new Error(getStandardErrorMessage(res.status, detail))
   }
   return res.json()
 }
@@ -288,8 +382,8 @@ async function triggerSosLocal(payload) {
     notifications.push({
       channel: 'call',
       destination: cfg.callNumber,
-      status: 'sent',
-      detail: 'local simulated call dispatch',
+      status: 'triggered',
+      detail: 'local simulated call trigger',
     })
   } else {
     notifications.push({
@@ -304,8 +398,8 @@ async function triggerSosLocal(payload) {
     notifications.push({
       channel: 'sms',
       destination: cfg.smsNumber,
-      status: 'sent',
-      detail: `local simulated sms: ${renderSmsTemplate(cfg.smsTemplate, payload)}`,
+      status: 'dispatched',
+      detail: `local simulated sms dispatch: ${renderSmsTemplate(cfg.smsTemplate, payload)}`,
     })
   } else {
     notifications.push({

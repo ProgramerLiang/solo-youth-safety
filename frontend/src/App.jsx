@@ -55,6 +55,7 @@ import {
   defaultSmsTemplate,
   renderSmsTemplate,
 } from './template'
+import { buildSosState, formatSosStateText } from './sosState'
 
 const defaultTemplate = defaultSmsTemplate
 const compactTemplate = '[SOS]{time} {userId} @({lat},{lng})'
@@ -70,6 +71,18 @@ const freshLocationThresholdMs = 30 * 1000
 const staleLocationThresholdMs = 2 * 60 * 1000
 const defaultPageId = 'overview'
 const primaryPageIds = ['overview', 'tracking', 'config', 'contacts', 'sos', 'history']
+/*
+  高风险缺口证据索引（前端页面层）
+  正向证据：当前 pageCatalog 只暴露总览、守护、主题、通知配置、联系人、SOS、历史、工具，和 README 所述 Android MVP 范围一致。
+  反向证据：这里未出现以下需求入口或等价页面，因此可作为“前端 UI 尚未落地”的快速索引：
+  - 偷拍检测 / 检测偷拍
+  - 安全导航 / 安全路线 / 风险区域路线规划
+  - 安全指导
+  - AI 情绪陪伴
+  - AI 伪装声音
+  - 远程指令、围栏规则、异常检测中心
+  注意：这只能证明“页面入口缺失”，不能单独证明后端绝对不存在；需与 backend/main.py 的接口/表结构证据交叉使用。
+*/
 const pageCatalog = [
   {
     id: 'overview',
@@ -276,14 +289,8 @@ function getValidationHints(form) {
   return hints
 }
 
-function formatLogs(serverData, nativeLogs) {
-  const serverLines = serverData.notifications.map(
-    (n) => `server/${n.channel}: ${n.status} (${n.detail})`
-  )
-  const nativeLines = nativeLogs.map(
-    (n) => `native/${n.channel}: ${n.status} (${n.detail})`
-  )
-  return ['SOS 已上报', ...serverLines, ...nativeLines].join('\n')
+function buildSosResultCardState(payload = {}) {
+  return buildSosState(payload)
 }
 
 function parseImportedConfig(raw) {
@@ -1527,6 +1534,11 @@ function SosPage({
   onCancelSos,
   onNavigate,
   onRefreshLocation,
+  onRetrySos,
+  onSosCallOnly,
+  onSosSmsOnly,
+  onViewFailureReason,
+  sosResult,
 }) {
   return (
     <div className="md-page-stack">
@@ -1565,6 +1577,62 @@ function SosPage({
           value={locationAccuracy.label}
           hint={locationAccuracy.hint}
         />
+      </section>
+
+      <section className="md-section-card">
+        <div className="md-section-head">
+          <h2>SOS 结果摘要</h2>
+          <span className={`md-chip ${['failed', 'remote-failed', 'location-failed'].includes(sosResult.finalStatus) ? 'danger' : sosResult.finalStatus === 'partial-success' ? 'subtle' : ''}`}>
+            {sosResult.finalLabel}
+          </span>
+        </div>
+        <div className="md-kv-list">
+          <div className="md-kv-item">
+            <span>当前阶段</span>
+            <strong>{sosResult.summary}</strong>
+          </div>
+          <div className="md-kv-item">
+            <span>最终结论</span>
+            <strong>{sosResult.finalLabel}</strong>
+          </div>
+          {sosResult.note ? (
+            <div className="md-kv-item">
+              <span>补充说明</span>
+              <strong>{sosResult.note}</strong>
+            </div>
+          ) : null}
+        </div>
+        <div className="md-status-stack">
+          {Object.entries(sosResult.steps).map(([key, step]) => (
+            <div key={key} className={`md-status-item md-status-item-${step.tone || 'idle'}`}>
+              <span>{step.label}</span>
+              <strong>{step.badge}</strong>
+              <span>{step.detail || '—'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="md-row-actions">
+          <button type="button" className="md-btn" onClick={onRetrySos} disabled={arming || loadingInit}>
+            重试
+          </button>
+          <button
+            type="button"
+            className="md-btn tonal"
+            onClick={onRefreshLocation}
+            disabled={locationRefreshing}
+          >
+            {locationRefreshing ? '重新获取位置中...' : '重新获取位置'}
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onSosCallOnly} disabled={arming || loadingInit}>
+            仅拨号
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onSosSmsOnly} disabled={arming || loadingInit}>
+            仅短信
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onViewFailureReason}>
+            查看失败原因
+          </button>
+        </div>
       </section>
 
       <div className="md-overview-grid">
@@ -1868,6 +1936,7 @@ function ToolsPage({
                 <h3>最近 1 小时轨迹</h3>
                 <span className="md-chip">{trackingPreview.count} 条</span>
               </div>
+              <p className="md-section-hint">当前仅展示最近轨迹点列表，不包含地图绘制、实时轨迹监护或地图化历史回放。</p>
               {trackingPreview.items.length > 0 ? (
                 <ul className="md-data-list">
                   {trackingPreview.items.map((point) => (
@@ -1897,6 +1966,7 @@ function App() {
   const [healthText, setHealthText] = useState('未检查')
   const [resultText, setResultText] = useState('等待操作...')
   const [feedbackExpanded, setFeedbackExpanded] = useState(false)
+  const [sosResult, setSosResult] = useState(() => buildSosResultCardState({ stage: 'idle' }))
   const [permissionText, setPermissionText] = useState('首次启动将自动申请定位')
   const [latestLocation, setLatestLocation] = useState(null)
   const [locationRefreshPending, setLocationRefreshPending] = useState(false)
@@ -2640,6 +2710,17 @@ function App() {
     if (loadingInit) return
     setCountdown(5)
     setArming(true)
+    setSosResult(
+      buildSosResultCardState({
+        stage: 'countdown',
+        location: locationFreshness.canUse ? currentLocation : null,
+        locationNote: !locationFreshness.canUse
+          ? '当前尚未获取位置，倒计时结束时会先尝试刷新。'
+          : locationFreshness.needsRefresh
+            ? '当前位置已偏旧，倒计时结束时会先尝试刷新位置。'
+            : locationAccuracy.note || '5 秒后触发，可随时取消。',
+      })
+    )
     if (!locationFreshness.canUse) {
       setResultText('SOS 倒计时开始；当前尚未获取位置，倒计时结束时会先尝试刷新，若仍失败将取消上报。')
       return
@@ -2658,6 +2739,7 @@ function App() {
   function onCancelSos() {
     setArming(false)
     setCountdown(5)
+    setSosResult(buildSosResultCardState({ stage: 'cancelled', locationNote: '已取消本次 SOS。' }))
     setResultText('已取消 SOS')
   }
 
@@ -2989,32 +3071,89 @@ function App() {
     }
   }
 
-  async function executeSos() {
+  async function executeSos(overrideForm = form) {
     setArming(false)
     setCountdown(5)
+    setSosResult(
+      buildSosResultCardState({
+        stage: 'collecting-location',
+        locationNote: '正在确认 SOS 使用的位置。',
+      })
+    )
 
     const { location, note } = await resolveSosLocation()
     if (!location) {
-      setResultText(note)
+      const sosState = buildSosState({ stage: 'location-failed', location: null, locationNote: note })
+      setSosResult(sosState)
+      setResultText(formatSosStateText(sosState))
       return
     }
 
-    const payload = createSosPayload(form.userId || identity.userId, identity.deviceId, location)
+    const payload = createSosPayload(overrideForm.userId || identity.userId, identity.deviceId, location)
     if (!payload) {
-      setResultText('SOS 上报失败：当前位置无效，请先刷新位置')
+      const locationNote = 'SOS 上报失败：当前位置无效，请先刷新位置'
+      const sosState = buildSosState({
+        stage: 'location-failed',
+        location: null,
+        locationNote,
+      })
+      setSosResult(sosState)
+      setResultText(formatSosStateText(sosState))
       return
     }
 
-    try {
-      const [serverData, nativeLogs] = await Promise.all([
-        triggerSos(payload),
-        triggerNativeEmergency(form, payload),
-      ])
-      await Promise.all([refreshLocalPanel(payload.userId), loadSosHistory(payload.userId)])
-      setResultText(note ? `${note}\n${formatLogs(serverData, nativeLogs)}` : formatLogs(serverData, nativeLogs))
-    } catch (error) {
-      setResultText(`SOS 上报失败: ${error.message}`)
+    setSosResult(buildSosResultCardState({ stage: 'submitting-remote', location, locationNote: note }))
+
+    const [serverResult, nativeResult] = await Promise.allSettled([
+      triggerSos(payload),
+      triggerNativeEmergency(overrideForm, payload),
+    ])
+
+    const serverData = serverResult.status === 'fulfilled' ? serverResult.value : null
+    const nativeLogs = nativeResult.status === 'fulfilled' ? nativeResult.value : []
+    const remoteError = serverResult.status === 'rejected' ? serverResult.reason : null
+    const nativeError = nativeResult.status === 'rejected' ? nativeResult.reason : null
+
+    if (serverData) {
+      setSosResult(buildSosResultCardState({ stage: 'dispatching-native', location, locationNote: note, serverData }))
     }
+
+    await Promise.allSettled([refreshLocalPanel(payload.userId), loadSosHistory(payload.userId)])
+
+    const sosState = buildSosState({
+      stage: remoteError && !nativeLogs.length ? 'remote-failed' : 'success',
+      location,
+      locationNote: note,
+      serverData,
+      nativeLogs,
+      error: remoteError || nativeError,
+    })
+    setSosResult(sosState)
+    setResultText(formatSosStateText(sosState))
+  }
+
+  async function onRetrySos() {
+    await executeSos(form)
+  }
+
+  async function onSosCallOnly() {
+    await executeSos({ ...form, smsNumber: '' })
+  }
+
+  async function onSosSmsOnly() {
+    await executeSos({ ...form, callNumber: '' })
+  }
+
+  function onViewFailureReason() {
+    setFeedbackExpanded(true)
+    const failedSteps = Object.values(sosResult.steps).filter((item) => item.tone === 'failed')
+    if (failedSteps.length > 0) {
+      setResultText(
+        failedSteps.map((item) => `${item.label}失败：${item.detail || '请检查配置、权限或网络后重试'}`).join('\n')
+      )
+      return
+    }
+    setResultText(sosResult.note || '当前没有明确失败原因，可查看上方各子步骤状态。')
   }
 
   function renderPageContent() {
@@ -3102,6 +3241,11 @@ function App() {
             onCancelSos={onCancelSos}
             onNavigate={navigateToPage}
             onRefreshLocation={onRefreshLocation}
+            onRetrySos={onRetrySos}
+            onSosCallOnly={onSosCallOnly}
+            onSosSmsOnly={onSosSmsOnly}
+            onViewFailureReason={onViewFailureReason}
+            sosResult={sosResult}
           />
         )
       case 'history':

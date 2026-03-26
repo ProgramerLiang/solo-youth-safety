@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test",
+    "test": "sh -c 'node --test' --",
     "preview": "vite preview",
     "android:init": "npx cap add android",
     "android:sync": "npx cap sync android",

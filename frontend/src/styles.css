@@ -242,6 +242,11 @@ button:hover:not(:disabled) {
   color: var(--md-primary);
 }
 
+.md-chip.danger {
+  background: color-mix(in srgb, var(--md-error) 16%, var(--md-surface) 84%);
+  color: var(--md-error);
+}
+
 .md-chip-button {
   border: none;
   cursor: pointer;
@@ -342,6 +347,24 @@ button:hover:not(:disabled) {
   gap: 6px;
   padding: 12px 14px;
   border-radius: 18px;
+  background: var(--md-surface-soft);
+}
+
+.md-status-item-success {
+  background: color-mix(in srgb, var(--md-primary-container) 42%, var(--md-surface) 58%);
+}
+
+.md-status-item-failed {
+  background: color-mix(in srgb, var(--md-error) 14%, var(--md-surface) 86%);
+}
+
+.md-status-item-running,
+.md-status-item-partial {
+  background: color-mix(in srgb, var(--md-primary) 10%, var(--md-surface-soft) 90%);
+}
+
+.md-status-item-skipped,
+.md-status-item-idle {
   background: var(--md-surface-soft);
 }
 
