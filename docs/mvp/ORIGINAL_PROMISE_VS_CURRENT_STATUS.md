@@ -101,7 +101,7 @@
 | 后端能力 | 远程指令（静音录音、远程锁机） | 当前未见远程控制接口、数据表或客户端实现。 | 未实现 | `神秘组织内部资料.md:84`; `backend/main.py:167-206`; `docs/mvp/TASKS.md:1-89` |
 | 后端能力 | 开启录音/拍照并上报 | 当前无录音/拍照采集、上传或存储链路。 | 未实现 | `神秘组织内部资料.md:49`; `backend/main.py:167-206` |
 | 后端能力 | 上报一小时通话记录 | 当前无通话记录权限、采集或上传能力。 | 未实现 | `神秘组织内部资料.md:48`; `backend/main.py:1-340` |
-| 后端能力 | 后台长期追踪/守护 | 当前仅覆盖 App 存活期间的前台周期轨迹写入，Roadmap 明确“暂无 Android 前台服务或后台守护方案”。 | 部分实现 | `神秘组织内部资料.md:39-43,67-81`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:83-96,145-147` |
+| 后端能力 | 后台长期追踪/守护 | 当前仅覆盖 **前台 / App 存活期间** 的周期轨迹写入；Android Manifest 只声明了 `INTERNET`、`ACCESS_COARSE_LOCATION`、`ACCESS_FINE_LOCATION`、`CALL_PHONE`、`SEND_SMS`，未声明 `ACCESS_BACKGROUND_LOCATION`、前台服务、保活或被杀后恢复链路，**不承诺应用被系统杀进程后继续追踪**。 | 未实现 | `神秘组织内部资料.md:39-43,67-81`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:83-96,145-147`; `frontend/android/app/src/main/AndroidManifest.xml:1-52` |
 | 后端能力 | 隐私合规：加密传输存储、最小权限、仅授权账号可见 | 当前 Roadmap 明确指出后端未做鉴权、CORS 全开放、本地敏感数据明文存储；这是后端整改中的 **P0 安全边界**，不应被规则引擎等后续能力稀释。 | 未实现 | `神秘组织内部资料.md:79-80`; `backend/main.py:18-27`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:108-113,117-123`; `docs/mvp/TASKS.md:14-21` |
 | 后端能力 | 正式账号与授权可见模型 | 当前仅有本地持久化的 `userId/deviceId`，远端身份体系仍待补强；应与请求头身份声明、资源归属校验一起作为 **P0 授权可见** 收口项推进。 | 部分实现 | `神秘组织内部资料.md:80`; `backend/main.py:31-70`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:97-107,127-133`; `docs/mvp/TASKS.md:14-21` |
 
@@ -109,8 +109,8 @@
 
 | 类别 | 原始文档承诺点 | 当前实现状态 | 判定 | 证据 |
 | --- | --- | --- | --- | --- |
-| Android/发布能力 | 获取精准定位权限（含前后台） | 当前已支持首次启动自动申请定位权限，但是否达到“前后台持续追踪”级别仍不足，Roadmap 也明确后台守护待评估。 | 部分实现 | `神秘组织内部资料.md:35-37`; `README.md:15-18`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:18-19,92-96` |
-| Android/发布能力 | 报警/追踪模式下高频定位轮询 | 当前有前台周期轨迹写入与 SOS 前多次采样，但未见 1~10 秒高频后台追踪模式。 | 部分实现 | `神秘组织内部资料.md:39-43`; `README.md:24-35`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:27-30,83-96` |
+| Android/发布能力 | 获取精准定位权限（含前后台） | 当前仅见首次启动申请前台定位权限（coarse/fine）；Android Manifest 现状仅声明 `ACCESS_COARSE_LOCATION` 与 `ACCESS_FINE_LOCATION`，**未声明 `ACCESS_BACKGROUND_LOCATION`**，因此只能证明“前台可获取较精准定位”，**不能表述为已具备前后台持续追踪授权**。 | 部分实现 | `神秘组织内部资料.md:35-37`; `README.md:15-18`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:18-19,92-96`; `frontend/android/app/src/main/AndroidManifest.xml:1-52` |
+| Android/发布能力 | 报警/追踪模式下高频定位轮询 | 当前仅见 **前台 / App 存活期间** 的周期轨迹写入与 SOS 前多次采样；结合 Android Manifest 仅有网络、前台定位、电话、短信权限这一事实，未见 1~10 秒高频后台轮询、前台服务或被杀后继续采样能力，**不承诺应用退出或被系统杀进程后继续追踪**。 | 部分实现 | `神秘组织内部资料.md:39-43`; `README.md:24-35`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:27-30,83-96`; `frontend/android/app/src/main/AndroidManifest.xml:1-52` |
 | Android/发布能力 | Android APK 独立运行 | 当前 README 与 Roadmap 已明确支持 APK 内本地后端模式。 | 已实现 | `README.md:3-18,55-94`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:31-39,41-48` |
 | Android/发布能力 | debug APK 构建与安装验证 | 已完成。 | 已实现 | `README.md:12-18,55-73`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:49-53`; `docs/mvp/TASKS.md:63-64` |
 | Android/发布能力 | release APK 构建 | 已完成。 | 已实现 | `README.md:12-18,75-103`; `docs/mvp/PROJECT_STATUS_AND_ROADMAP.md:49-53`; `docs/mvp/TASKS.md:63-64` |
@@ -136,6 +136,12 @@
 ## 五、当前实现证据清单
 
 > 目的：按证据文件归档当前**已经落地**的 MVP / 工程能力，避免差异审查只聚焦原始愿景缺口，而忽略项目现阶段已具备的可运行、可构建、可测试、可交付能力。
+
+### 提交说明 / PR 审查备注（P0-3 边界澄清）
+- 本次提交属于 **能力边界澄清**，不是新增 Android 后台追踪、前台服务保活或被杀恢复能力。
+- 审查时请以 `frontend/android/app/src/main/AndroidManifest.xml` 为事实依据：当前仅声明 `INTERNET`、`ACCESS_COARSE_LOCATION`、`ACCESS_FINE_LOCATION`、`CALL_PHONE`、`SEND_SMS`。
+- 因 Manifest **未声明** `ACCESS_BACKGROUND_LOCATION`，也未体现前台服务 / 保活 / 开机恢复相关声明，所以本轮文案调整只能收口为“前台 / App 存活期间周期采样 + 本地补发 + 手动 SOS”。
+- 若提交说明、PR 描述或评审意见中出现“新增后台定位”“支持被杀后继续追踪”“已具备 Android 守护能力”等表述，应视为与代码事实不符并要求修正。
 
 ### 1. `README.md`
 - `README.md:3-18`：明确项目当前定位为 **Android MVP 演示闭环**，主干能力是“一键 SOS / 紧急联系人通知 / 位置记录与轨迹查询 / APK 内本地后端模式”。

@@ -84,6 +84,7 @@ python3 -m unittest discover -s tests -v
 - 当前仍未引入正式账号体系、token、session、OAuth/JWT、API key、多租户组织模型或共享授权流。
 - 受保护接口默认按“远端模式”处理；`GET /api/v1/health` 仍保持匿名可访问，用于健康检查与部署探活。
 - P0-2 所需的 SOS 失败恢复与用户可见状态机已在前端摘要层落地；后续仍聚焦更完整的认证、设备管理、审计与部署安全，以及 P0-3 的 Android 后台限制边界澄清。
+- Android 守护 / 轨迹相关边界以前端 README、Android Manifest 权限现状与真机验证结论为准：`frontend/android/app/src/main/AndroidManifest.xml` 当前仅声明 `INTERNET`、`ACCESS_COARSE_LOCATION`、`ACCESS_FINE_LOCATION`、`CALL_PHONE`、`SEND_SMS`；未声明 `ACCESS_BACKGROUND_LOCATION` 或前台服务 / 保活相关能力，因此本次口径属于**能力边界澄清**，不是新增后台能力。当前仅可承诺前台 / 应用存活期间的周期采样与补发，不承诺长时后台、Doze 下持续运行、被系统杀死后持续追踪或前台服务长期运行方案。
 
 ## 上线前仍不可跳过的安全基线
 - 生产环境必须通过 HTTPS 暴露远端接口；当前代码与测试仅覆盖 CORS 白名单和最小身份边界，不代表可在明文传输环境上线。

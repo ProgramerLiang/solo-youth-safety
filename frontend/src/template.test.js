@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 class LocalStorageMock {
@@ -331,6 +332,24 @@ test('checkHealth 会为远端请求自动注入身份请求头', async () => {
   assert.equal(capturedRequest?.init?.headers?.['X-Safety-Device-Id'], 'd_header')
   assert.equal(capturedRequest?.init?.headers?.['X-Safety-Client-Mode'], 'remote')
   assert.equal(capturedRequest?.init?.headers?.['Content-Type'], 'application/json')
+})
+
+test('tracking 页面文案明确仅限前台采样与补发，不承诺长期后台守护', () => {
+  const appSource = readFileSync(new URL('./App.jsx', import.meta.url), 'utf8')
+
+  assert.match(appSource, /label: '采样'/)
+  assert.match(appSource, /title: '轨迹采样与补发'/)
+  assert.match(appSource, /description: '独立查看前台周期采样、待补发与同步状态。'/)
+  assert.match(appSource, /仅会在应用前台存活期间按设定周期采样当前位置并写入轨迹/)
+  assert.match(appSource, /不承诺被杀后台后继续追踪/)
+  assert.match(appSource, /label="采样状态"/)
+  assert.match(appSource, /前台采样已开启/)
+  assert.match(appSource, /前台采样已关闭/)
+  assert.match(appSource, /span>前台采样</)
+  assert.match(appSource, /采样中/)
+  assert.match(appSource, /前往采样页/)
+  assert.match(appSource, /hint="仅应用前台存活期间自动采样"/)
+  assert.match(appSource, /hint="用于判断前台采样是否在工作"/)
 })
 
 test('getEmergencyConfig 在 401/403/422 时抛出友好中文错误', async () => {

@@ -157,7 +157,7 @@ function buildActionRemedies(log) {
     remedies.push('请确认设备具备可用的拨号应用后再次触发 SOS。')
   }
   if (detail.includes('timeout')) {
-    remedies.push('设备响应超时，可稍后重试并确认系统未限制后台能力。')
+    remedies.push('设备响应超时，可稍后重试，并确认应用仍在前台运行且未被系统限制。')
   }
   return remedies
 }

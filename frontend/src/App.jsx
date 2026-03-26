@@ -80,9 +80,9 @@ const pageCatalog = [
   },
   {
     id: 'tracking',
-    label: '守护',
-    title: '轨迹守护',
-    description: '独立查看周期采样、待补发与同步状态。',
+    label: '采样',
+    title: '轨迹采样与补发',
+    description: '独立查看前台周期采样、待补发与同步状态。',
   },
   {
     id: 'theme',
@@ -731,12 +731,12 @@ function TrackingGuardSection({
   return (
     <section className="md-section-card md-tracking-section">
       <div className="md-section-head">
-        <h3>轨迹守护</h3>
+        <h3>轨迹采样与补发</h3>
         <span className={`md-chip ${trackingSnapshot.enabled ? '' : 'subtle'}`}>
-          {trackingSnapshot.enabled ? '已开启' : '已关闭'}
+          {trackingSnapshot.enabled ? '采样已开启' : '采样已关闭'}
         </span>
       </div>
-      <p className="md-section-hint">开启后会按设定周期采样当前位置并写入轨迹；若写入失败，将进入本地队列并在稍后自动补发。</p>
+      <p className="md-section-hint">开启后仅会在应用前台存活期间按设定周期采样当前位置并写入轨迹；若写入失败，将进入本地队列并在稍后自动补发，不承诺被杀后台后继续追踪。</p>
       <div className="md-summary-grid">
         <div className="md-kv-item">
           <span>采样周期</span>
@@ -825,9 +825,9 @@ function OverviewPage({
           hint={latestSosEvent ? formatPanelTime(latestSosEvent.timestamp) : '暂无事件'}
         />
         <SummaryCard
-          label="轨迹守护"
-          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
-          hint={buildTrackingStatusHint(trackingSnapshot)}
+          label="轨迹采样"
+          value={trackingSnapshot.enabled ? '前台采样已开启' : '前台采样已关闭'}
+          hint={`仅前台生效；${buildTrackingStatusHint(trackingSnapshot)}`}
         />
         <SummaryCard
           label="定位精度"
@@ -896,7 +896,7 @@ function OverviewPage({
               前往 SOS
             </button>
             <button type="button" className="md-btn tonal" onClick={() => onNavigate('tracking')}>
-              前往守护页
+              前往采样页
             </button>
           </div>
         </section>
@@ -916,8 +916,8 @@ function OverviewPage({
               <strong>{contactsList.length > 0 ? `已维护 ${contactsList.length} 人` : '待添加'}</strong>
             </div>
             <div className="md-kv-item">
-              <span>守护状态</span>
-              <strong>{trackingSnapshot.enabled ? '运行中' : '未开启'}</strong>
+              <span>前台采样</span>
+              <strong>{trackingSnapshot.enabled ? '采样中' : '未开启'}</strong>
             </div>
             <div className="md-kv-item">
               <span>历史记录</span>
@@ -963,14 +963,14 @@ function TrackingPage({
     <div className="md-page-stack">
       <section className="md-summary-grid">
         <SummaryCard
-          label="守护状态"
-          value={trackingSnapshot.enabled ? '已开启' : '已关闭'}
-          hint={buildTrackingStatusHint(trackingSnapshot)}
+          label="采样状态"
+          value={trackingSnapshot.enabled ? '前台采样已开启' : '前台采样已关闭'}
+          hint={`仅前台生效；${buildTrackingStatusHint(trackingSnapshot)}`}
         />
         <SummaryCard
           label="采样周期"
           value={`${trackingSnapshot.intervalSeconds} 秒`}
-          hint="前台存活期间自动采样"
+          hint="仅应用前台存活期间自动采样"
         />
         <SummaryCard
           label="待补发"
@@ -980,7 +980,7 @@ function TrackingPage({
         <SummaryCard
           label="最近采样"
           value={formatPanelTime(trackingSnapshot.lastCapturedAt)}
-          hint="用于判断守护是否在工作"
+          hint="用于判断前台采样是否在工作"
         />
         <SummaryCard
           label="最近同步"
