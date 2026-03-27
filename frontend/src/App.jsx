@@ -71,6 +71,7 @@ const freshLocationThresholdMs = 30 * 1000
 const staleLocationThresholdMs = 2 * 60 * 1000
 const defaultPageId = 'overview'
 const primaryPageIds = ['overview', 'tracking', 'config', 'contacts', 'sos', 'history']
+const mobilePriorityPageIds = ['overview', 'sos', 'config', 'contacts', 'history', 'tracking']
 const pageCatalog = [
   {
     id: 'overview',
@@ -615,9 +616,15 @@ function PageButton({ page, active, onClick }) {
 }
 
 function PageJumpBar({ activePageId, pageItems, onNavigate }) {
-  const jumpPages = pageItems.filter(
-    (page) => primaryPageIds.includes(page.id) || page.id === activePageId
-  )
+  const jumpPages = pageItems
+    .filter((page) => primaryPageIds.includes(page.id) || page.id === activePageId)
+    .sort((left, right) => {
+      const leftIndex = mobilePriorityPageIds.indexOf(left.id)
+      const rightIndex = mobilePriorityPageIds.indexOf(right.id)
+      const safeLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex
+      const safeRightIndex = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex
+      return safeLeftIndex - safeRightIndex
+    })
 
   return (
     <nav className="md-page-jumpbar" aria-label="页面跳转">
@@ -823,6 +830,15 @@ function OverviewPage({
   onRefreshLocation,
 }) {
   const latestSosEvent = sosHistory[0] || null
+  const quickEntryPages = pages
+    .filter((page) => page.id !== 'overview')
+    .sort((left, right) => {
+      const leftIndex = mobilePriorityPageIds.indexOf(left.id)
+      const rightIndex = mobilePriorityPageIds.indexOf(right.id)
+      const safeLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex
+      const safeRightIndex = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex
+      return safeLeftIndex - safeRightIndex
+    })
 
   return (
     <div className="md-page-stack">
@@ -864,21 +880,19 @@ function OverviewPage({
           <h3>功能跳转</h3>
           <span className="md-chip">分页面使用</span>
         </div>
-        <p className="md-section-hint">每个核心功能都单独放到独立页面；总览只保留摘要和跳转，不再塞满长内容。</p>
+        <p className="md-section-hint">每个核心功能都单独放到独立页面；总览只保留摘要和跳转，不再塞满长内容。移动端优先把 SOS、通知配置、联系人和历史放在前面。</p>
         <div className="md-quick-grid">
-          {pages
-            .filter((page) => page.id !== 'overview')
-            .map((page) => (
-              <button
-                key={page.id}
-                type="button"
-                className="md-quick-card"
-                onClick={() => onNavigate(page.id)}
-              >
-                <strong>{page.label}</strong>
-                <span>{page.description}</span>
-              </button>
-            ))}
+          {quickEntryPages.map((page) => (
+            <button
+              key={page.id}
+              type="button"
+              className={`md-quick-card ${page.id === 'sos' ? 'priority' : ''}`}
+              onClick={() => onNavigate(page.id)}
+            >
+              <strong>{page.label}</strong>
+              <span>{page.description}</span>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -1281,13 +1295,13 @@ function ConfigPage({
           <h3>配置工具</h3>
           <span className="md-chip subtle">当前用户 {form.userId}</span>
         </div>
-        <p className="md-section-hint">电话和短信号码都支持留空，短信模板支持导入、导出与自定义。</p>
-        <div className="md-row-actions">
-          <button type="button" className="md-btn tonal" onClick={onExportConfig}>
-            导出配置
-          </button>
+        <p className="md-section-hint">先确认号码和模板，再按需导入、导出；电话和短信号码都支持留空。</p>
+        <div className="md-row-actions md-row-actions-compact">
           <button type="button" className="md-btn tonal" onClick={onImportClick}>
             导入配置
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onExportConfig}>
+            导出配置
           </button>
           <button type="button" className="md-btn tonal" onClick={onResetOnboarding}>
             重置引导
@@ -1423,6 +1437,13 @@ function ContactsPage({
   onStartEditContact,
   onSubmitContact,
 }) {
+  const hasDraft = contactForm.name.trim() || contactForm.phone.trim()
+
+  function handleApplyBoth(phone) {
+    onApplyContactNumber('callNumber', phone)
+    onApplyContactNumber('smsNumber', phone)
+  }
+
   return (
     <div className="md-page-stack">
       <section className="md-section-card">
@@ -1430,46 +1451,59 @@ function ContactsPage({
           <h3>联系人页面</h3>
           <span className="md-chip">{contactsList.length} 人</span>
         </div>
-        <p className="md-section-hint">此页仅负责联系人管理；将号码填入通知配置后，记得回到“通知配置”页面保存。</p>
+        <p className="md-section-hint">支持新增、编辑、删除联系人；高频操作前置，一键填入电话和短信，方便单手快速完成配置。</p>
       </section>
 
       <div className="md-overview-grid">
         <form className="md-section-card md-contact-form" onSubmit={onSubmitContact}>
           <div className="md-section-head">
             <h2>{editingContactId ? '编辑联系人' : '新增联系人'}</h2>
-            <span className="md-chip subtle">表单</span>
+            <span className="md-chip subtle">单手录入</span>
           </div>
           <div className="md-contact-form-grid">
-            <div>
+            <div className="md-contact-field">
               <label htmlFor="contactName">联系人姓名</label>
               <input
                 id="contactName"
                 name="name"
                 value={contactForm.name}
                 onChange={onContactFormChange}
+                autoComplete="name"
                 placeholder="例如 家人 / 室友 / 朋友"
               />
             </div>
-            <div>
+            <div className="md-contact-field">
               <label htmlFor="contactPhone">联系电话</label>
               <input
                 id="contactPhone"
                 name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={contactForm.phone}
                 onChange={onContactFormChange}
                 placeholder="例如 13800000000"
               />
             </div>
           </div>
-          <div className="md-row-actions">
-            <button type="submit" className="md-btn">
-              {editingContactId ? '保存联系人' : '新增联系人'}
-            </button>
-            {editingContactId && (
-              <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
-                取消编辑
+          <div className="md-contact-form-footer">
+            <p className="md-contact-form-hint">{editingContactId ? '保存后会直接更新当前联系人。' : '常用联系人可先录入，后续在下方一键填充。'}</p>
+            <div className="md-row-actions md-contact-form-actions">
+              <button type="submit" className="md-btn md-contact-primary-action">
+                {editingContactId ? '保存联系人' : '新增联系人'}
               </button>
-            )}
+              {editingContactId ? (
+                <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
+                  取消编辑
+                </button>
+              ) : (
+                hasDraft && (
+                  <button type="button" className="md-btn tonal" onClick={onCancelEditContact}>
+                    清空表单
+                  </button>
+                )
+              )}
+            </div>
           </div>
         </form>
 
@@ -1487,21 +1521,32 @@ function ContactsPage({
                     <strong>{contact.name}</strong>
                     <span>{contact.phone}</span>
                   </div>
-                  <div className="md-row-actions">
+                  <div className="md-contact-actions-group md-contact-actions-group--primary">
+                    <button
+                      type="button"
+                      className="md-btn md-contact-fill-all"
+                      onClick={() => handleApplyBoth(contact.phone)}
+                    >
+                      一键填入电话和短信
+                    </button>
+                  </div>
+                  <div className="md-contact-actions-group md-contact-actions-group--secondary">
                     <button
                       type="button"
                       className="md-btn tonal"
                       onClick={() => onApplyContactNumber('callNumber', contact.phone)}
                     >
-                      设为电话
+                      仅填电话
                     </button>
                     <button
                       type="button"
                       className="md-btn tonal"
                       onClick={() => onApplyContactNumber('smsNumber', contact.phone)}
                     >
-                      设为短信
+                      仅填短信
                     </button>
+                  </div>
+                  <div className="md-contact-actions-group md-contact-actions-group--editorial">
                     <button
                       type="button"
                       className="md-btn tonal"
@@ -1511,7 +1556,7 @@ function ContactsPage({
                     </button>
                     <button
                       type="button"
-                      className="md-btn tonal"
+                      className="md-btn tonal md-contact-delete"
                       onClick={() => onDeleteContact(contact)}
                     >
                       删除
@@ -1588,62 +1633,6 @@ function SosPage({
           value={locationAccuracy.label}
           hint={locationAccuracy.hint}
         />
-      </section>
-
-      <section className="md-section-card">
-        <div className="md-section-head">
-          <h2>SOS 结果摘要</h2>
-          <span className={`md-chip ${['failed', 'remote-failed', 'location-failed'].includes(sosResult.finalStatus) ? 'danger' : sosResult.finalStatus === 'partial-success' ? 'subtle' : ''}`}>
-            {sosResult.finalLabel}
-          </span>
-        </div>
-        <div className="md-kv-list">
-          <div className="md-kv-item">
-            <span>当前阶段</span>
-            <strong>{sosResult.summary}</strong>
-          </div>
-          <div className="md-kv-item">
-            <span>最终结论</span>
-            <strong>{sosResult.finalLabel}</strong>
-          </div>
-          {sosResult.note ? (
-            <div className="md-kv-item">
-              <span>补充说明</span>
-              <strong>{sosResult.note}</strong>
-            </div>
-          ) : null}
-        </div>
-        <div className="md-status-stack">
-          {Object.entries(sosResult.steps).map(([key, step]) => (
-            <div key={key} className={`md-status-item md-status-item-${step.tone || 'idle'}`}>
-              <span>{step.label}</span>
-              <strong>{step.badge}</strong>
-              <span>{step.detail || '—'}</span>
-            </div>
-          ))}
-        </div>
-        <div className="md-row-actions">
-          <button type="button" className="md-btn" onClick={onRetrySos} disabled={arming || loadingInit}>
-            重试
-          </button>
-          <button
-            type="button"
-            className="md-btn tonal"
-            onClick={onRefreshLocation}
-            disabled={locationRefreshing}
-          >
-            {locationRefreshing ? '重新获取位置中...' : '重新获取位置'}
-          </button>
-          <button type="button" className="md-btn tonal" onClick={onSosCallOnly} disabled={arming || loadingInit}>
-            仅拨号
-          </button>
-          <button type="button" className="md-btn tonal" onClick={onSosSmsOnly} disabled={arming || loadingInit}>
-            仅短信
-          </button>
-          <button type="button" className="md-btn tonal" onClick={onViewFailureReason}>
-            查看失败原因
-          </button>
-        </div>
       </section>
 
       <div className="md-overview-grid">
@@ -1738,6 +1727,63 @@ function SosPage({
           )}
         </section>
       </div>
+
+      <section className="md-section-card md-sos-result-section">
+        <div className="md-section-head">
+          <h2>SOS 结果摘要</h2>
+          <span className={`md-chip ${['failed', 'remote-failed', 'location-failed'].includes(sosResult.finalStatus) ? 'danger' : sosResult.finalStatus === 'partial-success' ? 'subtle' : ''}`}>
+            {sosResult.finalLabel}
+          </span>
+        </div>
+        <p className="md-section-hint">先完成触发或位置确认，再回看执行结果与失败原因，减少首屏干扰。</p>
+        <div className="md-kv-list">
+          <div className="md-kv-item">
+            <span>当前阶段</span>
+            <strong>{sosResult.summary}</strong>
+          </div>
+          <div className="md-kv-item">
+            <span>最终结论</span>
+            <strong>{sosResult.finalLabel}</strong>
+          </div>
+          {sosResult.note ? (
+            <div className="md-kv-item">
+              <span>补充说明</span>
+              <strong>{sosResult.note}</strong>
+            </div>
+          ) : null}
+        </div>
+        <div className="md-status-stack">
+          {Object.entries(sosResult.steps).map(([key, step]) => (
+            <div key={key} className={`md-status-item md-status-item-${step.tone || 'idle'}`}>
+              <span>{step.label}</span>
+              <strong>{step.badge}</strong>
+              <span>{step.detail || '—'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="md-row-actions md-row-actions-compact">
+          <button type="button" className="md-btn" onClick={onRetrySos} disabled={arming || loadingInit}>
+            重试
+          </button>
+          <button
+            type="button"
+            className="md-btn tonal"
+            onClick={onRefreshLocation}
+            disabled={locationRefreshing}
+          >
+            {locationRefreshing ? '重新获取位置中...' : '重新获取位置'}
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onSosCallOnly} disabled={arming || loadingInit}>
+            仅拨号
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onSosSmsOnly} disabled={arming || loadingInit}>
+            仅短信
+          </button>
+          <button type="button" className="md-btn tonal" onClick={onViewFailureReason}>
+            查看失败原因
+          </button>
+        </div>
+      </section>
     </div>
   )
 }
@@ -1750,7 +1796,7 @@ function HistoryPage({ onRefreshSosHistory, selectedSosEvent, setSelectedSosId, 
           <h2>SOS 历史记录</h2>
           <span className="md-chip">最近 {sosHistory.length} 条</span>
         </div>
-        <p className="md-section-hint">列表与详情拆分展示，方便在手机上逐条查看通知结果。</p>
+        <p className="md-section-hint">列表在前、详情在后，方便在手机上先选中事件，再继续查看通知结果。</p>
         <div className="md-row-actions">
           <button type="button" className="md-btn tonal" onClick={onRefreshSosHistory}>
             刷新历史
