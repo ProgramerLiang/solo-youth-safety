@@ -135,6 +135,9 @@ function readPageIdFromHash() {
   return window.location.hash.replace(/^#/, '').trim()
 }
 
+// Keep navigation state lightweight: the app only needs hash + local state
+// to render one functional page at a time, so introducing a router here would
+// add migration risk without solving the current desktop/mobile layout issues.
 function resolvePageId(pageId, pageItems, fallback = defaultPageId) {
   const nextPageId = typeof pageId === 'string' ? pageId.trim() : ''
   const fallbackPage = pageItems.find((page) => page.id === fallback) || pageItems[0]
@@ -577,9 +580,9 @@ function summarizeResultText(text) {
 function FeedbackCard({ expanded, resultText, onToggle }) {
   return (
     <section className="md-feedback-card">
-      <div className="md-section-head">
+      <div className="md-section-head md-feedback-head">
         <h3>最新操作结果</h3>
-        <button type="button" className="md-chip subtle md-chip-button" onClick={onToggle}>
+        <button type="button" className="md-chip subtle md-chip-button md-feedback-toggle" onClick={onToggle}>
           {expanded ? '收起详情' : '展开详情'}
         </button>
       </div>
@@ -632,6 +635,23 @@ function PageJumpBar({ activePageId, pageItems, onNavigate }) {
   )
 }
 
+function MobileNavHints() {
+  return (
+    <section className="md-mobile-nav-hints" aria-label="移动端导航提示">
+      <div className="md-mobile-nav-hint-card">
+        <span className="md-mobile-nav-hint-kicker">菜单入口</span>
+        <strong>点左上角或左滑空白处打开菜单</strong>
+        <p>保持单抽屉导航不变，需要切整页时优先从这里进入。</p>
+      </div>
+      <div className="md-mobile-nav-hint-card">
+        <span className="md-mobile-nav-hint-kicker">快速切页</span>
+        <strong>顶部页面条可左右滑动，也可直接点选切换</strong>
+        <p>常用页面保留在首屏，单手横滑即可继续浏览更多页面标签。</p>
+      </div>
+    </section>
+  )
+}
+
 function SidebarContent({
   currentPage,
   developerModeEnabled,
@@ -650,6 +670,7 @@ function SidebarContent({
   onClose,
   onNavigate,
   onVersionChipClick,
+  showCloseButton = true,
 }) {
   const statusItems = [
     ['引导', onboardingDone ? '已完成' : '待完成'],
@@ -673,9 +694,11 @@ function SidebarContent({
             <p className="md-page-label">独行青年安全守护</p>
             <h1>抽屉侧边栏 MVP</h1>
           </div>
-          <button type="button" className="md-drawer-close" onClick={onClose} aria-label="关闭侧边栏">
-            ✕
-          </button>
+          {showCloseButton ? (
+            <button type="button" className="md-drawer-close" onClick={onClose} aria-label="关闭侧边栏">
+              ✕
+            </button>
+          ) : null}
         </div>
         <p className="md-brand-copy">可通过左上角按钮或在页面空白处从左向右滑动，呼出侧边栏切换页面。</p>
         <div className="md-chip-row">
@@ -2081,6 +2104,9 @@ function App() {
   }, [activePage])
 
   useEffect(() => {
+    // Browser history integration is intentionally minimal here: hash changes
+    // stay as the single external navigation source, while React state remains
+    // the internal source of truth for rendering and drawer reset behavior.
     function handleHashChange() {
       const nextPageId = resolvePageId(readPageIdFromHash(), pageItems, onboardingDone ? defaultPageId : 'config')
       setActivePage((current) => (current === nextPageId ? current : nextPageId))
@@ -2290,6 +2316,9 @@ function App() {
   }
 
   function navigateToPage(pageId) {
+    // Reuse the same resolver as hash bootstrapping/hashchange so every entry
+    // point follows one page-validation path instead of splitting logic across
+    // ad-hoc navigation handlers or an added router dependency.
     setActivePage(resolvePageId(pageId, pageItems, onboardingDone ? defaultPageId : 'config'))
     setDrawerOpen(false)
     setDrawerOffset(null)
@@ -3291,62 +3320,66 @@ function App() {
       onTouchMove={onPageTouchMove}
       onTouchStart={onPageTouchStart}
     >
-      <div
-        className={`md-drawer-scrim ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
-        style={drawerVisible ? { opacity: drawerScrimOpacity } : undefined}
-        onClick={closeDrawer}
-        aria-hidden={!drawerVisible}
-      />
+      <>
+        <div
+          className={`md-drawer-scrim ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
+          style={drawerVisible ? { opacity: drawerScrimOpacity } : undefined}
+          onClick={closeDrawer}
+          aria-hidden={!drawerVisible}
+        />
 
-      <aside
-        className={`md-drawer ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
-        style={drawerVisible ? { transform: `translateX(${drawerTransformX}px)` } : undefined}
-        aria-hidden={!drawerVisible}
-      >
-        <div ref={drawerPanelRef} className="md-sidebar">
-          <SidebarContent
-            currentPage={currentPage}
-            developerModeEnabled={developerModeEnabled}
-            envText={envText}
-            healthText={healthText}
-            identity={identity}
-            latestLocation={latestLocation}
-            locationAccuracy={locationAccuracy}
-            locationFreshness={locationFreshness}
-            onboardingDone={onboardingDone}
-            pageItems={pageItems}
-            permissionText={permissionText}
-            showToolsPage={showToolsPage}
-            themeState={themeState}
-            userId={form.userId}
-            onClose={closeDrawer}
-            onNavigate={navigateToPage}
-            onVersionChipClick={onVersionChipClick}
-          />
-        </div>
-      </aside>
+        <aside
+          className={`md-drawer ${drawerVisible ? 'open' : ''} ${drawerOffset !== null ? 'dragging' : ''}`}
+          style={drawerVisible ? { transform: `translateX(${drawerTransformX}px)` } : undefined}
+          aria-hidden={!drawerVisible}
+        >
+          <div ref={drawerPanelRef} className="md-sidebar">
+            <SidebarContent
+              currentPage={currentPage}
+              developerModeEnabled={developerModeEnabled}
+              envText={envText}
+              healthText={healthText}
+              identity={identity}
+              latestLocation={latestLocation}
+              locationAccuracy={locationAccuracy}
+              locationFreshness={locationFreshness}
+              onboardingDone={onboardingDone}
+              pageItems={pageItems}
+              permissionText={permissionText}
+              showToolsPage={showToolsPage}
+              themeState={themeState}
+              userId={form.userId}
+              onClose={closeDrawer}
+              onNavigate={navigateToPage}
+              onVersionChipClick={onVersionChipClick}
+            />
+          </div>
+        </aside>
 
-      <button
-        type="button"
-        className="md-menu-fab"
-        onClick={drawerOpen ? closeDrawer : openDrawer}
-        aria-label={drawerOpen ? '收起侧边栏' : '打开侧边栏'}
-      >
-        ☰
-      </button>
+        <button
+          type="button"
+          className="md-menu-fab"
+          onClick={drawerOpen ? closeDrawer : openDrawer}
+          aria-label={drawerOpen ? '收起侧边栏' : '打开侧边栏'}
+        >
+          ☰
+        </button>
+      </>
 
       <div className="md-shell">
         <section ref={mainPanelRef} className="md-main">
           <header className="md-page-header">
             <div className="md-page-heading">
-              <div>
+              <div className="md-page-header-copy">
                 <p className="md-page-label">{currentPage.label}</p>
                 <h2>{currentPage.title}</h2>
                 <p>{currentPage.description}</p>
               </div>
             </div>
-            <span className="md-chip subtle">分页面导航</span>
+            <span className="md-chip subtle md-page-header-chip">分页面导航</span>
           </header>
+
+          <MobileNavHints />
 
           <PageJumpBar activePageId={currentPage.id} pageItems={pageItems} onNavigate={navigateToPage} />
 

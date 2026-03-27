@@ -156,6 +156,11 @@ button:hover:not(:disabled) {
   flex: 1;
 }
 
+.md-page-header-copy {
+  display: grid;
+  gap: 6px;
+}
+
 .md-menu-btn,
 .md-menu-fab,
 .md-drawer-close {
@@ -380,6 +385,39 @@ button:hover:not(:disabled) {
   padding-bottom: 4px;
 }
 
+.md-mobile-nav-hints {
+  display: none;
+}
+
+.md-mobile-nav-hint-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--md-outline) 78%, transparent 22%);
+  border-radius: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--md-primary-container) 72%, var(--md-surface) 28%) 0%, var(--md-surface-soft) 100%);
+  box-shadow: 0 8px 18px rgba(82, 54, 146, 0.08);
+}
+
+.md-mobile-nav-hint-kicker {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+}
+
+.md-mobile-nav-hint-card strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.md-mobile-nav-hint-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--md-on-surface-variant);
+}
+
 .md-page-jumpbar {
   display: flex;
   gap: 8px;
@@ -408,6 +446,15 @@ button:hover:not(:disabled) {
 
 .md-feedback-card {
   gap: 10px;
+}
+
+.md-feedback-head {
+  margin-bottom: 2px;
+}
+
+.md-feedback-toggle,
+.md-page-header-chip {
+  flex-shrink: 0;
 }
 
 .md-feedback-summary,
@@ -805,22 +852,6 @@ textarea {
   display: none;
 }
 
-@media (min-width: 960px) {
-  .md-main {
-    width: min(86vw, 1120px);
-    padding: 24px;
-  }
-
-  .md-drawer {
-    width: min(360px, 30vw);
-  }
-
-  .md-overview-grid,
-  .md-sos-layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 959px) {
   .md-page {
     padding: 12px;
@@ -842,6 +873,13 @@ textarea {
   .md-local-panel-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .md-mobile-nav-hints {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 4px 0 2px;
   }
 
   .md-menu-btn,
@@ -871,6 +909,89 @@ textarea {
   .md-feedback-card,
   .md-data-card {
     padding: 14px;
+  }
+
+  .md-page-header {
+    gap: 10px;
+    padding-bottom: 0;
+  }
+
+  .md-page-header-copy {
+    gap: 4px;
+  }
+
+  .md-page-header h2 {
+    font-size: 26px;
+    line-height: 1.2;
+  }
+
+  .md-page-header p {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .md-mobile-nav-hint-card {
+    gap: 3px;
+    padding: 11px 12px;
+  }
+
+  .md-mobile-nav-hint-card strong {
+    font-size: 13px;
+  }
+
+  .md-mobile-nav-hint-card p {
+    font-size: 12px;
+  }
+
+  .md-page-jumpbar {
+    gap: 6px;
+    margin-top: -2px;
+    padding: 0 0 4px;
+  }
+
+  .md-page-jump-chip {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .md-feedback-card {
+    gap: 8px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .md-feedback-head {
+    gap: 8px;
+    margin-bottom: 0;
+  }
+
+  .md-feedback-head h3 {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .md-feedback-summary,
+  .md-feedback-text {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .md-feedback-toggle,
+  .md-page-header-chip {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .md-row-actions,
+  .md-template-actions {
+    gap: 6px;
+  }
+
+  .md-row-actions .md-btn,
+  .md-template-actions .md-btn {
+    min-height: 40px;
+    padding: 10px 14px;
   }
 
   .md-history-layout {
@@ -903,9 +1024,10 @@ textarea {
   .md-menu-fab {
     top: 12px;
     left: 10px;
-    width: 44px;
-    height: 44px;
-    border-radius: 16px;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 18px;
   }
 
   .md-drawer {
@@ -916,16 +1038,83 @@ textarea {
   .md-sidebar,
   .md-main {
     border-radius: 20px;
-    padding: 14px;
+    padding: 12px;
   }
 
   .md-main {
     width: 90vw;
   }
 
+  .md-page-header,
+  .md-section-head,
+  .md-data-card-header,
+  .md-local-panel-header {
+    gap: 8px;
+  }
+
+  .md-page-heading {
+    padding-right: 44px;
+  }
+
+  .md-page-label {
+    font-size: 11px;
+  }
+
+  .md-page-header h2 {
+    font-size: 22px;
+  }
+
+  .md-page-header p {
+    font-size: 13px;
+  }
+
+  .md-page-header-chip,
+  .md-feedback-toggle {
+    min-height: 28px;
+    padding: 4px 9px;
+    font-size: 12px;
+  }
+
+  .md-mobile-nav-hints {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .md-mobile-nav-hint-card {
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+
+  .md-page-jumpbar {
+    gap: 5px;
+    padding-bottom: 2px;
+  }
+
+  .md-page-jump-chip {
+    padding: 7px 11px;
+    font-size: 12px;
+  }
+
+  .md-feedback-card {
+    gap: 6px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .md-feedback-head h3 {
+    font-size: 16px;
+  }
+
+  .md-feedback-summary,
+  .md-feedback-text {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
   .md-row-actions,
   .md-template-actions {
     flex-direction: column;
+    gap: 6px;
   }
 
   .md-row-actions .md-btn,
@@ -933,6 +1122,12 @@ textarea {
   .md-quick-card,
   .md-nav-item {
     width: 100%;
+  }
+
+  .md-row-actions .md-btn,
+  .md-template-actions .md-btn {
+    min-height: 38px;
+    padding: 9px 12px;
   }
 
   .md-summary-value {
