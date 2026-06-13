@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(MaterialThemeBridgePlugin.class);
         registerPlugin(EmergencyActionsPlugin.class);
         registerPlugin(SystemLocationBridgePlugin.class);
+        registerPlugin(StartupPermissionsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -2,6 +2,7 @@ package com.solo.youth.safety;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
@@ -42,14 +43,17 @@ public class SystemLocationBridgePlugin extends Plugin {
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
     private static final int MIN_TIMEOUT_MS = 1500;
+    private JSObject lastAttempt = null;
 
     @PluginMethod
     public void getCurrentPosition(PluginCall call) {
         if (!isLocationServicesEnabled()) {
+            rememberAttempt("preflight", false, "Location services are not enabled");
             call.reject("Location services are not enabled");
             return;
         }
         if (!hasRequiredPermission(call)) {
+            rememberAttempt("permission", false, "Location permission was denied");
             call.reject("Location permission was denied");
             return;
         }
@@ -57,6 +61,7 @@ public class SystemLocationBridgePlugin extends Plugin {
         int maximumAge = Math.max(call.getInt("maximumAge", 0), 0);
         Location cachedLocation = getBestLastKnownLocation(maximumAge);
         if (cachedLocation != null) {
+            rememberAttempt("system-cache", true, null);
             call.resolve(toLocationResult(cachedLocation, "system-cache"));
             return;
         }
@@ -64,9 +69,37 @@ public class SystemLocationBridgePlugin extends Plugin {
         requestCurrentLocation(call);
     }
 
+    @PluginMethod
+    public void getDiagnostics(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("native", true);
+        result.put("bridge", "system-location-manager");
+
+        JSObject permissions = new JSObject();
+        permissions.put("fine", permissionLabel(Manifest.permission.ACCESS_FINE_LOCATION));
+        permissions.put("coarse", permissionLabel(Manifest.permission.ACCESS_COARSE_LOCATION));
+        result.put("permissions", permissions);
+
+        JSObject providers = new JSObject();
+        providers.put("gps", isProviderEnabled(LocationManager.GPS_PROVIDER));
+        providers.put("network", isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+        result.put("providers", providers);
+
+        JSObject device = new JSObject();
+        device.put("sdkInt", Build.VERSION.SDK_INT);
+        device.put("brand", Build.BRAND);
+        device.put("manufacturer", Build.MANUFACTURER);
+        device.put("model", Build.MODEL);
+        result.put("device", device);
+
+        result.put("lastAttempt", lastAttempt == null ? toAttemptDiagnostics("unknown", false, null) : lastAttempt);
+        call.resolve(result);
+    }
+
     private void requestCurrentLocation(PluginCall call) {
         String primaryProvider = choosePrimaryProvider(isHighAccuracyRequested(call));
         if (primaryProvider == null) {
+            rememberAttempt("provider-selection", false, "location disabled");
             call.reject("location disabled");
             return;
         }
@@ -109,6 +142,7 @@ public class SystemLocationBridgePlugin extends Plugin {
                         onProviderFailure(call, fallbackProvider, timeoutMs, provider, "location unavailable");
                         return;
                     }
+                    rememberAttempt("system-" + provider, true, null);
                     call.resolve(toLocationResult(location, "system"));
                 }
             );
@@ -129,6 +163,7 @@ public class SystemLocationBridgePlugin extends Plugin {
         String message
     ) {
         if (fallbackProvider == null || fallbackProvider.equals(failedProvider)) {
+            rememberAttempt("system-" + failedProvider, false, message);
             call.reject(message);
             return;
         }
@@ -151,6 +186,22 @@ public class SystemLocationBridgePlugin extends Plugin {
     private boolean isHighAccuracyRequested(PluginCall call) {
         return call.getBoolean("enableHighAccuracy", false) &&
             getPermissionState(ALIAS_LOCATION) == PermissionState.GRANTED;
+    }
+
+    private String permissionLabel(String permission) {
+        return ContextCompat.checkSelfPermission(getContext(), permission) == PackageManager.PERMISSION_GRANTED ? "granted" : "denied";
+    }
+
+    private JSObject toAttemptDiagnostics(String strategy, boolean success, String error) {
+        JSObject attempt = new JSObject();
+        attempt.put("strategy", strategy);
+        attempt.put("success", success);
+        attempt.put("error", error);
+        return attempt;
+    }
+
+    private void rememberAttempt(String strategy, boolean success, String error) {
+        lastAttempt = toAttemptDiagnostics(strategy, success, error);
     }
 
     private boolean isLocationServicesEnabled() {

@@ -39,5 +39,9 @@ if [[ "$mode" != "apk" && -f "$aab_source" ]]; then
 fi
 
 echo "Release 构建完成。"
-[[ "$mode" != "aab" ]] && echo "APK：$project_dir/android/app/build/outputs/apk/release/solo-youth-safety-v${version}-release.apk"
-[[ "$mode" != "apk" ]] && echo "AAB：$aab_target"
+if [[ "$mode" != "aab" ]]; then
+  echo "APK：$project_dir/android/app/build/outputs/apk/release/solo-youth-safety-v${version}-release.apk"
+fi
+if [[ "$mode" != "apk" ]]; then
+  echo "AAB：$aab_target"
+fi
