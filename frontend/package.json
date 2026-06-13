@@ -1,12 +1,17 @@
 {
   "name": "solo-youth-safety-frontend",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.25",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "sh -c 'node --test' --",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "check:full": "npm run check && npm run android:sync && npm run android:apk",
     "preview": "vite preview",
     "android:init": "npx cap add android",
     "android:sync": "npx cap sync android",
@@ -24,12 +29,32 @@
     "@capacitor/core": "^6.1.2",
     "@capacitor/geolocation": "^6.1.0",
     "@capacitor/preferences": "^6.0.4",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@material/material-color-utilities": "^0.3.0",
+    "@mui/icons-material": "^6.5.0",
+    "@mui/material": "^6.5.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__template": "^7.4.4",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.1.3"
+    "@vitest/ui": "^2.1.9",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "happy-dom": "^15.11.7",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.3",
+    "vitest": "^2.1.9"
   }
 }

@@ -24,10 +24,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background:
-    radial-gradient(circle at top left, var(--md-bg-spot-a), transparent 32%),
-    radial-gradient(circle at top right, var(--md-bg-spot-b), transparent 28%),
-    linear-gradient(180deg, #f8f4ff 0%, #eef2ff 100%);
+  background: var(--md-surface);
   color: var(--md-on-surface);
 }
 

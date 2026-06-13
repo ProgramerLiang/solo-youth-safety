@@ -1,0 +1,1 @@
+export { triggerNativeCall, triggerNativeSms } from '../native/nativeActions'
