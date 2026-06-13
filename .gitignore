@@ -24,5 +24,11 @@ backend/data/
 *.pem
 release-signing.properties
 
+# Claude Code（本机偏好不入库；.claude/settings.json 作为共享配置仍入库）
+.claude/settings.local.json
+
 # OS
 .DS_Store
+
+# 编辑器 / IDE
+.idea/

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(tree:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git blame:*)",
+      "Bash(git fetch:*)",
+
+      "Bash(cd frontend && npm test:*)",
+      "Bash(cd frontend && npm run test:*)",
+      "Bash(cd frontend && npm run build:*)",
+      "Bash(cd frontend && npm run dev:*)",
+      "Bash(cd frontend && npm run preview:*)",
+      "Bash(cd frontend && npm run android:sync:*)",
+      "Bash(cd frontend && node --test:*)",
+      "Bash(node --test:*)",
+
+      "Bash(cd backend && python3 -m unittest:*)",
+      "Bash(cd backend && python -m unittest:*)",
+      "Bash(python3 -m unittest:*)",
+      "Bash(python -m unittest:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(python -m pytest:*)",
+
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm view:*)",
+      "Bash(npm ls:*)",
+
+      "Bash(pip show:*)",
+      "Bash(pip list:*)",
+      "Bash(python3 -c:*)",
+      "Bash(python -c:*)",
+      "Bash(python3 --version)",
+      "Bash(python --version)",
+      "Bash(node --version)",
+      "Bash(npm --version)"
+    ],
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  }
+}
