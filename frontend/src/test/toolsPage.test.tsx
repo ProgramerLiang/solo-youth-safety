@@ -34,6 +34,7 @@ function sampleReport(): DiagnosticReport {
       lastAttempt: { strategy: 'coarse-cached', success: true, error: null },
       selfTest: null,
     },
+    safetyTrip: { hasCurrentTrip: false, currentStatus: null, destinationLength: 0, hasNote: false, historyCount: 0, lastTripStatus: null },
     privacy: { manualExportOnly: true, includesExactCoordinates: false, includesContactPhones: false },
   }
 }
