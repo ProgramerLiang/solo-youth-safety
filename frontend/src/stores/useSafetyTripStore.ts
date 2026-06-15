@@ -13,6 +13,11 @@ import {
   loadSafetyTripHistory,
   appendSafetyTripHistory,
 } from '../data/safetyTripRepo'
+import {
+  scheduleTripExpiryNotification,
+  cancelNotification,
+} from '../data/localNotificationRepo'
+import { useNotificationConfigStore } from './useNotificationConfigStore'
 
 export type { SafetyTrip, SafetyTripStatus }
 
@@ -21,11 +26,19 @@ function genId(): string {
   return `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+async function scheduleTripNotification(trip: SafetyTrip): Promise<string> {
+  const notifStore = useNotificationConfigStore.getState()
+  const config = notifStore.config
+  if (!config || !config.enabled || !config.tripExpiring.enabled) return ''
+  const id = await scheduleTripExpiryNotification(trip, config.tripExpiring.leadMinutes)
+  return id
+}
+
 interface SafetyTripState {
   current: SafetyTrip | null
   history: SafetyTrip[]
   loaded: boolean
-
+  _notificationId: string
   initialize: () => Promise<void>
   createTrip: (input: CreateSafetyTripInput) => Promise<void>
   arrive: () => Promise<void>
@@ -38,6 +51,7 @@ export const useSafetyTripStore = create<SafetyTripState>((set, get) => ({
   current: null,
   history: [],
   loaded: false,
+  _notificationId: '',
 
   initialize: async () => {
     const [current, history] = await Promise.all([loadCurrentSafetyTrip(), loadSafetyTripHistory()])
@@ -49,36 +63,42 @@ export const useSafetyTripStore = create<SafetyTripState>((set, get) => ({
     const now = Date.now()
     const trip = createSafetyTrip(input, { id: genId(), now })
     await saveCurrentSafetyTrip(trip)
-    set({ current: trip })
+    const notifId = await scheduleTripNotification(trip)
+    set({ current: trip, _notificationId: notifId })
   },
 
   arrive: async () => {
     const trip = get().current
     if (!trip) return
+    const notifId = get()._notificationId
+    if (notifId) cancelNotification(notifId)
     const now = Date.now()
     const arrived = markSafetyTripArrived(trip, { id: genId(), now })
     await appendSafetyTripHistory(arrived)
     await saveCurrentSafetyTrip(null)
-    set({ current: null, history: [...get().history, arrived] })
+    set({ current: null, history: [...get().history, arrived], _notificationId: '' })
   },
-
   extend: async (minutes) => {
     const trip = get().current
     if (!trip) return
     const now = Date.now()
     const extended = extendSafetyTrip(trip, minutes, { id: genId(), now })
     await saveCurrentSafetyTrip(extended)
-    set({ current: extended })
+    const oldNotifId = get()._notificationId
+    if (oldNotifId) cancelNotification(oldNotifId)
+    const newNotifId = await scheduleTripNotification(extended)
+    set({ current: extended, _notificationId: newNotifId })
   },
-
   cancel: async () => {
     const trip = get().current
     if (!trip) return
+    const notifId = get()._notificationId
+    if (notifId) cancelNotification(notifId)
     const now = Date.now()
     const cancelled = cancelSafetyTrip(trip, { id: genId(), now })
     await appendSafetyTripHistory(cancelled)
     await saveCurrentSafetyTrip(null)
-    set({ current: null, history: [...get().history, cancelled] })
+    set({ current: null, history: [...get().history, cancelled], _notificationId: '' })
   },
 
   currentStatus: (now) => {
