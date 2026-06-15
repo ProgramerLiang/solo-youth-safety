@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Stack, Typography, Card, CardContent, Chip, Box } from '@mui/material'
+import { Stack, Typography, Card, CardContent, Chip, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material'
 import SecurityIcon from '@mui/icons-material/Security'
 import PeopleIcon from '@mui/icons-material/People'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
@@ -9,6 +9,8 @@ import { useSosStore } from '../stores/useSosStore'
 import { useContactsStore } from '../stores/useContactsStore'
 import { useTrackingStore } from '../stores/useTrackingStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
+import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { deriveSafetyTripStatus } from '../domain/safetyTrip'
 import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { aggregateRiskData } from '../domain/riskAssessment'
 import type { RiskLevel } from '../domain/riskAssessment'
@@ -59,6 +61,15 @@ export function OverviewPage() {
   const geofenceZones = useGeofenceStore((s) => s.zones)
   const freshness = useLocationFreshness(Date.now() - 30_000)
   const [riskRules, setRiskRules] = useState<RiskRuleConfig>(DEFAULT_RISK_RULE_CONFIG)
+  const tripCurrent = useSafetyTripStore((s) => s.current)
+  const tripCreate = useSafetyTripStore((s) => s.createTrip)
+  const tripArrive = useSafetyTripStore((s) => s.arrive)
+  const tripExtend = useSafetyTripStore((s) => s.extend)
+  const tripCancel = useSafetyTripStore((s) => s.cancel)
+  const [tripDialogOpen, setTripDialogOpen] = useState(false)
+  const [tripDest, setTripDest] = useState('')
+  const [tripMinutes, setTripMinutes] = useState(30)
+  const [tripNote, setTripNote] = useState('')
 
   useEffect(() => {
     loadRiskRuleConfig().then(setRiskRules)
@@ -77,8 +88,9 @@ export function OverviewPage() {
       locationAgeMs: ageMs,
       geofenceEvents,
       riskRules,
+      safetyTrip: tripCurrent ?? undefined,
     })
-  }, [trackHistory, sosHistory, callNumber, smsNumber, contacts, timestampMs, geofenceEvents, riskRules])
+  }, [trackHistory, sosHistory, callNumber, smsNumber, contacts, timestampMs, geofenceEvents, riskRules, tripCurrent])
   const sortedItems = useMemo(
     () => [...risk.items].sort((a, b) => (RISK_LEVEL_SEVERITY[b.severity] ?? 0) - (RISK_LEVEL_SEVERITY[a.severity] ?? 0)),
     [risk.items],
@@ -131,6 +143,42 @@ export function OverviewPage() {
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
           <Stack spacing={1}>
+            <Typography variant="overline">安全行程</Typography>
+            <Typography variant="caption" color="text.secondary">
+              安全行程只在本机记录和提醒，不会自动通知联系人。
+            </Typography>
+            {tripCurrent ? (
+              (() => {
+                const tripStatus = deriveSafetyTripStatus(tripCurrent, Date.now())
+                return (
+                  <Stack spacing={1}>
+                    <Typography variant="h6">{tripCurrent.destination}</Typography>
+                    <Typography variant="body2" color={tripStatus === 'overdue' ? 'error' : 'text.secondary'}>
+                      {tripStatus === 'overdue'
+                        ? '超时未确认。请手动确认状态；当前版本不会自动发送 SOS。'
+                        : `预计到达：${new Date(tripCurrent.expectedArrivalAt).toLocaleTimeString('zh-CN')}`}
+                    </Typography>
+                    {tripCurrent.note && (
+                      <Typography variant="caption" color="text.secondary">{tripCurrent.note}</Typography>
+                    )}
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Button size="small" variant="contained" color="success" onClick={() => tripArrive()}>已到达</Button>
+                      <Button size="small" variant="outlined" onClick={() => tripExtend(10)}>延长 10 分钟</Button>
+                      <Button size="small" variant="outlined" color="error" onClick={() => tripCancel()}>取消</Button>
+                    </Box>
+                  </Stack>
+                )
+              })()
+            ) : (
+              <Button variant="outlined" size="small" onClick={() => setTripDialogOpen(true)}>创建安全行程</Button>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Stack spacing={1}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="overline">风险提示</Typography>
               <Chip
@@ -175,6 +223,36 @@ export function OverviewPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Dialog open={tripDialogOpen} onClose={() => setTripDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>创建安全行程</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField label="目的地名称" value={tripDest} onChange={(e) => setTripDest(e.target.value)} size="small" fullWidth />
+            <TextField select label="预计时长（分钟）" value={tripMinutes} onChange={(e) => setTripMinutes(Number(e.target.value))} size="small" fullWidth>
+              <MenuItem value={15}>15</MenuItem>
+              <MenuItem value={30}>30</MenuItem>
+              <MenuItem value={45}>45</MenuItem>
+              <MenuItem value={60}>60</MenuItem>
+            </TextField>
+            <TextField label="备注（可选）" value={tripNote} onChange={(e) => setTripNote(e.target.value)} size="small" fullWidth multiline maxRows={2} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTripDialogOpen(false)}>取消</Button>
+          <Button
+            variant="contained"
+            disabled={!tripDest.trim() || tripMinutes < 5 || tripMinutes > 240}
+            onClick={async () => {
+              await tripCreate({ destination: tripDest.trim(), durationMinutes: tripMinutes, note: tripNote.trim() || undefined })
+              setTripDest('')
+              setTripMinutes(30)
+              setTripNote('')
+              setTripDialogOpen(false)
+            }}
+          >创建</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }
