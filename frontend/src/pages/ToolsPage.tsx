@@ -16,6 +16,8 @@ import { exportSnapshot, importSnapshot, clearAllData } from '../data/snapshot'
 import { exportDiagnosticReport } from '../data/diagnostics'
 import { parseDiagnosticReportJson, summarizeDiagnosticReport } from '../data/diagnosticSummary'
 import type { DiagnosticSummary } from '../data/diagnosticSummary'
+import { loadLocationSelfTestReport, runAndSaveLocationSelfTest } from '../data/locationSelfTestRepo'
+import type { LocationSelfTestReport, LocationSelfTestAttempt } from '../native/nativeLocation'
 import { saveContacts } from '../data/contactsRepo'
 import { saveTrackingState } from '../data/trackingRepo'
 import { getStorageDriverLabel } from '../data/storage'
@@ -34,6 +36,7 @@ function DiagnosticSummaryView({ summary }: { summary: DiagnosticSummary }) {
     ['设备', summary.facts.device],
     ['定位 Provider', summary.facts.locationProviders],
     ['定位权限', summary.facts.locationPermissions],
+    ['定位自检', summary.facts.locationSelfTest],
     ['最近定位', summary.facts.lastLocationAttempt],
     ['本地轨迹', summary.facts.localTracking],
     ['主题', summary.facts.theme],
@@ -64,6 +67,28 @@ function DiagnosticSummaryView({ summary }: { summary: DiagnosticSummary }) {
     </Stack>
   )
 }
+
+function LocationSelfTestAttemptView({ attempt }: { attempt: LocationSelfTestAttempt }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+      <Typography variant="body2">{attempt.label}</Typography>
+      <Typography variant="body2" sx={{ textAlign: 'right', overflowWrap: 'anywhere' }}>
+        {attempt.success ? '成功' : '失败'} · {attempt.elapsedMs}ms · 精度 {attempt.accuracy ?? '未知'}m · {attempt.providerName ?? '无 provider'}
+      </Typography>
+    </Box>
+  )
+}
+
+function LocationSelfTestView({ report }: { report: LocationSelfTestReport }) {
+  return (
+    <Stack spacing={1}>
+      <Typography variant="caption" color="text.secondary">{report.ranAt}</Typography>
+      <LocationSelfTestAttemptView attempt={report.fast} />
+      <LocationSelfTestAttemptView attempt={report.accurate} />
+      <Alert severity={report.fast.success || report.accurate.success ? 'info' : 'warning'}>{report.conclusion}</Alert>
+    </Stack>
+  )
+}
 export function ToolsPage() {
   const devMode = useDevModeStore((s) => s.enabled)
   const config = useConfigStore.getState()
@@ -77,6 +102,8 @@ export function ToolsPage() {
   const [diagnosticJson, setDiagnosticJson] = useState('')
   const [parsedDiagnosticSummary, setParsedDiagnosticSummary] = useState<DiagnosticSummary | null>(null)
   const [diagnosticParseError, setDiagnosticParseError] = useState('')
+  const [locationSelfTest, setLocationSelfTest] = useState<LocationSelfTestReport | null>(null)
+  const [locationSelfTesting, setLocationSelfTesting] = useState(false)
 
   useEffect(() => {
     if (!devMode) return
@@ -88,6 +115,9 @@ export function ToolsPage() {
       .catch(() => {
         if (active) setCurrentDiagnosticSummary(null)
       })
+    loadLocationSelfTestReport().then((report) => {
+      if (active) setLocationSelfTest(report)
+    })
     return () => {
       active = false
     }
@@ -134,6 +164,18 @@ export function ToolsPage() {
     } else {
       setParsedDiagnosticSummary(null)
       setDiagnosticParseError(parsed.error)
+    }
+  }
+
+  const handleRunLocationSelfTest = async () => {
+    setLocationSelfTesting(true)
+    try {
+      const report = await runAndSaveLocationSelfTest()
+      setLocationSelfTest(report)
+      const diagnosticReport = await exportDiagnosticReport()
+      setCurrentDiagnosticSummary(summarizeDiagnosticReport(diagnosticReport))
+    } finally {
+      setLocationSelfTesting(false)
     }
   }
 
@@ -258,6 +300,24 @@ export function ToolsPage() {
         </CardContent>
       </Card>
 
+
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
+            <Typography variant="overline">最近定位自检</Typography>
+            <Button size="small" variant="outlined" onClick={handleRunLocationSelfTest} disabled={locationSelfTesting}>
+              {locationSelfTesting ? '定位自检中…' : '开始定位自检'}
+            </Button>
+          </Stack>
+          <Box sx={{ mt: 1 }}>
+            {locationSelfTest ? (
+              <LocationSelfTestView report={locationSelfTest} />
+            ) : (
+              <Typography variant="body2" color="text.secondary">尚未运行定位自检。</Typography>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
           <Typography variant="overline">{zhCN.tools.parsedDiagnostics}</Typography>

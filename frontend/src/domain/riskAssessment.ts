@@ -1,6 +1,8 @@
 import type { SosResult, TrackingPoint } from '../types'
 import { haversineDistanceM } from './geo'
 import type { GeofenceResult } from './geofence'
+import { DEFAULT_RISK_RULE_CONFIG } from './riskRules'
+import type { RiskRuleConfig } from './riskRules'
 
 export type RiskLevel = 'ok' | 'attention' | 'warning'
 
@@ -8,6 +10,7 @@ export interface RiskItem {
   title: string
   detail: string
   severity: RiskLevel
+  rule?: string
 }
 
 export interface RiskReport {
@@ -16,11 +19,10 @@ export interface RiskReport {
 }
 
 const MIN_MOVEMENT_DISTANCE_M = 5
-const SUSPICIOUS_PAUSE_MIN_MS = 30 * 60 * 1000
-const SUSPICIOUS_PAUSE_MAX_RADIUS_M = 50
-const LONG_GAP_MIN_MS = 60 * 60 * 1000
-const STALE_DATA_MIN_MS = 60 * 60 * 1000
-const HIGH_SPEED_KMH = 80
+
+function minutesToMs(minutes: number): number {
+  return minutes * 60 * 1000
+}
 
 function highestLevel(...levels: RiskLevel[]): RiskLevel {
   for (const level of ['warning', 'attention', 'ok'] as const) {
@@ -29,7 +31,11 @@ function highestLevel(...levels: RiskLevel[]): RiskLevel {
   return 'ok'
 }
 
-function findSuspiciousPauses(sorted: TrackingPoint[]): { startedAt: number; endedAt: number; count: number }[] {
+function findSuspiciousPauses(
+  sorted: TrackingPoint[],
+  minPauseMs: number,
+  maxRadiusM: number,
+): { startedAt: number; endedAt: number; count: number }[] {
   const pauses: { startedAt: number; endedAt: number; count: number }[] = []
   if (sorted.length < 2) return pauses
 
@@ -41,7 +47,7 @@ function findSuspiciousPauses(sorted: TrackingPoint[]): { startedAt: number; end
         const wFirst = windowPts[0]!
         const wLast = windowPts[windowPts.length - 1]!
         const duration = wLast.timestamp - wFirst.timestamp
-        if (duration >= SUSPICIOUS_PAUSE_MIN_MS) {
+        if (duration >= minPauseMs) {
           pauses.push({ startedAt: wFirst.timestamp, endedAt: wLast.timestamp, count: windowPts.length })
         }
       }
@@ -50,13 +56,13 @@ function findSuspiciousPauses(sorted: TrackingPoint[]): { startedAt: number; end
 
     const anchor = sorted[windowStart]!
     const windowEnd = sorted[i]!
-    if (haversineDistanceM(windowEnd.lat, windowEnd.lng, anchor.lat, anchor.lng) > SUSPICIOUS_PAUSE_MAX_RADIUS_M) {
+    if (haversineDistanceM(windowEnd.lat, windowEnd.lng, anchor.lat, anchor.lng) > maxRadiusM) {
       const closedPts = sorted.slice(windowStart, i)
       if (closedPts.length >= 2) {
         const wFirst = closedPts[0]!
         const wLast = closedPts[closedPts.length - 1]!
         const duration = wLast.timestamp - wFirst.timestamp
-        if (duration >= SUSPICIOUS_PAUSE_MIN_MS) {
+        if (duration >= minPauseMs) {
           pauses.push({ startedAt: wFirst.timestamp, endedAt: wLast.timestamp, count: closedPts.length })
         }
       }
@@ -66,18 +72,21 @@ function findSuspiciousPauses(sorted: TrackingPoint[]): { startedAt: number; end
   return pauses
 }
 
-function findLongGaps(sorted: TrackingPoint[]): { startedAt: number; endedAt: number; gapMs: number }[] {
+function findLongGaps(sorted: TrackingPoint[], minGapMs: number): { startedAt: number; endedAt: number; gapMs: number }[] {
   const gaps: { startedAt: number; endedAt: number; gapMs: number }[] = []
   for (let i = 1; i < sorted.length; i++) {
     const gapMs = sorted[i]!.timestamp - sorted[i - 1]!.timestamp
-    if (gapMs >= LONG_GAP_MIN_MS) {
+    if (gapMs >= minGapMs) {
       gaps.push({ startedAt: sorted[i - 1]!.timestamp, endedAt: sorted[i]!.timestamp, gapMs })
     }
   }
   return gaps
 }
 
-function findHighSpeedSegments(sorted: TrackingPoint[]): { from: TrackingPoint; to: TrackingPoint; speedKmh: number }[] {
+function findHighSpeedSegments(
+  sorted: TrackingPoint[],
+  maxKmh: number,
+): { from: TrackingPoint; to: TrackingPoint; speedKmh: number }[] {
   const segments: { from: TrackingPoint; to: TrackingPoint; speedKmh: number }[] = []
   for (let i = 1; i < sorted.length; i++) {
     const from = sorted[i - 1]!
@@ -87,23 +96,28 @@ function findHighSpeedSegments(sorted: TrackingPoint[]): { from: TrackingPoint; 
     const dt = to.timestamp - from.timestamp
     if (dt <= 0) continue
     const speedKmh = (d / dt) * 3600
-    if (speedKmh >= HIGH_SPEED_KMH) {
+    if (speedKmh >= maxKmh) {
       segments.push({ from, to, speedKmh: Math.round(speedKmh * 10) / 10 })
     }
   }
   return segments
 }
 
-export function assessMovementRisk(points: TrackingPoint[], sosHistory: SosResult[]): RiskReport {
+export function assessMovementRisk(
+  points: TrackingPoint[],
+  sosHistory: SosResult[],
+  riskRules: RiskRuleConfig = DEFAULT_RISK_RULE_CONFIG,
+): RiskReport {
   const items: RiskItem[] = []
   const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp)
 
   if (sorted.length === 0) {
-    if (sosHistory.length > 0) {
+    if (sosHistory.length > 0 && riskRules.sosNearbyTrack.enabled) {
       items.push({
         title: 'SOS 发生时无轨迹',
         detail: `${sosHistory.length} 次 SOS 事件，但缺少对应轨迹点进行位置对照`,
         severity: 'attention',
+        rule: 'sosNearbyTrack',
       })
     } else {
       items.push({ title: '无轨迹数据', detail: '暂无足够轨迹点进行评估', severity: 'ok' })
@@ -111,34 +125,47 @@ export function assessMovementRisk(points: TrackingPoint[], sosHistory: SosResul
     return { level: highestLevel(...items.map((i) => i.severity)), items }
   }
 
-  const pauses = findSuspiciousPauses(sorted)
-  for (const p of pauses) {
-    items.push({
-      title: '可疑长停',
-      detail: `${new Date(p.startedAt).toLocaleString('zh-CN')} – ${new Date(p.endedAt).toLocaleString('zh-CN')} · ${p.count} 个采样点 · ${Math.round((p.endedAt - p.startedAt) / 60000)} 分钟`,
-      severity: 'warning',
-    })
+  if (riskRules.suspiciousPause.enabled) {
+    const pauses = findSuspiciousPauses(
+      sorted,
+      minutesToMs(riskRules.suspiciousPause.minMinutes),
+      riskRules.suspiciousPause.radiusM,
+    )
+    for (const p of pauses) {
+      items.push({
+        title: '可疑长停',
+        detail: `${new Date(p.startedAt).toLocaleString('zh-CN')} – ${new Date(p.endedAt).toLocaleString('zh-CN')} · ${p.count} 个采样点 · ${Math.round((p.endedAt - p.startedAt) / 60000)} 分钟`,
+        severity: 'warning',
+        rule: 'suspiciousPause',
+      })
+    }
   }
 
-  const gaps = findLongGaps(sorted)
-  for (const g of gaps) {
-    items.push({
-      title: '轨迹长时间间断',
-      detail: `${new Date(g.startedAt).toLocaleString('zh-CN')} → ${new Date(g.endedAt).toLocaleString('zh-CN')} · 间隔 ${Math.round(g.gapMs / 60000)} 分钟`,
-      severity: 'attention',
-    })
+  if (riskRules.longGap.enabled) {
+    const gaps = findLongGaps(sorted, minutesToMs(riskRules.longGap.maxGapMinutes))
+    for (const g of gaps) {
+      items.push({
+        title: '轨迹长时间间断',
+        detail: `${new Date(g.startedAt).toLocaleString('zh-CN')} → ${new Date(g.endedAt).toLocaleString('zh-CN')} · 间隔 ${Math.round(g.gapMs / 60000)} 分钟`,
+        severity: 'attention',
+        rule: 'longGap',
+      })
+    }
   }
 
-  const speedSegs = findHighSpeedSegments(sorted)
-  for (const s of speedSegs) {
-    items.push({
-      title: '高速移动',
-      detail: `${new Date(s.from.timestamp).toLocaleString('zh-CN')} → ${new Date(s.to.timestamp).toLocaleString('zh-CN')} · ${s.speedKmh} km/h`,
-      severity: 'attention',
-    })
+  if (riskRules.highSpeed.enabled) {
+    const speedSegs = findHighSpeedSegments(sorted, riskRules.highSpeed.maxKmh)
+    for (const s of speedSegs) {
+      items.push({
+        title: '高速移动',
+        detail: `${new Date(s.from.timestamp).toLocaleString('zh-CN')} → ${new Date(s.to.timestamp).toLocaleString('zh-CN')} · ${s.speedKmh} km/h`,
+        severity: 'attention',
+        rule: 'highSpeed',
+      })
+    }
   }
 
-  if (sosHistory.length > 0) {
+  if (sosHistory.length > 0 && riskRules.sosNearbyTrack.enabled) {
     let sosWithoutNearby = 0
     for (const sos of sosHistory) {
       if (!sos.location || !sos.triggeredAt) {
@@ -146,27 +173,31 @@ export function assessMovementRisk(points: TrackingPoint[], sosHistory: SosResul
         continue
       }
       const nearby = sorted.some(
-        (p) => haversineDistanceM(p.lat, p.lng, sos.location!.lat, sos.location!.lng) <= 200,
+        (p) => haversineDistanceM(p.lat, p.lng, sos.location!.lat, sos.location!.lng) <= riskRules.sosNearbyTrack.maxDistanceM,
       )
       if (!nearby) sosWithoutNearby++
     }
     if (sosWithoutNearby > 0) {
       items.push({
         title: 'SOS 附近无轨迹',
-        detail: `${sosWithoutNearby} 次 SOS 附近 200m 内无轨迹点`,
+        detail: `${sosWithoutNearby} 次 SOS 附近 ${riskRules.sosNearbyTrack.maxDistanceM}m 内无轨迹点`,
         severity: 'attention',
+        rule: 'sosNearbyTrack',
       })
     }
   }
 
-  const lastTimestamp = sorted[sorted.length - 1]!.timestamp
-  const agoMs = Date.now() - lastTimestamp
-  if (agoMs > STALE_DATA_MIN_MS) {
-    items.push({
-      title: '轨迹数据过旧',
-      detail: `最后轨迹点距今 ${Math.round(agoMs / 60000)} 分钟`,
-      severity: 'attention',
-    })
+  if (riskRules.staleTrack.enabled) {
+    const lastTimestamp = sorted[sorted.length - 1]!.timestamp
+    const agoMs = Date.now() - lastTimestamp
+    if (agoMs > minutesToMs(riskRules.staleTrack.maxAgeMinutes)) {
+      items.push({
+        title: '轨迹数据过旧',
+        detail: `最后轨迹点距今 ${Math.round(agoMs / 60000)} 分钟`,
+        severity: 'attention',
+        rule: 'staleTrack',
+      })
+    }
   }
 
   const level = items.length > 0
@@ -187,42 +218,49 @@ export interface RiskDataInput {
   contacts: { id: string; name: string; phone: string }[]
   locationAgeMs: number
   geofenceEvents?: GeofenceResult[]
+  riskRules?: RiskRuleConfig
 }
-
-const LOCATION_STALE_MS = 5 * 60 * 1000
 
 export function aggregateRiskData(input: RiskDataInput): RiskReport {
   const items: RiskItem[] = []
+  const riskRules = input.riskRules ?? DEFAULT_RISK_RULE_CONFIG
 
-  const movement = assessMovementRisk(input.points, input.sosHistory)
+  const movement = assessMovementRisk(input.points, input.sosHistory, riskRules)
   items.push(...movement.items)
 
-  if (!input.config.callNumber.trim()) {
-    items.push({ title: '未配置紧急电话', detail: '请前往配置页设置紧急呼叫号码', severity: 'warning' })
-  }
-  if (!input.config.smsNumber.trim()) {
-    items.push({ title: '未配置短信号码', detail: '请前往配置页设置短信号码', severity: 'warning' })
-  }
-  if (input.contacts.length === 0) {
-    items.push({ title: '无紧急联系人', detail: '请前往联系人页添加至少一个联系人', severity: 'warning' })
-  }
-  if (input.locationAgeMs > LOCATION_STALE_MS) {
-    items.push({ title: '位置信息过期', detail: `上一次定位距今 ${Math.round(input.locationAgeMs / 60000)} 分钟`, severity: 'attention' })
+  if (riskRules.configCompleteness.enabled) {
+    if (!input.config.callNumber.trim()) {
+      items.push({ title: '未配置紧急电话', detail: '请前往配置页设置紧急呼叫号码', severity: 'warning', rule: 'configCompleteness' })
+    }
+    if (!input.config.smsNumber.trim()) {
+      items.push({ title: '未配置短信号码', detail: '请前往配置页设置短信号码', severity: 'warning', rule: 'configCompleteness' })
+    }
+    if (input.contacts.length === 0) {
+      items.push({ title: '无紧急联系人', detail: '请前往联系人页添加至少一个联系人', severity: 'warning', rule: 'configCompleteness' })
+    }
   }
 
-  for (const event of input.geofenceEvents ?? []) {
-    if (event.event === 'exit') {
-      items.push({
-        title: `离开${event.zoneLabel}`,
-        detail: `${new Date(event.at).toLocaleString('zh-CN')} · 距离中心约 ${event.distanceM} 米`,
-        severity: 'warning',
-      })
-    } else if (event.event === 'enter') {
-      items.push({
-        title: `进入${event.zoneLabel}`,
-        detail: `${new Date(event.at).toLocaleString('zh-CN')} · 距离中心约 ${event.distanceM} 米`,
-        severity: 'attention',
-      })
+  if (riskRules.locationFreshness.enabled && input.locationAgeMs > minutesToMs(riskRules.locationFreshness.maxAgeMinutes)) {
+    items.push({ title: '位置信息过期', detail: `上一次定位距今 ${Math.round(input.locationAgeMs / 60000)} 分钟`, severity: 'attention', rule: 'locationFreshness' })
+  }
+
+  if (riskRules.geofence.enabled) {
+    for (const event of input.geofenceEvents ?? []) {
+      if (event.event === 'exit') {
+        items.push({
+          title: `离开${event.zoneLabel}`,
+          detail: `${new Date(event.at).toLocaleString('zh-CN')} · 距离中心约 ${event.distanceM} 米`,
+          severity: 'warning',
+          rule: 'geofence',
+        })
+      } else if (event.event === 'enter') {
+        items.push({
+          title: `进入${event.zoneLabel}`,
+          detail: `${new Date(event.at).toLocaleString('zh-CN')} · 距离中心约 ${event.distanceM} 米`,
+          severity: 'attention',
+          rule: 'geofence',
+        })
+      }
     }
   }
 

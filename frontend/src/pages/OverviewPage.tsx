@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Stack, Typography, Card, CardContent, Chip, Box } from '@mui/material'
 import SecurityIcon from '@mui/icons-material/Security'
 import PeopleIcon from '@mui/icons-material/People'
@@ -13,6 +13,9 @@ import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { aggregateRiskData } from '../domain/riskAssessment'
 import type { RiskLevel } from '../domain/riskAssessment'
 import { routeGeofenceEvents } from '../domain/geofence'
+import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
+import { loadRiskRuleConfig } from '../data/riskRuleRepo'
+import type { RiskRuleConfig } from '../domain/riskRules'
 import { zhCN } from '../i18n/zh-CN'
 
 function riskColor(level: RiskLevel): 'success' | 'warning' | 'error' {
@@ -30,6 +33,21 @@ function riskLabel(level: RiskLevel): string {
   return labels[level]
 }
 
+function riskRuleLabel(rule: string | undefined): string | null {
+  if (!rule) return null
+  const labels: Record<string, string> = {
+    staleTrack: '轨迹数据过旧',
+    longGap: '轨迹长时间间断',
+    suspiciousPause: '可疑长停',
+    highSpeed: '高速移动',
+    sosNearbyTrack: 'SOS 附近轨迹',
+    locationFreshness: '位置新鲜度',
+    geofence: '地理围栏事件',
+    configCompleteness: '配置完整性检查',
+  }
+  return labels[rule] ?? rule
+}
+
 const RISK_LEVEL_SEVERITY: Record<RiskLevel, number> = { ok: 0, attention: 1, warning: 2 }
 
 export function OverviewPage() {
@@ -40,6 +58,12 @@ export function OverviewPage() {
   const trackHistory = useTrackingStore((s) => s.history)
   const geofenceZones = useGeofenceStore((s) => s.zones)
   const freshness = useLocationFreshness(Date.now() - 30_000)
+  const [riskRules, setRiskRules] = useState<RiskRuleConfig>(DEFAULT_RISK_RULE_CONFIG)
+
+  useEffect(() => {
+    loadRiskRuleConfig().then(setRiskRules)
+  }, [])
+
   const timestampMs = freshness.timestamp
   const geofenceEvents = useMemo(() => routeGeofenceEvents(geofenceZones, trackHistory), [geofenceZones, trackHistory])
 
@@ -52,8 +76,9 @@ export function OverviewPage() {
       contacts,
       locationAgeMs: ageMs,
       geofenceEvents,
+      riskRules,
     })
-  }, [trackHistory, sosHistory, callNumber, smsNumber, contacts, timestampMs, geofenceEvents])
+  }, [trackHistory, sosHistory, callNumber, smsNumber, contacts, timestampMs, geofenceEvents, riskRules])
   const sortedItems = useMemo(
     () => [...risk.items].sort((a, b) => (RISK_LEVEL_SEVERITY[b.severity] ?? 0) - (RISK_LEVEL_SEVERITY[a.severity] ?? 0)),
     [risk.items],
@@ -123,7 +148,7 @@ export function OverviewPage() {
                   <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Typography variant="body2" sx={{ flex: 1 }}>{item.title}</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ flex: 2, textAlign: 'right' }}>
-                      {item.detail}
+                      {riskRuleLabel(item.rule) ? `规则：${riskRuleLabel(item.rule)} · ${item.detail}` : item.detail}
                     </Typography>
                   </Box>
                 ))}

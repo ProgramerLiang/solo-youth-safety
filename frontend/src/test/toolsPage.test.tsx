@@ -32,6 +32,7 @@ function sampleReport(): DiagnosticReport {
       providers: { gps: true, network: false },
       device: { sdkInt: 34, brand: 'Xiaomi', manufacturer: 'Xiaomi', model: '23013RK75C' },
       lastAttempt: { strategy: 'coarse-cached', success: true, error: null },
+      selfTest: null,
     },
     privacy: { manualExportOnly: true, includesExactCoordinates: false, includesContactPhones: false },
   }
@@ -61,6 +62,20 @@ describe('ToolsPage diagnostics', () => {
     expect(await screen.findByText('诊断摘要')).toBeInTheDocument()
     expect(screen.getByText('隐私')).toBeInTheDocument()
     expect(screen.getByText('手动导出 / 不含手机号 / 不含精确坐标')).toBeInTheDocument()
+  })
+
+  it('runs a location self-test and shows the latest result', async () => {
+    useDevModeStore.setState({ enabled: true, tapProgress: 0, loaded: true })
+
+    render(<ToolsPage />)
+    await screen.findByText('手动导出 / 不含手机号 / 不含精确坐标')
+
+    expect(screen.getByRole('button', { name: '开始定位自检' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '开始定位自检' }))
+
+    expect(await screen.findByText('最近定位自检')).toBeInTheDocument()
+    expect(screen.getByText('快速定位')).toBeInTheDocument()
+    expect(screen.getByText('高精度定位')).toBeInTheDocument()
   })
 
   it('shows the download directory hint after exporting a snapshot', async () => {

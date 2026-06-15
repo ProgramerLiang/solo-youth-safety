@@ -14,6 +14,7 @@ export interface DiagnosticFacts {
   device: string
   locationProviders: string
   locationPermissions: string
+  locationSelfTest: string
   lastLocationAttempt: string
   localTracking: string
   theme: string
@@ -154,6 +155,7 @@ export function summarizeDiagnosticReport(report: DiagnosticReport): DiagnosticS
       device: deviceLabel(report),
       locationProviders: `GPS ${boolLabel(report.location.providers.gps)} / Network ${boolLabel(report.location.providers.network)}`,
       locationPermissions: `精确 ${report.location.permissions.fine} / 粗略 ${report.location.permissions.coarse}`,
+      locationSelfTest: report.location.selfTest ? report.location.selfTest.conclusion : '未运行',
       lastLocationAttempt: `${report.location.lastAttempt.strategy} / ${report.location.lastAttempt.success ? '成功' : '失败'}`,
       localTracking: `待确认 ${report.localData.tracking.pendingCount} / 队列 ${report.localData.tracking.queueCount} / 历史 ${report.localData.tracking.historyCount}`,
       theme: `${report.theme.mode} / ${report.theme.paletteMode} / ${report.theme.presetId ?? 'none'}`,

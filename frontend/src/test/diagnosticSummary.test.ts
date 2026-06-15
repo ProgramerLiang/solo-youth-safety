@@ -37,6 +37,7 @@ function baseReport(overrides: Partial<DiagnosticReport> = {}): DiagnosticReport
       providers: { gps: true, network: true },
       device: { sdkInt: 34, brand: 'Xiaomi', manufacturer: 'Xiaomi', model: '23013RK75C' },
       lastAttempt: { strategy: 'coarse-cached', success: true, error: null },
+      selfTest: null,
     },
     privacy: { manualExportOnly: true, includesExactCoordinates: false, includesContactPhones: false },
     ...overrides,
@@ -52,6 +53,7 @@ describe('summarizeDiagnosticReport', () => {
     expect(summary.facts.device).toBe('Xiaomi 23013RK75C · Android SDK 34')
     expect(summary.facts.locationProviders).toBe('GPS 开启 / Network 开启')
     expect(summary.facts.locationPermissions).toBe('精确 granted / 粗略 granted')
+    expect(summary.facts.locationSelfTest).toBe('未运行')
     expect(summary.facts.theme).toBe('dark / preset / green')
     expect(summary.issues).toEqual([])
   })
@@ -65,6 +67,7 @@ describe('summarizeDiagnosticReport', () => {
         providers: { gps: false, network: false },
         device: { sdkInt: 30, brand: 'HONOR', manufacturer: 'HONOR', model: 'ANY-AN00' },
         lastAttempt: { strategy: 'permission', success: false, error: 'Location permission was denied' },
+        selfTest: null,
       },
     }))
 
@@ -97,6 +100,7 @@ describe('summarizeDiagnosticReport', () => {
         providers: { gps: true, network: false },
         device: { sdkInt: 33, brand: 'OPPO', manufacturer: 'OPPO', model: 'PJG110' },
         lastAttempt: { strategy: 'system-gps', success: true, error: null },
+        selfTest: null,
       },
     }))
 

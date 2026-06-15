@@ -35,6 +35,7 @@ function hasGeneratedRule(element: Element, declarations: string[]): boolean {
 
 beforeEach(() => {
   vi.stubGlobal('__APP_VERSION__', '0.4.24-test')
+  localStorage.clear()
   useGeofenceStore.setState({ zones: [], loaded: true })
   permissionMock.getStartupPermissionStatus.mockResolvedValue({
     native: true,
@@ -165,5 +166,32 @@ describe('ConfigPage first-run permission onboarding', () => {
     await waitFor(() => expect(permissionMock.requestStartupLocationPermission).toHaveBeenCalledOnce())
     expect(permissionMock.requestBackgroundRunPermission).toHaveBeenCalledOnce()
     expect(permissionMock.requestStorageAccessPermission).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ConfigPage risk rule center', () => {
+  it('shows local risk rules with editable thresholds', async () => {
+    render(<ConfigPage />)
+
+    expect(await screen.findByText('本地风险规则')).toBeInTheDocument()
+    expect(screen.getByText('轨迹长时间间断')).toBeInTheDocument()
+    expect(screen.getByText('高速移动')).toBeInTheDocument()
+    expect(screen.getByText('SOS 附近轨迹')).toBeInTheDocument()
+    expect(screen.getByLabelText('长间断阈值（分钟）')).toHaveValue(60)
+    expect(screen.getByLabelText('高速阈值（km/h）')).toHaveValue(80)
+    expect(screen.getByLabelText('SOS 距离阈值（米）')).toHaveValue(200)
+  })
+
+  it('saves local risk rule edits', async () => {
+    render(<ConfigPage />)
+    await screen.findByText('本地风险规则')
+
+    fireEvent.change(screen.getByLabelText('长间断阈值（分钟）'), { target: { value: '120' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存风险规则' }))
+
+    expect(await screen.findByText('风险规则已保存')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('长间断阈值（分钟）'), { target: { value: '90' } })
+    expect(screen.queryByText('风险规则已保存')).not.toBeInTheDocument()
   })
 })

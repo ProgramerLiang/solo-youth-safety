@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { triggerNativeCall, triggerNativeSms } from '../native/nativeActions'
-import { getCurrentPosition, getLocationDiagnostics } from '../native/nativeLocation'
+import { getCurrentPosition, getLocationDiagnostics, runLocationSelfTest } from '../native/nativeLocation'
 import {
   getStartupPermissionStatus,
   requestBackgroundRunPermission,
@@ -127,28 +127,28 @@ describe('native emergency bridge', () => {
 })
 
 describe('native location bridge', () => {
-  it('uses SystemLocationBridge first on native Android', async () => {
+  it('uses fast coarse system location first on native Android', async () => {
     capacitorMock.native = true
     capacitorMock.systemGetCurrentPosition.mockResolvedValue({
-      coords: { latitude: 31.2304, longitude: 121.4737, accuracy: 8 },
+      coords: { latitude: 31.2304, longitude: 121.4737, accuracy: 80 },
       timestamp: 1710000000000,
       providerChannel: 'system',
-      providerName: 'gps',
+      providerName: 'network',
     })
 
     const result = await getCurrentPosition()
 
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenCalledOnce()
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenCalledWith({
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 5000,
+      enableHighAccuracy: false,
+      timeout: 5000,
+      maximumAge: 600000,
     })
     expect(geolocationMock.getCurrentPosition).not.toHaveBeenCalled()
-    expect(result).toEqual({ lat: 31.2304, lng: 121.4737, accuracy: 8 })
+    expect(result).toEqual({ lat: 31.2304, lng: 121.4737, accuracy: 80 })
   })
 
-  it('retries SystemLocationBridge with coarse cached options when native coordinates are invalid', async () => {
+  it('falls back to high accuracy system location when fast coarse coordinates are invalid', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     capacitorMock.native = true
     capacitorMock.systemGetCurrentPosition
@@ -160,9 +160,9 @@ describe('native location bridge', () => {
     expect(warnSpy).toHaveBeenCalledOnce()
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenCalledTimes(2)
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenNthCalledWith(2, {
-      enableHighAccuracy: false,
+      enableHighAccuracy: true,
       timeout: 15000,
-      maximumAge: 600000,
+      maximumAge: 30000,
     })
     expect(geolocationMock.getCurrentPosition).not.toHaveBeenCalled()
     expect(result).toEqual({ lat: 22.5431, lng: 114.0579, accuracy: null })
@@ -184,11 +184,11 @@ describe('native location bridge', () => {
     })
     expect(result).toEqual({ lat: 22.5431, lng: 114.0579, accuracy: 12 })
   })
-  it('does not call Google-backed Capacitor Geolocation after SystemLocationBridge rejects on native Android', async () => {
+  it('does not call Google-backed Capacitor Geolocation after fast SystemLocationBridge rejects on native Android', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     capacitorMock.native = true
     capacitorMock.systemGetCurrentPosition
-      .mockRejectedValueOnce(new Error('gps timeout'))
+      .mockRejectedValueOnce(new Error('network timeout'))
       .mockResolvedValueOnce({
         coords: { latitude: 30, longitude: 120, accuracy: 20 },
       })
@@ -198,14 +198,45 @@ describe('native location bridge', () => {
     expect(warnSpy).toHaveBeenCalledOnce()
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenCalledTimes(2)
     expect(capacitorMock.systemGetCurrentPosition).toHaveBeenNthCalledWith(2, {
-      enableHighAccuracy: false,
+      enableHighAccuracy: true,
       timeout: 15000,
-      maximumAge: 600000,
+      maximumAge: 30000,
     })
     expect(geolocationMock.getCurrentPosition).not.toHaveBeenCalled()
     expect(result).toEqual({ lat: 30, lng: 120, accuracy: 20 })
   })
 
+
+  it('runs fast and accurate native self-test attempts without exposing exact coordinates', async () => {
+    capacitorMock.native = true
+    capacitorMock.systemGetCurrentPosition
+      .mockResolvedValueOnce({
+        coords: { latitude: 31.2304, longitude: 121.4737, accuracy: 80 },
+        timestamp: 1710000000000,
+        providerChannel: 'system',
+        providerName: 'network',
+      })
+      .mockRejectedValueOnce(new Error('gps timeout'))
+
+    const report = await runLocationSelfTest(new Date('2026-06-11T01:02:03.000Z'))
+    const text = JSON.stringify(report)
+
+    expect(capacitorMock.systemGetCurrentPosition).toHaveBeenNthCalledWith(1, {
+      enableHighAccuracy: false,
+      timeout: 5000,
+      maximumAge: 600000,
+    })
+    expect(capacitorMock.systemGetCurrentPosition).toHaveBeenNthCalledWith(2, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 30000,
+    })
+    expect(report.ranAt).toBe('2026-06-11T01:02:03.000Z')
+    expect(report.fast).toMatchObject({ label: '快速定位', strategy: 'fast-coarse-cache', success: true, providerName: 'network', accuracy: 80 })
+    expect(report.accurate).toMatchObject({ label: '高精度定位', strategy: 'high-accuracy-gps', success: false, error: 'gps timeout' })
+    expect(text).not.toContain('31.2304')
+    expect(text).not.toContain('121.4737')
+  })
   it('reads native system location diagnostics from SystemLocationBridge', async () => {
     capacitorMock.native = true
     capacitorMock.systemGetDiagnostics.mockResolvedValue({

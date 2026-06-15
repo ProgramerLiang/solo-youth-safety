@@ -39,12 +39,33 @@ export interface LocationDiagnostics {
   lastAttempt: LocationAttemptDiagnostics
 }
 
+export interface LocationSelfTestAttempt {
+  label: string
+  strategy: 'fast-coarse-cache' | 'high-accuracy-gps' | 'web-unsupported'
+  success: boolean
+  elapsedMs: number
+  providerName: string | null
+  providerChannel: string | null
+  accuracy: number | null
+  error: string | null
+}
+
+export interface LocationSelfTestReport {
+  ranAt: string
+  native: boolean
+  fast: LocationSelfTestAttempt
+  accurate: LocationSelfTestAttempt
+  conclusion: string
+}
+
 interface NativePositionResult {
   coords: {
     latitude: number
     longitude: number
     accuracy?: number | null
   }
+  providerChannel?: string | null
+  providerName?: string | null
 }
 
 interface SystemLocationBridgePlugin {
@@ -57,9 +78,10 @@ interface SystemLocationBridgePlugin {
 }
 
 const LOCATION_TIMEOUT_MS = 10_000
-const SYSTEM_BRIDGE_MAXIMUM_AGE_MS = 5_000
-const SYSTEM_BRIDGE_FALLBACK_TIMEOUT_MS = 15_000
-const SYSTEM_BRIDGE_FALLBACK_MAXIMUM_AGE_MS = 10 * 60 * 1000
+const SYSTEM_BRIDGE_FAST_TIMEOUT_MS = 5_000
+const SYSTEM_BRIDGE_FAST_MAXIMUM_AGE_MS = 10 * 60 * 1000
+const SYSTEM_BRIDGE_ACCURATE_TIMEOUT_MS = 15_000
+const SYSTEM_BRIDGE_ACCURATE_MAXIMUM_AGE_MS = 30_000
 const SystemLocationBridge = registerPlugin<SystemLocationBridgePlugin>('SystemLocationBridge')
 
 function toLocationResult(position: NativePositionResult): LocationResult | null {
@@ -94,29 +116,82 @@ async function getSystemBridgeLocation(options: { enableHighAccuracy: boolean; t
   return toLocationResult(pos)
 }
 
+function elapsedSince(startedAt: number): number {
+  return Math.max(Date.now() - startedAt, 0)
+}
+
+async function runSystemSelfTestAttempt(
+  label: string,
+  strategy: LocationSelfTestAttempt['strategy'],
+  options: { enableHighAccuracy: boolean; timeout: number; maximumAge: number },
+): Promise<LocationSelfTestAttempt> {
+  const startedAt = Date.now()
+  try {
+    const position = await SystemLocationBridge.getCurrentPosition(options)
+    const location = toLocationResult(position)
+    if (!location) {
+      return { label, strategy, success: false, elapsedMs: elapsedSince(startedAt), providerName: position.providerName ?? null, providerChannel: position.providerChannel ?? null, accuracy: null, error: 'invalid coordinates' }
+    }
+    return { label, strategy, success: true, elapsedMs: elapsedSince(startedAt), providerName: position.providerName ?? null, providerChannel: position.providerChannel ?? null, accuracy: location.accuracy, error: null }
+  } catch (error) {
+    return { label, strategy, success: false, elapsedMs: elapsedSince(startedAt), providerName: null, providerChannel: null, accuracy: null, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+function unsupportedSelfTestAttempt(label: string): LocationSelfTestAttempt {
+  return { label, strategy: 'web-unsupported', success: false, elapsedMs: 0, providerName: null, providerChannel: null, accuracy: null, error: 'Web 环境不支持原生定位自检' }
+}
+
+function buildSelfTestConclusion(fast: LocationSelfTestAttempt, accurate: LocationSelfTestAttempt): string {
+  if (fast.success && accurate.success) return '快速定位和高精度定位均可用。'
+  if (fast.success && !accurate.success) return `快速定位可用；高精度定位失败：${accurate.error ?? 'unknown'}。`
+  if (!fast.success && accurate.success) return `快速定位失败：${fast.error ?? 'unknown'}；高精度定位可用。`
+  return `快速定位失败：${fast.error ?? 'unknown'}；高精度定位失败：${accurate.error ?? 'unknown'}。`
+}
+
+export async function runLocationSelfTest(now = new Date()): Promise<LocationSelfTestReport> {
+  if (!Capacitor.isNativePlatform()) {
+    const fast = unsupportedSelfTestAttempt('快速定位')
+    const accurate = unsupportedSelfTestAttempt('高精度定位')
+    return { ranAt: now.toISOString(), native: false, fast, accurate, conclusion: 'Web 环境不支持原生定位自检。' }
+  }
+
+  const fast = await runSystemSelfTestAttempt('快速定位', 'fast-coarse-cache', {
+    enableHighAccuracy: false,
+    timeout: SYSTEM_BRIDGE_FAST_TIMEOUT_MS,
+    maximumAge: SYSTEM_BRIDGE_FAST_MAXIMUM_AGE_MS,
+  })
+  const accurate = await runSystemSelfTestAttempt('高精度定位', 'high-accuracy-gps', {
+    enableHighAccuracy: true,
+    timeout: SYSTEM_BRIDGE_ACCURATE_TIMEOUT_MS,
+    maximumAge: SYSTEM_BRIDGE_ACCURATE_MAXIMUM_AGE_MS,
+  })
+  return { ranAt: now.toISOString(), native: true, fast, accurate, conclusion: buildSelfTestConclusion(fast, accurate) }
+}
+
 async function getNativeSystemLocation(): Promise<LocationResult | null> {
   try {
     const location = await getSystemBridgeLocation({
-      enableHighAccuracy: true,
-      timeout: LOCATION_TIMEOUT_MS,
-      maximumAge: SYSTEM_BRIDGE_MAXIMUM_AGE_MS,
+      enableHighAccuracy: false,
+      timeout: SYSTEM_BRIDGE_FAST_TIMEOUT_MS,
+      maximumAge: SYSTEM_BRIDGE_FAST_MAXIMUM_AGE_MS,
     })
     if (location) return location
-    console.warn('[nativeLocation] System bridge returned invalid coordinates, retrying coarse cached provider')
+    console.warn('[nativeLocation] Fast system bridge returned invalid coordinates, retrying high accuracy provider')
   } catch (error) {
-    console.warn('[nativeLocation] System bridge failed, retrying coarse cached provider:', error)
+    console.warn('[nativeLocation] Fast system bridge failed, retrying high accuracy provider:', error)
   }
 
   try {
     const location = await getSystemBridgeLocation({
-      enableHighAccuracy: false,
-      timeout: SYSTEM_BRIDGE_FALLBACK_TIMEOUT_MS,
-      maximumAge: SYSTEM_BRIDGE_FALLBACK_MAXIMUM_AGE_MS,
+      enableHighAccuracy: true,
+      timeout: SYSTEM_BRIDGE_ACCURATE_TIMEOUT_MS,
+      maximumAge: SYSTEM_BRIDGE_ACCURATE_MAXIMUM_AGE_MS,
     })
     if (location) return location
-    console.warn('[nativeLocation] Coarse cached system bridge returned invalid coordinates')
+    console.warn('[nativeLocation] High accuracy system bridge returned invalid coordinates')
   } catch (error) {
-    console.warn('[nativeLocation] Coarse cached system bridge failed:', error)
+    console.warn('[nativeLocation] High accuracy system bridge failed:', error)
   }
   return null
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assessMovementRisk, aggregateRiskData } from '../domain/riskAssessment'
+import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
 import type { SosResult, TrackingPoint, Contact, AppConfig } from '../types'
 
 function pt(lat: number, lng: number, ts: number): TrackingPoint {
@@ -71,6 +72,30 @@ describe('assessMovementRisk', () => {
     const speedItems = report.items.filter((i) => i.title === '高速移动')
     expect(speedItems.length).toBe(1)
     expect(speedItems[0]!.severity).toBe('attention')
+  })
+
+  it('respects disabled high speed rule', () => {
+    const now = Date.now()
+    const speedMps = 90
+    const dtMs = 10000
+    const distM = (speedMps / 3600) * dtMs
+    const latDelta = distM / 111_000
+    const points = [pt(31, 121, now - dtMs), pt(31 + latDelta, 121, now)]
+    const report = assessMovementRisk(points, [], {
+      ...DEFAULT_RISK_RULE_CONFIG,
+      highSpeed: { ...DEFAULT_RISK_RULE_CONFIG.highSpeed, enabled: false },
+    })
+    expect(report.items.some((i) => i.title === '高速移动')).toBe(false)
+  })
+
+  it('respects custom long gap threshold', () => {
+    const now = Date.now()
+    const points = [pt(31, 121, now - 90 * 60_000), pt(31.2, 121.2, now)]
+    const report = assessMovementRisk(points, [], {
+      ...DEFAULT_RISK_RULE_CONFIG,
+      longGap: { ...DEFAULT_RISK_RULE_CONFIG.longGap, maxGapMinutes: 120 },
+    })
+    expect(report.items.some((i) => i.title === '轨迹长时间间断')).toBe(false)
   })
 
   it('flags SOS without tracking data', () => {
@@ -213,5 +238,22 @@ describe('aggregateRiskData', () => {
     const result = aggregateRiskData({ points: pts, sosHistory: [], config: cfg, contacts, locationAgeMs: 30_000, geofenceEvents: [] })
     expect(result.level).toBe('ok')
     expect(result.items.every((i) => !i.title.includes('安全区') && !i.title.includes('风险区'))).toBe(true)
+  })
+
+  it('respects disabled geofence rule', () => {
+    const cfg = configured()
+    const contacts: Contact[] = [{ id: '1', name: 'A', phone: '110' }]
+    const pts = [pt(31, 121, now - 60_000), pt(31.001, 121.001, now)]
+    const events = [{ zoneId: 'z1', zoneLabel: '安全区', event: 'exit' as const, at: now, lat: 31.001, lng: 121.001, distanceM: 500 }]
+    const result = aggregateRiskData({ points: pts, sosHistory: [], config: cfg, contacts, locationAgeMs: 30_000, geofenceEvents: events, riskRules: { ...DEFAULT_RISK_RULE_CONFIG, geofence: { enabled: false } } })
+    expect(result.items.some((i) => i.title === '离开安全区')).toBe(false)
+  })
+
+  it('respects disabled config completeness rule', () => {
+    const cfg = emptyConfig()
+    const result = aggregateRiskData({ points: [], sosHistory: [], config: cfg, contacts: [], locationAgeMs: 30_000, riskRules: { ...DEFAULT_RISK_RULE_CONFIG, configCompleteness: { enabled: false } } })
+    expect(result.items.some((i) => i.title === '未配置紧急电话')).toBe(false)
+    expect(result.items.some((i) => i.title === '未配置短信号码')).toBe(false)
+    expect(result.items.some((i) => i.title === '无紧急联系人')).toBe(false)
   })
 })

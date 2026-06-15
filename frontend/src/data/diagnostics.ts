@@ -5,8 +5,9 @@ import { loadSosHistory } from './sosRepo'
 import { loadThemePrefs } from './themeRepo'
 import { loadTrackingState } from './trackingRepo'
 import { getStorageDriverLabel } from './storage'
+import { loadLocationSelfTestReport } from './locationSelfTestRepo'
 import { getLocationDiagnostics } from '../native/nativeLocation'
-import type { LocationDiagnostics } from '../native/nativeLocation'
+import type { LocationDiagnostics, LocationSelfTestReport } from '../native/nativeLocation'
 
 export interface DiagnosticAppInfo {
   version: string
@@ -60,6 +61,10 @@ export interface DiagnosticPrivacyPolicy {
   includesContactPhones: false
 }
 
+export interface DiagnosticLocationStatus extends LocationDiagnostics {
+  selfTest: LocationSelfTestReport | null
+}
+
 export interface DiagnosticReport {
   schemaVersion: 1
   app: DiagnosticAppInfo
@@ -67,7 +72,7 @@ export interface DiagnosticReport {
   config: DiagnosticConfigStatus
   localData: DiagnosticLocalData
   theme: DiagnosticThemeStatus
-  location: LocationDiagnostics
+  location: DiagnosticLocationStatus
   privacy: DiagnosticPrivacyPolicy
 }
 
@@ -85,13 +90,14 @@ function emptyTracking(): DiagnosticTrackingStatus {
 }
 
 export async function exportDiagnosticReport(now = new Date()): Promise<DiagnosticReport> {
-  const [config, contacts, sosHistory, tracking, theme, location] = await Promise.all([
+  const [config, contacts, sosHistory, tracking, theme, location, selfTest] = await Promise.all([
     loadConfig(),
     loadContacts(),
     loadSosHistory(),
     loadTrackingState(),
     loadThemePrefs(),
     getLocationDiagnostics(),
+    loadLocationSelfTestReport(),
   ])
 
   return {
@@ -133,7 +139,7 @@ export async function exportDiagnosticReport(now = new Date()): Promise<Diagnost
       dynamicColorSupported: !!theme?.dynamicInfo,
       dynamicColorSource: theme?.dynamicInfo ? 'android-bridge' : null,
     },
-    location,
+    location: { ...location, selfTest },
     privacy: {
       manualExportOnly: true,
       includesExactCoordinates: false,

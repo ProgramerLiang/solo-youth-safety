@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Typography, Card, CardContent, TextField, Button, Chip, Box,
-  Alert, Snackbar,
+  Alert, Snackbar, Switch, FormControlLabel,
 } from '@mui/material'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
@@ -19,6 +19,9 @@ import {
   requestStorageAccessPermission,
 } from '../native/permissions'
 import type { StartupPermissionEntry, StartupPermissionStatus } from '../native/permissions'
+import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
+import type { RiskRuleConfig } from '../domain/riskRules'
+import { loadRiskRuleConfig, saveRiskRuleConfig } from '../data/riskRuleRepo'
 
 function permissionChipColor(state: StartupPermissionEntry['state']): 'success' | 'warning' | 'default' | 'error' {
   if (state === 'granted' || state === 'notRequired') return 'success'
@@ -94,6 +97,8 @@ export function ConfigPage() {
   const [newZoneLng, setNewZoneLng] = useState('')
   const [newZoneRadius, setNewZoneRadius] = useState('200')
   const [permissionStatus, setPermissionStatus] = useState<StartupPermissionStatus | null>(null)
+  const [riskRules, setRiskRules] = useState<RiskRuleConfig>(DEFAULT_RISK_RULE_CONFIG)
+  const [riskRulesSaved, setRiskRulesSaved] = useState(false)
 
   const refreshPermissionStatus = async () => {
     setPermissionStatus(await getStartupPermissionStatus())
@@ -101,6 +106,10 @@ export function ConfigPage() {
 
   useEffect(() => {
     refreshPermissionStatus()
+  }, [])
+
+  useEffect(() => {
+    loadRiskRuleConfig().then(setRiskRules)
   }, [])
 
   const handleRequestLocationPermission = async () => {
@@ -118,6 +127,11 @@ export function ConfigPage() {
     await refreshPermissionStatus()
   }
 
+
+  const handleSaveRiskRules = async () => {
+    await saveRiskRuleConfig(riskRules)
+    setRiskRulesSaved(true)
+  }
   const handleSave = async () => {
     await save()
     setShowSaved(true)
@@ -175,6 +189,104 @@ export function ConfigPage() {
               actionLabel="检查存储访问"
               onAction={handleRequestStorageAccessPermission}
             />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="overline">本地风险规则</Typography>
+          <Alert severity="info" sx={{ mt: 1, mb: 1.5 }}>
+            风险规则只影响本地提示，不会自动触发 SOS、短信或电话。
+          </Alert>
+          <Stack spacing={1.5}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 1 }} onChange={() => setRiskRulesSaved(false)}>
+              <FormControlLabel
+                control={<Switch checked={riskRules.staleTrack.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, staleTrack: { ...r.staleTrack, enabled: e.target.checked } }))} />}
+                label="轨迹数据过旧"
+              />
+              <TextField
+                label="轨迹过旧阈值（分钟）"
+                type="number"
+                size="small"
+                value={riskRules.staleTrack.maxAgeMinutes}
+                onChange={(e) => setRiskRules((r) => ({ ...r, staleTrack: { ...r.staleTrack, maxAgeMinutes: Number(e.target.value) } }))}
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.longGap.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, longGap: { ...r.longGap, enabled: e.target.checked } }))} />}
+                label="轨迹长时间间断"
+              />
+              <TextField
+                label="长间断阈值（分钟）"
+                type="number"
+                size="small"
+                value={riskRules.longGap.maxGapMinutes}
+                onChange={(e) => setRiskRules((r) => ({ ...r, longGap: { ...r.longGap, maxGapMinutes: Number(e.target.value) } }))}
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.suspiciousPause.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, suspiciousPause: { ...r.suspiciousPause, enabled: e.target.checked } }))} />}
+                label="可疑长停"
+              />
+              <TextField
+                label="长停时长（分钟）"
+                type="number"
+                size="small"
+                value={riskRules.suspiciousPause.minMinutes}
+                onChange={(e) => setRiskRules((r) => ({ ...r, suspiciousPause: { ...r.suspiciousPause, minMinutes: Number(e.target.value) } }))}
+              />
+              <TextField
+                label="长停半径（米）"
+                type="number"
+                size="small"
+                value={riskRules.suspiciousPause.radiusM}
+                onChange={(e) => setRiskRules((r) => ({ ...r, suspiciousPause: { ...r.suspiciousPause, radiusM: Number(e.target.value) } }))}
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.highSpeed.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, highSpeed: { ...r.highSpeed, enabled: e.target.checked } }))} />}
+                label="高速移动"
+              />
+              <TextField
+                label="高速阈值（km/h）"
+                type="number"
+                size="small"
+                value={riskRules.highSpeed.maxKmh}
+                onChange={(e) => setRiskRules((r) => ({ ...r, highSpeed: { ...r.highSpeed, maxKmh: Number(e.target.value) } }))}
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.sosNearbyTrack.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, sosNearbyTrack: { ...r.sosNearbyTrack, enabled: e.target.checked } }))} />}
+                label="SOS 附近轨迹"
+              />
+              <TextField
+                label="SOS 距离阈值（米）"
+                type="number"
+                size="small"
+                value={riskRules.sosNearbyTrack.maxDistanceM}
+                onChange={(e) => setRiskRules((r) => ({ ...r, sosNearbyTrack: { ...r.sosNearbyTrack, maxDistanceM: Number(e.target.value) } }))}
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.geofence.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, geofence: { ...r.geofence, enabled: e.target.checked } }))} />}
+                label="地理围栏事件"
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.configCompleteness.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, configCompleteness: { enabled: e.target.checked } }))} />}
+                label="配置完整性检查"
+              />
+              <FormControlLabel
+                control={<Switch checked={riskRules.locationFreshness.enabled} onChange={(e) => setRiskRules((r) => ({ ...r, locationFreshness: { ...r.locationFreshness, enabled: e.target.checked } }))} />}
+                label="位置新鲜度"
+              />
+              <TextField
+                label="位置过期阈值（分钟）"
+                type="number"
+                size="small"
+                value={riskRules.locationFreshness.maxAgeMinutes}
+                onChange={(e) => setRiskRules((r) => ({ ...r, locationFreshness: { ...r.locationFreshness, maxAgeMinutes: Number(e.target.value) } }))}
+              />
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Button size="small" variant="contained" onClick={handleSaveRiskRules}>保存风险规则</Button>
+              {riskRulesSaved && <Chip label="风险规则已保存" size="small" color="success" />}
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { saveConfig } from '../data/configRepo'
 import { saveContacts } from '../data/contactsRepo'
 import { saveTrackingState } from '../data/trackingRepo'
 import { saveThemePrefs } from '../data/themeRepo'
+import { saveLocationSelfTestReport } from '../data/locationSelfTestRepo'
 import type { TrackingSnapshot } from '../types'
 import { exportDiagnosticReport } from '../data/diagnostics'
 
@@ -49,6 +50,13 @@ describe('exportDiagnosticReport', () => {
       ],
     }
     await saveTrackingState(tracking)
+    await saveLocationSelfTestReport({
+      ranAt: '2026-06-11T00:59:00.000Z',
+      native: true,
+      fast: { label: '快速定位', strategy: 'fast-coarse-cache', success: true, elapsedMs: 1100, providerName: 'network', providerChannel: 'system', accuracy: 80, error: null },
+      accurate: { label: '高精度定位', strategy: 'high-accuracy-gps', success: false, elapsedMs: 15000, providerName: null, providerChannel: null, accuracy: null, error: 'gps timeout' },
+      conclusion: '快速定位可用；高精度定位失败：gps timeout。',
+    })
 
     const report = await exportDiagnosticReport(new Date('2026-06-11T01:02:03.000Z'))
     const text = JSON.stringify(report)
@@ -63,6 +71,8 @@ describe('exportDiagnosticReport', () => {
     expect(report.localData.tracking).toMatchObject({ enabled: true, intervalSeconds: 60, pendingCount: 2, queueCount: 2, historyCount: 1 })
     expect(report.theme).toMatchObject({ mode: 'dark', paletteMode: 'preset', presetId: 'green', hasCustomSeed: false, dynamicColorSupported: true })
     expect(report.location.providers).toEqual({ gps: true, network: false })
+    expect(report.location.selfTest?.fast.success).toBe(true)
+    expect(report.location.selfTest?.accurate.error).toBe('gps timeout')
     expect(report.privacy).toEqual({ manualExportOnly: true, includesExactCoordinates: false, includesContactPhones: false })
     expect(text).not.toContain('13800138000')
     expect(text).not.toContain('31.2304')
