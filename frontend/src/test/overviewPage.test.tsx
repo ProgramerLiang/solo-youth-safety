@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { OverviewPage } from '../pages/OverviewPage'
 import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { saveCurrentSafetyTrip } from '../data/safetyTripRepo'
 import type { SafetyTrip } from '../domain/safetyTrip'
 
 beforeEach(() => {
@@ -46,6 +47,7 @@ describe('OverviewPage safety trip card', () => {
     useSafetyTripStore.setState({ current: trip })
     render(<OverviewPage />)
     expect(screen.getByText('回宿舍')).toBeInTheDocument()
+    expect(screen.getByText(/剩余约/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '已到达' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '延长 10 分钟' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
@@ -63,5 +65,20 @@ describe('OverviewPage safety trip card', () => {
     useSafetyTripStore.setState({ current: trip })
     render(<OverviewPage />)
     expect(screen.getAllByText(/超时未确认/).length).toBeGreaterThan(0)
+  })
+
+  it('loads current trip from local storage on mount', async () => {
+    const trip: SafetyTrip = {
+      id: 't1',
+      destination: '回宿舍',
+      createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      expectedArrivalAt: new Date(Date.now() + 25 * 60_000).toISOString(),
+      status: 'active',
+      events: [],
+    }
+    await saveCurrentSafetyTrip(trip)
+    useSafetyTripStore.setState({ current: null, history: [], loaded: false })
+    render(<OverviewPage />)
+    await waitFor(() => expect(screen.getByText('回宿舍')).toBeInTheDocument())
   })
 })

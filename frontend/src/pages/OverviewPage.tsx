@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Stack, Typography, Card, CardContent, Chip, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material'
+import { Stack, Typography, Card, CardContent, Chip, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material'
 import SecurityIcon from '@mui/icons-material/Security'
 import PeopleIcon from '@mui/icons-material/People'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
@@ -52,6 +52,12 @@ function riskRuleLabel(rule: string | undefined): string | null {
 
 const RISK_LEVEL_SEVERITY: Record<RiskLevel, number> = { ok: 0, attention: 1, warning: 2 }
 
+function tripTimeLabel(expectedArrivalAt: string, now = Date.now()): string {
+  const diffMinutes = Math.ceil((new Date(expectedArrivalAt).getTime() - now) / 60_000)
+  if (diffMinutes <= 0) return `已超时约 ${Math.abs(diffMinutes)} 分钟`
+  return `剩余约 ${diffMinutes} 分钟 · 预计到达：${new Date(expectedArrivalAt).toLocaleTimeString('zh-CN')}`
+}
+
 export function OverviewPage() {
   const callNumber = useConfigStore((s) => s.callNumber)
   const smsNumber = useConfigStore((s) => s.smsNumber)
@@ -62,6 +68,8 @@ export function OverviewPage() {
   const freshness = useLocationFreshness(Date.now() - 30_000)
   const [riskRules, setRiskRules] = useState<RiskRuleConfig>(DEFAULT_RISK_RULE_CONFIG)
   const tripCurrent = useSafetyTripStore((s) => s.current)
+  const tripLoaded = useSafetyTripStore((s) => s.loaded)
+  const tripInitialize = useSafetyTripStore((s) => s.initialize)
   const tripCreate = useSafetyTripStore((s) => s.createTrip)
   const tripArrive = useSafetyTripStore((s) => s.arrive)
   const tripExtend = useSafetyTripStore((s) => s.extend)
@@ -74,6 +82,10 @@ export function OverviewPage() {
   useEffect(() => {
     loadRiskRuleConfig().then(setRiskRules)
   }, [])
+
+  useEffect(() => {
+    if (!tripLoaded) tripInitialize()
+  }, [tripLoaded, tripInitialize])
 
   const timestampMs = freshness.timestamp
   const geofenceEvents = useMemo(() => routeGeofenceEvents(geofenceZones, trackHistory), [geofenceZones, trackHistory])
@@ -156,7 +168,7 @@ export function OverviewPage() {
                     <Typography variant="body2" color={tripStatus === 'overdue' ? 'error' : 'text.secondary'}>
                       {tripStatus === 'overdue'
                         ? '超时未确认。请手动确认状态；当前版本不会自动发送 SOS。'
-                        : `预计到达：${new Date(tripCurrent.expectedArrivalAt).toLocaleTimeString('zh-CN')}`}
+                        : tripTimeLabel(tripCurrent.expectedArrivalAt)}
                     </Typography>
                     {tripCurrent.note && (
                       <Typography variant="caption" color="text.secondary">{tripCurrent.note}</Typography>
@@ -228,14 +240,38 @@ export function OverviewPage() {
         <DialogTitle>创建安全行程</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="目的地名称" value={tripDest} onChange={(e) => setTripDest(e.target.value)} size="small" fullWidth />
-            <TextField select label="预计时长（分钟）" value={tripMinutes} onChange={(e) => setTripMinutes(Number(e.target.value))} size="small" fullWidth>
-              <MenuItem value={15}>15</MenuItem>
-              <MenuItem value={30}>30</MenuItem>
-              <MenuItem value={45}>45</MenuItem>
-              <MenuItem value={60}>60</MenuItem>
-            </TextField>
-            <TextField label="备注（可选）" value={tripNote} onChange={(e) => setTripNote(e.target.value)} size="small" fullWidth multiline maxRows={2} />
+            <TextField
+              label="目的地名称"
+              value={tripDest}
+              onChange={(e) => setTripDest(e.target.value.slice(0, 40))}
+              size="small"
+              fullWidth
+              inputProps={{ maxLength: 40 }}
+            />
+            <TextField
+              label="预计时长（分钟）"
+              type="number"
+              value={tripMinutes}
+              onChange={(e) => setTripMinutes(Number(e.target.value))}
+              size="small"
+              fullWidth
+              inputProps={{ min: 5, max: 240 }}
+            />
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {[15, 30, 45, 60].map((minutes) => (
+                <Button key={minutes} size="small" variant={tripMinutes === minutes ? 'contained' : 'outlined'} onClick={() => setTripMinutes(minutes)}>{minutes} 分钟</Button>
+              ))}
+            </Box>
+            <TextField
+              label="备注（可选）"
+              value={tripNote}
+              onChange={(e) => setTripNote(e.target.value.slice(0, 120))}
+              size="small"
+              fullWidth
+              multiline
+              maxRows={2}
+              inputProps={{ maxLength: 120 }}
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
