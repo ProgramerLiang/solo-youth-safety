@@ -3,6 +3,8 @@ import { haversineDistanceM } from './geo'
 import type { GeofenceResult } from './geofence'
 import { DEFAULT_RISK_RULE_CONFIG } from './riskRules'
 import type { RiskRuleConfig } from './riskRules'
+import type { SafetyTrip } from './safetyTrip'
+import { deriveSafetyTripStatus } from './safetyTrip'
 
 export type RiskLevel = 'ok' | 'attention' | 'warning'
 
@@ -219,6 +221,7 @@ export interface RiskDataInput {
   locationAgeMs: number
   geofenceEvents?: GeofenceResult[]
   riskRules?: RiskRuleConfig
+  safetyTrip?: SafetyTrip | null
 }
 
 export function aggregateRiskData(input: RiskDataInput): RiskReport {
@@ -261,6 +264,20 @@ export function aggregateRiskData(input: RiskDataInput): RiskReport {
           rule: 'geofence',
         })
       }
+    }
+  }
+
+  if (input.safetyTrip) {
+    const tripStatus = deriveSafetyTripStatus(input.safetyTrip, Date.now())
+    if (tripStatus === 'overdue') {
+      const overdueMs = Date.now() - new Date(input.safetyTrip.expectedArrivalAt).getTime()
+      const overdueMinutes = Math.round(overdueMs / 60_000)
+      items.push({
+        title: '安全行程超时未确认',
+        detail: `${input.safetyTrip.destination} · 超时约 ${overdueMinutes} 分钟`,
+        severity: 'warning',
+        rule: 'safetyTrip',
+      })
     }
   }
 

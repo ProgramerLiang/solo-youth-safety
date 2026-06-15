@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { assessMovementRisk, aggregateRiskData } from '../domain/riskAssessment'
 import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
 import type { SosResult, TrackingPoint, Contact, AppConfig } from '../types'
+import type { SafetyTrip } from '../domain/safetyTrip'
 
 function pt(lat: number, lng: number, ts: number): TrackingPoint {
   return { lat, lng, accuracy: 10, timestamp: ts }
@@ -255,5 +256,46 @@ describe('aggregateRiskData', () => {
     expect(result.items.some((i) => i.title === '未配置紧急电话')).toBe(false)
     expect(result.items.some((i) => i.title === '未配置短信号码')).toBe(false)
     expect(result.items.some((i) => i.title === '无紧急联系人')).toBe(false)
+  })
+
+  it('flags overdue safety trip as warning', () => {
+    const cfg = configured()
+    const contacts: Contact[] = [{ id: '1', name: 'A', phone: '110' }]
+    const pts = [pt(31, 121, now - 60_000), pt(31.001, 121.001, now)]
+    const overdueTrip: SafetyTrip = {
+      id: 't1',
+      destination: '回宿舍',
+      createdAt: '2026-06-15T12:00:00.000Z',
+      expectedArrivalAt: new Date(now - 5 * 60_000).toISOString(),
+      status: 'active',
+      events: [],
+    }
+    const result = aggregateRiskData({ points: pts, sosHistory: [], config: cfg, contacts, locationAgeMs: 30_000, safetyTrip: overdueTrip })
+    expect(result.items.some((i) => i.title === '安全行程超时未确认')).toBe(true)
+    expect(result.level).toBe('warning')
+  })
+
+  it('does not flag active safety trip', () => {
+    const cfg = configured()
+    const contacts: Contact[] = [{ id: '1', name: 'A', phone: '110' }]
+    const pts = [pt(31, 121, now - 60_000), pt(31.001, 121.001, now)]
+    const activeTrip: SafetyTrip = {
+      id: 't1',
+      destination: '回宿舍',
+      createdAt: '2026-06-15T12:00:00.000Z',
+      expectedArrivalAt: new Date(now + 20 * 60_000).toISOString(),
+      status: 'active',
+      events: [],
+    }
+    const result = aggregateRiskData({ points: pts, sosHistory: [], config: cfg, contacts, locationAgeMs: 30_000, safetyTrip: activeTrip })
+    expect(result.items.some((i) => i.title === '安全行程超时未确认')).toBe(false)
+  })
+
+  it('does not flag null safety trip', () => {
+    const cfg = configured()
+    const contacts: Contact[] = [{ id: '1', name: 'A', phone: '110' }]
+    const pts = [pt(31, 121, now - 60_000), pt(31.001, 121.001, now)]
+    const result = aggregateRiskData({ points: pts, sosHistory: [], config: cfg, contacts, locationAgeMs: 30_000, safetyTrip: null })
+    expect(result.items.some((i) => i.title === '安全行程超时未确认')).toBe(false)
   })
 })
