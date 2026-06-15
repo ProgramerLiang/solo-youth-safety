@@ -19,6 +19,7 @@ export interface DiagnosticFacts {
   localTracking: string
   theme: string
   privacy: string
+  safetyTrip: string
 }
 
 export interface DiagnosticSummary {
@@ -56,6 +57,13 @@ function highestLevel(issues: DiagnosticIssue[]): DiagnosticIssueLevel {
   if (issues.some((issue) => issue.level === 'warning')) return 'warning'
   if (issues.some((issue) => issue.level === 'attention')) return 'attention'
   return 'ok'
+}
+
+function safetyTripLabel(report: DiagnosticReport): string {
+  const trip = report.safetyTrip
+  if (!trip) return '当前无行程 / 历史 0 条'
+  if (!trip.hasCurrentTrip) return `当前无行程 / 历史 ${trip.historyCount} 条`
+  return `当前 ${trip.currentStatus ?? 'unknown'} / 目的地 ${trip.destinationLength} 字 / 备注 ${trip.hasNote ? '有' : '无'} / 历史 ${trip.historyCount} 条`
 }
 
 function hasValidSchema(value: unknown): value is DiagnosticReport {
@@ -158,6 +166,7 @@ export function summarizeDiagnosticReport(report: DiagnosticReport): DiagnosticS
       locationSelfTest: report.location.selfTest ? report.location.selfTest.conclusion : '未运行',
       lastLocationAttempt: `${report.location.lastAttempt.strategy} / ${report.location.lastAttempt.success ? '成功' : '失败'}`,
       localTracking: `待确认 ${report.localData.tracking.pendingCount} / 队列 ${report.localData.tracking.queueCount} / 历史 ${report.localData.tracking.historyCount}`,
+      safetyTrip: safetyTripLabel(report),
       theme: `${report.theme.mode} / ${report.theme.paletteMode} / ${report.theme.presetId ?? 'none'}`,
       privacy: report.privacy.manualExportOnly && !report.privacy.includesContactPhones && !report.privacy.includesExactCoordinates
         ? '手动导出 / 不含手机号 / 不含精确坐标'

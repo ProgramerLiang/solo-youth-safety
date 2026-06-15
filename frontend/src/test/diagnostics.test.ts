@@ -3,9 +3,11 @@ import packageJson from '../../package.json'
 import { saveConfig } from '../data/configRepo'
 import { saveContacts } from '../data/contactsRepo'
 import { saveTrackingState } from '../data/trackingRepo'
+import { saveCurrentSafetyTrip } from '../data/safetyTripRepo'
 import { saveThemePrefs } from '../data/themeRepo'
 import { saveLocationSelfTestReport } from '../data/locationSelfTestRepo'
 import type { TrackingSnapshot } from '../types'
+import type { SafetyTrip } from '../domain/safetyTrip'
 import { exportDiagnosticReport } from '../data/diagnostics'
 
 const nativeDiagnostics = vi.hoisted(() => ({
@@ -77,5 +79,24 @@ describe('exportDiagnosticReport', () => {
     expect(text).not.toContain('13800138000')
     expect(text).not.toContain('31.2304')
     expect(text).not.toContain('121.4737')
+  })
+
+  it('includes redacted safety trip summary without destination text', async () => {
+    const trip: SafetyTrip = {
+      id: 't1',
+      destination: '回宿舍',
+      note: '从地铁站走回',
+      createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      expectedArrivalAt: new Date(Date.now() + 25 * 60_000).toISOString(),
+      status: 'active',
+      events: [],
+    }
+    await saveCurrentSafetyTrip(trip)
+    const report = await exportDiagnosticReport(new Date('2026-06-11T01:02:03.000Z'))
+    const text = JSON.stringify(report)
+    expect(text).not.toContain('回宿舍')
+    expect(text).not.toContain('从地铁站走回')
+    expect(report.safetyTrip.hasCurrentTrip).toBe(true)
+    expect(report.safetyTrip.destinationLength).toBe(3)
   })
 })

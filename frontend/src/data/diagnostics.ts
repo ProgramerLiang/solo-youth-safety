@@ -6,6 +6,8 @@ import { loadThemePrefs } from './themeRepo'
 import { loadTrackingState } from './trackingRepo'
 import { getStorageDriverLabel } from './storage'
 import { loadLocationSelfTestReport } from './locationSelfTestRepo'
+import { loadCurrentSafetyTrip, loadSafetyTripHistory } from './safetyTripRepo'
+import { deriveSafetyTripStatus } from '../domain/safetyTrip'
 import { getLocationDiagnostics } from '../native/nativeLocation'
 import type { LocationDiagnostics, LocationSelfTestReport } from '../native/nativeLocation'
 
@@ -65,6 +67,15 @@ export interface DiagnosticLocationStatus extends LocationDiagnostics {
   selfTest: LocationSelfTestReport | null
 }
 
+export interface DiagnosticSafetyTripStatus {
+  hasCurrentTrip: boolean
+  currentStatus: string | null
+  destinationLength: number
+  hasNote: boolean
+  historyCount: number
+  lastTripStatus: string | null
+}
+
 export interface DiagnosticReport {
   schemaVersion: 1
   app: DiagnosticAppInfo
@@ -73,6 +84,7 @@ export interface DiagnosticReport {
   localData: DiagnosticLocalData
   theme: DiagnosticThemeStatus
   location: DiagnosticLocationStatus
+  safetyTrip: DiagnosticSafetyTripStatus
   privacy: DiagnosticPrivacyPolicy
 }
 
@@ -90,7 +102,7 @@ function emptyTracking(): DiagnosticTrackingStatus {
 }
 
 export async function exportDiagnosticReport(now = new Date()): Promise<DiagnosticReport> {
-  const [config, contacts, sosHistory, tracking, theme, location, selfTest] = await Promise.all([
+  const [config, contacts, sosHistory, tracking, theme, location, selfTest, currentTrip, tripHistory] = await Promise.all([
     loadConfig(),
     loadContacts(),
     loadSosHistory(),
@@ -98,6 +110,8 @@ export async function exportDiagnosticReport(now = new Date()): Promise<Diagnost
     loadThemePrefs(),
     getLocationDiagnostics(),
     loadLocationSelfTestReport(),
+    loadCurrentSafetyTrip(),
+    loadSafetyTripHistory(),
   ])
 
   return {
@@ -140,6 +154,14 @@ export async function exportDiagnosticReport(now = new Date()): Promise<Diagnost
       dynamicColorSource: theme?.dynamicInfo ? 'android-bridge' : null,
     },
     location: { ...location, selfTest },
+    safetyTrip: {
+      hasCurrentTrip: !!currentTrip,
+      currentStatus: currentTrip ? deriveSafetyTripStatus(currentTrip, now.getTime()) : null,
+      destinationLength: currentTrip?.destination.length ?? 0,
+      hasNote: !!currentTrip?.note,
+      historyCount: tripHistory.length,
+      lastTripStatus: tripHistory.length > 0 ? tripHistory[tripHistory.length - 1]!.status : null,
+    },
     privacy: {
       manualExportOnly: true,
       includesExactCoordinates: false,

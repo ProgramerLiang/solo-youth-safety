@@ -39,6 +39,14 @@ function baseReport(overrides: Partial<DiagnosticReport> = {}): DiagnosticReport
       lastAttempt: { strategy: 'coarse-cached', success: true, error: null },
       selfTest: null,
     },
+    safetyTrip: {
+      hasCurrentTrip: false,
+      currentStatus: null,
+      destinationLength: 0,
+      hasNote: false,
+      historyCount: 0,
+      lastTripStatus: null,
+    },
     privacy: { manualExportOnly: true, includesExactCoordinates: false, includesContactPhones: false },
     ...overrides,
   }
@@ -55,6 +63,7 @@ describe('summarizeDiagnosticReport', () => {
     expect(summary.facts.locationPermissions).toBe('精确 granted / 粗略 granted')
     expect(summary.facts.locationSelfTest).toBe('未运行')
     expect(summary.facts.theme).toBe('dark / preset / green')
+    expect(summary.facts.safetyTrip).toBe('当前无行程 / 历史 0 条')
     expect(summary.issues).toEqual([])
   })
 
@@ -107,6 +116,22 @@ describe('summarizeDiagnosticReport', () => {
     expect(summary.level).toBe('attention')
     expect(summary.issues.map((issue) => issue.title)).toContain('Network Provider 不可用')
     expect(summary.issues.map((issue) => issue.title)).toContain('本地轨迹待确认较多')
+  })
+
+  it('summarizes active safety trip without exposing destination', () => {
+    const summary = summarizeDiagnosticReport(baseReport({
+      safetyTrip: {
+        hasCurrentTrip: true,
+        currentStatus: 'active',
+        destinationLength: 3,
+        hasNote: true,
+        historyCount: 2,
+        lastTripStatus: 'arrived',
+      },
+    }))
+
+    expect(summary.facts.safetyTrip).toBe('当前 active / 目的地 3 字 / 备注 有 / 历史 2 条')
+    expect(JSON.stringify(summary)).not.toContain('回宿舍')
   })
 })
 
