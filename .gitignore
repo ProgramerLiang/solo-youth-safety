@@ -13,6 +13,17 @@ __pycache__/
 .venv/
 backend/data/
 
+
+# Local private datasets / notes
+/.ant-colony/
+/ak.txt
+/rk.txt
+/registered_accounts.txt
+/神秘组织内部资料.md
+*.db
+*.sqlite
+*.sqlite3
+
 # Env
 .env
 .env.*
@@ -23,6 +34,8 @@ backend/data/
 *.p12
 *.pem
 release-signing.properties
+*.apk
+*.aab
 
 # Claude Code（本机偏好不入库；.claude/settings.json 作为共享配置仍入库）
 .claude/settings.local.json
