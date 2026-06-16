@@ -58,6 +58,15 @@ describe('useNotificationConfigStore', () => {
     expect(saved.tripExpiring.enabled).toBe(false)
   })
 
+  it('updateEnabled persists and updates top-level switch', async () => {
+    await useNotificationConfigStore.getState().initialize()
+    await useNotificationConfigStore.getState().updateEnabled(false)
+    const state = useNotificationConfigStore.getState()
+    expect(state.config?.enabled).toBe(false)
+    const saved = JSON.parse(localStorage.getItem('safety_v2_notification_config')!)
+    expect(saved.enabled).toBe(false)
+  })
+
   it('updateRiskElevatedEnabled persists and updates state', async () => {
     await useNotificationConfigStore.getState().initialize()
     await useNotificationConfigStore.getState().updateRiskElevatedEnabled(false)

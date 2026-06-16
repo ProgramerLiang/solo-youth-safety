@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Stack, Typography, Card, CardContent, Chip, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material'
 import SecurityIcon from '@mui/icons-material/Security'
 import PeopleIcon from '@mui/icons-material/People'
@@ -10,47 +10,51 @@ import { useContactsStore } from '../stores/useContactsStore'
 import { useTrackingStore } from '../stores/useTrackingStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 import { deriveSafetyTripStatus } from '../domain/safetyTrip'
 import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { aggregateRiskData } from '../domain/riskAssessment'
-import type { RiskLevel } from '../domain/riskAssessment'
+import type { RiskItem, RiskLevel } from '../domain/riskAssessment'
 import { routeGeofenceEvents } from '../domain/geofence'
 import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
 import { loadRiskRuleConfig } from '../data/riskRuleRepo'
 import type { RiskRuleConfig } from '../domain/riskRules'
+import { scheduleRiskNotification } from '../data/localNotificationRepo'
+import { RiskLevelIndicator } from '../components/RiskLevelIndicator'
+import { RiskGroupCard } from '../components/RiskGroupCard'
+import { EmptyRiskGroup } from '../components/EmptyRiskGroup'
+import { DashboardDisclaimer } from '../components/DashboardDisclaimer'
 import { zhCN } from '../i18n/zh-CN'
 
-function riskColor(level: RiskLevel): 'success' | 'warning' | 'error' {
-  if (level === 'ok') return 'success'
-  if (level === 'attention') return 'warning'
-  return 'error'
-}
-
-function riskLabel(level: RiskLevel): string {
-  const labels: Record<RiskLevel, string> = {
-    ok: zhCN.overview.risk.ok,
-    attention: zhCN.overview.risk.attention,
-    warning: zhCN.overview.risk.warning,
-  }
-  return labels[level]
-}
-
-function riskRuleLabel(rule: string | undefined): string | null {
-  if (!rule) return null
-  const labels: Record<string, string> = {
-    staleTrack: '轨迹数据过旧',
-    longGap: '轨迹长时间间断',
-    suspiciousPause: '可疑长停',
-    highSpeed: '高速移动',
-    sosNearbyTrack: 'SOS 附近轨迹',
-    locationFreshness: '位置新鲜度',
-    geofence: '地理围栏事件',
-    configCompleteness: '配置完整性检查',
-  }
-  return labels[rule] ?? rule
-}
-
 const RISK_LEVEL_SEVERITY: Record<RiskLevel, number> = { ok: 0, attention: 1, warning: 2 }
+
+interface RiskGroup {
+  key: string
+  title: string
+  icon: string
+  emptyMessage: string
+  items: RiskItem[]
+}
+
+function riskGroupKey(rule: string | undefined): string {
+  if (rule === 'geofence') return 'geofence'
+  if (rule === 'safetyTrip') return 'safetyTrip'
+  if (rule === 'configCompleteness' || rule === 'locationFreshness') return 'config'
+  if (rule === 'staleTrack' || rule === 'longGap' || rule === 'suspiciousPause' || rule === 'highSpeed' || rule === 'sosNearbyTrack') return 'trace'
+  return 'other'
+}
+
+function groupRiskItems(items: RiskItem[]): RiskGroup[] {
+  const groups: Record<string, RiskGroup> = {
+    trace: { key: 'trace', title: '轨迹风险', icon: '轨', emptyMessage: '轨迹追踪正常', items: [] },
+    config: { key: 'config', title: '配置风险', icon: '配', emptyMessage: '配置完整', items: [] },
+    geofence: { key: 'geofence', title: '围栏风险', icon: '围', emptyMessage: '暂无围栏事件', items: [] },
+    safetyTrip: { key: 'safetyTrip', title: '行程风险', icon: '行', emptyMessage: '无进行中行程', items: [] },
+    other: { key: 'other', title: '其他提示', icon: '其', emptyMessage: '无其他提示', items: [] },
+  }
+  for (const item of items) groups[riskGroupKey(item.rule)].items.push(item)
+  return Object.values(groups)
+}
 
 function tripTimeLabel(expectedArrivalAt: string, now = Date.now()): string {
   const diffMinutes = Math.ceil((new Date(expectedArrivalAt).getTime() - now) / 60_000)
@@ -74,6 +78,10 @@ export function OverviewPage() {
   const tripArrive = useSafetyTripStore((s) => s.arrive)
   const tripExtend = useSafetyTripStore((s) => s.extend)
   const tripCancel = useSafetyTripStore((s) => s.cancel)
+  const notificationConfig = useNotificationConfigStore((s) => s.config)
+  const notificationLoaded = useNotificationConfigStore((s) => s.loaded)
+  const notificationInitialize = useNotificationConfigStore((s) => s.initialize)
+  const previousRiskLevel = useRef<RiskLevel | null>(null)
   const [tripDialogOpen, setTripDialogOpen] = useState(false)
   const [tripDest, setTripDest] = useState('')
   const [tripMinutes, setTripMinutes] = useState(30)
@@ -86,6 +94,10 @@ export function OverviewPage() {
   useEffect(() => {
     if (!tripLoaded) tripInitialize()
   }, [tripLoaded, tripInitialize])
+
+  useEffect(() => {
+    if (!notificationLoaded) notificationInitialize()
+  }, [notificationLoaded, notificationInitialize])
 
   const timestampMs = freshness.timestamp
   const geofenceEvents = useMemo(() => routeGeofenceEvents(geofenceZones, trackHistory), [geofenceZones, trackHistory])
@@ -107,10 +119,24 @@ export function OverviewPage() {
     () => [...risk.items].sort((a, b) => (RISK_LEVEL_SEVERITY[b.severity] ?? 0) - (RISK_LEVEL_SEVERITY[a.severity] ?? 0)),
     [risk.items],
   )
+  const riskGroups = useMemo(() => groupRiskItems(sortedItems), [sortedItems])
+
+  useEffect(() => {
+    if (previousRiskLevel.current === null) {
+      previousRiskLevel.current = risk.level
+      return
+    }
+    const previous = RISK_LEVEL_SEVERITY[previousRiskLevel.current]
+    const current = RISK_LEVEL_SEVERITY[risk.level]
+    previousRiskLevel.current = risk.level
+    if (!notificationConfig?.enabled || !notificationConfig.riskElevated.enabled) return
+    if (current > previous) void scheduleRiskNotification()
+  }, [risk.level, notificationConfig])
 
   return (
     <Stack spacing={2}>
       <Typography variant="h5">{zhCN.pages.overview.label}</Typography>
+      <DashboardDisclaimer />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
         <Card variant="outlined" sx={{ borderRadius: 3 }}>
@@ -190,30 +216,23 @@ export function OverviewPage() {
 
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
-          <Stack spacing={1}>
+          <Stack spacing={1.5}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="overline">风险提示</Typography>
-              <Chip
-                label={riskLabel(risk.level)}
-                size="small"
-                color={riskColor(risk.level)}
-              />
+              <Chip label={`${sortedItems.length} 项`} size="small" color={sortedItems.length > 0 ? 'warning' : 'success'} />
             </Box>
             <Typography variant="caption" color="text.secondary">
               {zhCN.overview.risk.localOnly}
             </Typography>
-            {sortedItems.length > 0 && (
-              <Stack spacing={0.5}>
-                {sortedItems.map((item, idx) => (
-                  <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                    <Typography variant="body2" sx={{ flex: 1 }}>{item.title}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ flex: 2, textAlign: 'right' }}>
-                      {riskRuleLabel(item.rule) ? `规则：${riskRuleLabel(item.rule)} · ${item.detail}` : item.detail}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            )}
+            <RiskLevelIndicator level={risk.level} />
+            <Stack spacing={1}>
+              {riskGroups.map((group) => (
+                <Box key={group.key}>
+                  <RiskGroupCard title={group.title} icon={group.icon} items={group.items} />
+                  {group.items.length === 0 && <EmptyRiskGroup message={group.emptyMessage} />}
+                </Box>
+              ))}
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

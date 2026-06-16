@@ -8,6 +8,7 @@ interface NotificationConfigState {
   loaded: boolean
   setConfig: (config: NotificationConfig | null) => void
   initialize: () => Promise<void>
+  updateEnabled: (enabled: boolean) => Promise<void>
   updateTripExpiryEnabled: (enabled: boolean) => Promise<void>
   updateTripExpiryLeadMinutes: (minutes: 1 | 5 | 10 | 15) => Promise<void>
   updateRiskElevatedEnabled: (enabled: boolean) => Promise<void>
@@ -21,7 +22,15 @@ export const useNotificationConfigStore = create<NotificationConfigState>((set, 
 
   initialize: async () => {
     const saved = await loadNotificationConfig()
+    if (get().loaded) return
     set({ config: mergeNotificationConfig(saved), loaded: true })
+  },
+
+  updateEnabled: async (enabled) => {
+    const current = get().config ?? DEFAULT_NOTIFICATION_CONFIG
+    const updated: NotificationConfig = { ...current, enabled }
+    set({ config: updated, loaded: true })
+    await saveNotificationConfig(updated)
   },
 
   updateTripExpiryEnabled: async (enabled) => {
@@ -30,8 +39,8 @@ export const useNotificationConfigStore = create<NotificationConfigState>((set, 
       ...current,
       tripExpiring: { ...current.tripExpiring, enabled },
     }
+    set({ config: updated, loaded: true })
     await saveNotificationConfig(updated)
-    set({ config: updated })
   },
 
   updateTripExpiryLeadMinutes: async (minutes) => {
@@ -40,8 +49,8 @@ export const useNotificationConfigStore = create<NotificationConfigState>((set, 
       ...current,
       tripExpiring: { ...current.tripExpiring, leadMinutes: minutes },
     }
+    set({ config: updated, loaded: true })
     await saveNotificationConfig(updated)
-    set({ config: updated })
   },
 
   updateRiskElevatedEnabled: async (enabled) => {
@@ -50,7 +59,7 @@ export const useNotificationConfigStore = create<NotificationConfigState>((set, 
       ...current,
       riskElevated: { ...current.riskElevated, enabled },
     }
+    set({ config: updated, loaded: true })
     await saveNotificationConfig(updated)
-    set({ config: updated })
   },
 }))

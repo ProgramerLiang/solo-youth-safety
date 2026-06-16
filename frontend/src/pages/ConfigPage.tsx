@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Typography, Card, CardContent, TextField, Button, Chip, Box,
-  Alert, Snackbar, Switch, FormControlLabel,
+  Alert, Snackbar, Switch, FormControlLabel, Checkbox,
 } from '@mui/material'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
+import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 import type { GeofenceZone } from '../domain/geofence'
 import {
   renderTemplate, getDefaultTemplate, getSimpleTemplate,
@@ -22,6 +23,7 @@ import type { StartupPermissionEntry, StartupPermissionStatus } from '../native/
 import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
 import type { RiskRuleConfig } from '../domain/riskRules'
 import { loadRiskRuleConfig, saveRiskRuleConfig } from '../data/riskRuleRepo'
+import { DEFAULT_NOTIFICATION_CONFIG } from '../domain/notificationChannels'
 
 function permissionChipColor(state: StartupPermissionEntry['state']): 'success' | 'warning' | 'default' | 'error' {
   if (state === 'granted' || state === 'notRequired') return 'success'
@@ -40,6 +42,13 @@ function permissionStateLabel(state: StartupPermissionEntry['state']): string {
     unknown: '未知',
   }
   return labels[state]
+}
+
+function parseNotificationLeadMinutes(value: string): 1 | 5 | 10 | 15 {
+  if (value === '1') return 1
+  if (value === '10') return 10
+  if (value === '15') return 15
+  return 5
 }
 
 function PermissionRow({
@@ -91,6 +100,14 @@ export function ConfigPage() {
   const addZone = useGeofenceStore((s) => s.addZone)
   const removeZone = useGeofenceStore((s) => s.removeZone)
 
+  const notificationConfig = useNotificationConfigStore((s) => s.config)
+  const notificationLoaded = useNotificationConfigStore((s) => s.loaded)
+  const initializeNotificationConfig = useNotificationConfigStore((s) => s.initialize)
+  const updateNotificationEnabled = useNotificationConfigStore((s) => s.updateEnabled)
+  const updateTripExpiryEnabled = useNotificationConfigStore((s) => s.updateTripExpiryEnabled)
+  const updateTripExpiryLeadMinutes = useNotificationConfigStore((s) => s.updateTripExpiryLeadMinutes)
+  const updateRiskElevatedEnabled = useNotificationConfigStore((s) => s.updateRiskElevatedEnabled)
+
   const [showSaved, setShowSaved] = useState(false)
   const [newZoneLabel, setNewZoneLabel] = useState('')
   const [newZoneLat, setNewZoneLat] = useState('')
@@ -111,6 +128,10 @@ export function ConfigPage() {
   useEffect(() => {
     loadRiskRuleConfig().then(setRiskRules)
   }, [])
+
+  useEffect(() => {
+    if (!notificationLoaded) initializeNotificationConfig()
+  }, [notificationLoaded, initializeNotificationConfig])
 
   const handleRequestLocationPermission = async () => {
     await requestStartupLocationPermission()
@@ -148,6 +169,8 @@ export function ConfigPage() {
     setNewZoneLng('')
     setNewZoneRadius('200')
   }
+
+  const effectiveNotificationConfig = notificationConfig ?? DEFAULT_NOTIFICATION_CONFIG
 
   const previewText = renderTemplate(smsTemplate, {
     userId: 'user_example',
@@ -287,6 +310,58 @@ export function ConfigPage() {
               <Button size="small" variant="contained" onClick={handleSaveRiskRules}>保存风险规则</Button>
               {riskRulesSaved && <Chip label="风险规则已保存" size="small" color="success" />}
             </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="overline">本地通知</Typography>
+          <Alert severity="info" sx={{ mt: 1, mb: 1.5 }}>
+            通知仅为本机提醒，不承诺后台、熄屏或 force-stop 后送达。
+          </Alert>
+          <Stack spacing={1.5}>
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={effectiveNotificationConfig.enabled}
+                  onChange={(event) => void updateNotificationEnabled(event.target.checked)}
+                />
+              )}
+              label="启用本地通知"
+            />
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={effectiveNotificationConfig.tripExpiring.enabled}
+                  onChange={(event) => void updateTripExpiryEnabled(event.target.checked)}
+                />
+              )}
+              label="行程超时提醒"
+            />
+            <TextField
+              select
+              SelectProps={{ native: true }}
+              label="行程通知提前时间（分钟）"
+              size="small"
+              value={String(effectiveNotificationConfig.tripExpiring.leadMinutes)}
+              onChange={(e) => void updateTripExpiryLeadMinutes(parseNotificationLeadMinutes(e.target.value))}
+              sx={{ maxWidth: 260 }}
+            >
+              <option value="1">1</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+            </TextField>
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={effectiveNotificationConfig.riskElevated.enabled}
+                  onChange={(event) => void updateRiskElevatedEnabled(event.target.checked)}
+                />
+              )}
+              label="风险变化提醒"
+            />
           </Stack>
         </CardContent>
       </Card>

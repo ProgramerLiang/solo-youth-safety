@@ -3,6 +3,9 @@ import type { SafetyTrip } from '../domain/safetyTrip'
 
 type PermissionResult = 'granted' | 'denied' | 'prompt'
 
+const LAST_RISK_NOTIFICATION_AT_KEY = 'safety_v2_last_risk_notification_at'
+const RISK_NOTIFICATION_COOLDOWN_MS = 30 * 60_000
+
 export async function requestNotificationPermission(): Promise<PermissionResult> {
   try {
     const result = await LocalNotifications.requestPermissions()
@@ -35,21 +38,48 @@ export async function scheduleTripExpiryNotification(trip: SafetyTrip, leadMinut
 }
 
 export async function scheduleRiskNotification(): Promise<string> {
+  const now = Date.now()
+  const lastScheduledAt = loadLastRiskNotificationAt()
+  if (lastScheduledAt !== null && now - lastScheduledAt < RISK_NOTIFICATION_COOLDOWN_MS) return ''
+
   try {
     const result = await LocalNotifications.schedule({
       notifications: [
         {
           title: '安全提示',
           body: '检测到新的本地安全提示，请查看总览页。仅本地提醒，不自动报警。',
-          schedule: { at: new Date(Date.now() + 5000) },
+          schedule: { at: new Date(now + 5000) },
           id: generateNumericId(),
         },
       ],
     })
     const numericId = result.notifications?.[0]?.id
-    return numericId != null ? `risk-elevated-${numericId}` : ''
+    if (numericId == null) return ''
+    saveLastRiskNotificationAt(now)
+    return `risk-elevated-${numericId}`
   } catch {
     return ''
+  }
+}
+
+function loadLastRiskNotificationAt(): number | null {
+  try {
+    if (typeof localStorage === 'undefined') return null
+    const raw = localStorage.getItem(LAST_RISK_NOTIFICATION_AT_KEY)
+    if (!raw) return null
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function saveLastRiskNotificationAt(timestampMs: number): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(LAST_RISK_NOTIFICATION_AT_KEY, String(timestampMs))
+  } catch {
+    // silent
   }
 }
 

@@ -2,12 +2,14 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { OverviewPage } from '../pages/OverviewPage'
 import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 import { saveCurrentSafetyTrip } from '../data/safetyTripRepo'
 import type { SafetyTrip } from '../domain/safetyTrip'
 
 beforeEach(() => {
   localStorage.clear()
   useSafetyTripStore.setState({ current: null, history: [], loaded: true })
+  useNotificationConfigStore.setState({ config: null, loaded: true })
 })
 
 describe('OverviewPage', () => {
@@ -25,6 +27,15 @@ describe('OverviewPage', () => {
     render(<OverviewPage />)
     expect(screen.getByText('风险提示')).toBeInTheDocument()
     expect(screen.getByText('仅基于本机数据提示，不会自动触发 SOS。')).toBeInTheDocument()
+  })
+
+  it('renders the polished dashboard disclaimer and risk groups', () => {
+    render(<OverviewPage />)
+
+    expect(screen.getByText('所有提示仅本地生成，不会自动通知联系人或触发 SOS。')).toBeInTheDocument()
+    expect(screen.getByText('配置风险')).toBeInTheDocument()
+    expect(screen.getByText('轨迹追踪正常')).toBeInTheDocument()
+    expect(screen.getByText('暂无围栏事件')).toBeInTheDocument()
   })
 })
 

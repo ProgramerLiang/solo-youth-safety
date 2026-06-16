@@ -14,6 +14,7 @@ vi.mock('../native/permissions', () => permissionMock)
 import { ConfigPage } from '../pages/ConfigPage'
 import { buildTheme } from '../theme/createTheme'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
+import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 
 function emotionStyleText(): string {
   return Array.from(document.querySelectorAll('style[data-emotion]'))
@@ -37,6 +38,7 @@ beforeEach(() => {
   vi.stubGlobal('__APP_VERSION__', '0.4.24-test')
   localStorage.clear()
   useGeofenceStore.setState({ zones: [], loaded: true })
+  useNotificationConfigStore.setState({ config: null, loaded: false })
   permissionMock.getStartupPermissionStatus.mockResolvedValue({
     native: true,
     location: { state: 'denied', detail: '定位权限未授权' },
@@ -193,5 +195,29 @@ describe('ConfigPage risk rule center', () => {
 
     fireEvent.change(screen.getByLabelText('长间断阈值（分钟）'), { target: { value: '90' } })
     expect(screen.queryByText('风险规则已保存')).not.toBeInTheDocument()
+  })
+})
+
+describe('ConfigPage local notifications', () => {
+  it('shows local notification controls and safety boundary copy', async () => {
+    render(<ConfigPage />)
+
+    expect(await screen.findByText('本地通知')).toBeInTheDocument()
+    expect(screen.getByLabelText('启用本地通知')).toBeChecked()
+    expect(screen.getByLabelText('行程超时提醒')).toBeChecked()
+    expect(screen.getByLabelText('风险变化提醒')).toBeChecked()
+    expect(screen.getByLabelText('行程通知提前时间（分钟）')).toHaveValue('5')
+    expect(screen.getByText('通知仅为本机提醒，不承诺后台、熄屏或 force-stop 后送达。')).toBeInTheDocument()
+  })
+
+  it('persists local notification edits', async () => {
+    render(<ConfigPage />)
+    await screen.findByText('本地通知')
+
+    fireEvent.click(screen.getByLabelText('启用本地通知'))
+    fireEvent.change(screen.getByLabelText('行程通知提前时间（分钟）'), { target: { value: '10' } })
+
+    await waitFor(() => expect(useNotificationConfigStore.getState().config?.enabled).toBe(false))
+    expect(useNotificationConfigStore.getState().config?.tripExpiring.leadMinutes).toBe(10)
   })
 })

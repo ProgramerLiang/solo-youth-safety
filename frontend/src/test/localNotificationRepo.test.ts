@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import type { SafetyTrip } from '../domain/safetyTrip'
 
 // --- mock @capacitor/local-notifications ---
@@ -35,6 +35,11 @@ const trip: SafetyTrip = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('requestNotificationPermission', () => {
@@ -53,6 +58,8 @@ describe('requestNotificationPermission', () => {
 
 describe('scheduleTripExpiryNotification', () => {
   it('schedules a notification with correct timing and returns id', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'))
     vi.mocked(LocalNotifications.schedule).mockResolvedValue({ notifications: [{ id: 42 }] } as ScheduleResult)
     const id = await scheduleTripExpiryNotification(trip, 5)
     expect(id).toBe('trip-expiry-42')
@@ -78,6 +85,19 @@ describe('scheduleRiskNotification', () => {
     expect(LocalNotifications.schedule).toHaveBeenCalledTimes(1)
     const call = vi.mocked(LocalNotifications.schedule).mock.calls[0]![0]
     expect(call.notifications[0].body).toContain('仅本地提醒')
+  })
+
+  it('does not schedule another risk notification within 30 minutes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'))
+    vi.mocked(LocalNotifications.schedule).mockResolvedValue({ notifications: [{ id: 100 }] } as ScheduleResult)
+
+    const first = await scheduleRiskNotification()
+    const second = await scheduleRiskNotification()
+
+    expect(first).toBe('risk-elevated-100')
+    expect(second).toBe('')
+    expect(LocalNotifications.schedule).toHaveBeenCalledTimes(1)
   })
 })
 
