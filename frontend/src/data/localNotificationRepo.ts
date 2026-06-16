@@ -85,7 +85,9 @@ function saveLastRiskNotificationAt(timestampMs: number): void {
 
 export async function cancelNotification(notificationId: string): Promise<void> {
   const parts = notificationId.split('-')
-  const numericId = parseInt(parts[parts.length - 1], 10)
+  const idPart = parts[parts.length - 1]
+  if (!idPart) return
+  const numericId = parseInt(idPart, 10)
   if (isNaN(numericId)) return
   try {
     await LocalNotifications.cancel({ notifications: [{ id: numericId }] })

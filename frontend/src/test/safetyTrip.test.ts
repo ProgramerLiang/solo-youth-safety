@@ -116,7 +116,7 @@ describe('summarizeSafetyTripForDiagnostics', () => {
       status: 'active',
       events: [],
     }
-    const summary = summarizeSafetyTripForDiagnostics(trip)
+    const summary = summarizeSafetyTripForDiagnostics(trip, NOW)
     const text = JSON.stringify(summary)
     expect(text).not.toContain('回宿舍')
     expect(text).not.toContain('从地铁站走回')

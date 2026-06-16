@@ -4,7 +4,7 @@ import type { SafetyTrip } from '../domain/safetyTrip'
 // --- mock @capacitor/local-notifications ---
 type PermissionResult = { display: 'granted' | 'denied' | 'prompt' }
 type ScheduleResult = { notifications: { id: number }[] }
-type PendingResult = { notifications: { id: number }[] }
+type PendingResult = { notifications: { id: number; title: string; body: string }[] }
 
 vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: {
@@ -42,6 +42,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+function firstScheduledNotification() {
+  const call = vi.mocked(LocalNotifications.schedule).mock.calls[0]?.[0]
+  const notification = call?.notifications[0]
+  expect(notification).toBeDefined()
+  return notification!
+}
+
 describe('requestNotificationPermission', () => {
   it('returns granted when permission is granted', async () => {
     vi.mocked(LocalNotifications.requestPermissions).mockResolvedValue({ display: 'granted' } as PermissionResult)
@@ -64,10 +71,10 @@ describe('scheduleTripExpiryNotification', () => {
     const id = await scheduleTripExpiryNotification(trip, 5)
     expect(id).toBe('trip-expiry-42')
     expect(LocalNotifications.schedule).toHaveBeenCalledTimes(1)
-    const call = vi.mocked(LocalNotifications.schedule).mock.calls[0]![0]
-    expect(call.notifications[0].title).toContain('安全行程')
-    expect(call.notifications[0].body).toContain('回宿舍')
-    expect(call.notifications[0].body).toContain('仅本地提醒')
+    const notification = firstScheduledNotification()
+    expect(notification.title).toContain('安全行程')
+    expect(notification.body).toContain('回宿舍')
+    expect(notification.body).toContain('仅本地提醒')
   })
 
   it('does not throw when schedule fails', async () => {
@@ -83,8 +90,8 @@ describe('scheduleRiskNotification', () => {
     const id = await scheduleRiskNotification()
     expect(id).toBe('risk-elevated-99')
     expect(LocalNotifications.schedule).toHaveBeenCalledTimes(1)
-    const call = vi.mocked(LocalNotifications.schedule).mock.calls[0]![0]
-    expect(call.notifications[0].body).toContain('仅本地提醒')
+    const notification = firstScheduledNotification()
+    expect(notification.body).toContain('仅本地提醒')
   })
 
   it('does not schedule another risk notification within 30 minutes', async () => {
@@ -115,8 +122,9 @@ describe('cancelNotification', () => {
 
 describe('cancelAllTripNotifications', () => {
   it('cancels all pending notifications', async () => {
-    vi.mocked(LocalNotifications.getPending).mockResolvedValue({ notifications: [{ id: 1 }, { id: 2 }] } as PendingResult)
+    const pending: PendingResult = { notifications: [{ id: 1, title: 't1', body: 'b1' }, { id: 2, title: 't2', body: 'b2' }] }
+    vi.mocked(LocalNotifications.getPending).mockResolvedValue(pending)
     await cancelAllTripNotifications()
-    expect(LocalNotifications.cancel).toHaveBeenCalledWith({ notifications: [{ id: 1 }, { id: 2 }] })
+    expect(LocalNotifications.cancel).toHaveBeenCalledWith({ notifications: pending.notifications })
   })
 })

@@ -28,15 +28,17 @@ import { zhCN } from '../i18n/zh-CN'
 
 const RISK_LEVEL_SEVERITY: Record<RiskLevel, number> = { ok: 0, attention: 1, warning: 2 }
 
+type RiskGroupKey = 'trace' | 'config' | 'geofence' | 'safetyTrip' | 'other'
+
 interface RiskGroup {
-  key: string
+  key: RiskGroupKey
   title: string
   icon: string
   emptyMessage: string
   items: RiskItem[]
 }
 
-function riskGroupKey(rule: string | undefined): string {
+function riskGroupKey(rule: string | undefined): RiskGroupKey {
   if (rule === 'geofence') return 'geofence'
   if (rule === 'safetyTrip') return 'safetyTrip'
   if (rule === 'configCompleteness' || rule === 'locationFreshness') return 'config'
@@ -45,7 +47,7 @@ function riskGroupKey(rule: string | undefined): string {
 }
 
 function groupRiskItems(items: RiskItem[]): RiskGroup[] {
-  const groups: Record<string, RiskGroup> = {
+  const groups: Record<RiskGroupKey, RiskGroup> = {
     trace: { key: 'trace', title: '轨迹风险', icon: '轨', emptyMessage: '轨迹追踪正常', items: [] },
     config: { key: 'config', title: '配置风险', icon: '配', emptyMessage: '配置完整', items: [] },
     geofence: { key: 'geofence', title: '围栏风险', icon: '围', emptyMessage: '暂无围栏事件', items: [] },
