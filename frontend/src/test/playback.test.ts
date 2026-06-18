@@ -56,4 +56,10 @@ describe('buildPlaybackRoute', () => {
     expect(route.points).toHaveLength(1)
     expect(route.points[0]?.role).toBe('start')
   })
+  it('computes speedKmh for consecutive tracking points', () => {
+    const route = buildPlaybackRoute([firstPoint, secondPoint], [])
+    const second = route.points.find((p) => p.label === '结束点')
+    expect(second?.speedKmh).toBeDefined()
+    expect(typeof second?.speedKmh).toBe('number')
+  })
 })

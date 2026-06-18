@@ -1,4 +1,5 @@
 import type { SosResult, TrackingPoint } from '../types'
+import { getEffectiveSpeedKmh } from './movementAnalysis'
 
 export type PlaybackPointRole = 'start' | 'tracking' | 'sos' | 'end'
 
@@ -20,6 +21,7 @@ export interface PlaybackPoint {
   detail: string
   source: 'tracking' | 'sos'
   status?: string
+  speedKmh?: number
 }
 
 export interface PlaybackRoute {
@@ -117,6 +119,13 @@ export function buildPlaybackRoute(trackingPoints: TrackingPoint[], sosHistory: 
   const tracking = trackingPoints.map(toTrackingPoint).filter((point): point is PlaybackPoint => point !== null)
   const sos = sosHistory.map(toSosPoint).filter((point): point is PlaybackPoint => point !== null)
   const points = applyEndpointRoles([...tracking, ...sos].sort((a, b) => a.timestamp - b.timestamp))
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    if (prev && curr) {
+      curr.speedKmh = getEffectiveSpeedKmh(prev, curr)
+    }
+  }
   const startedAt = points[0]?.timestamp ?? null
   const endedAt = points[points.length - 1]?.timestamp ?? null
   return {
