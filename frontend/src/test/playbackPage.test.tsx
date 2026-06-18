@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { PlaybackPage } from '../pages/PlaybackPage'
 import { createInitialResult, advanceStage, computeFinalStatus, updateStepTone } from '../domain/sosState'
 import { useTrackingStore } from '../stores/useTrackingStore'
@@ -82,5 +82,30 @@ describe('PlaybackPage', () => {
     expect(screen.getByText(/总位移/)).toBeInTheDocument()
     expect(screen.getByText(/均速/)).toBeInTheDocument()
     expect(screen.getByText(/极速/)).toBeInTheDocument()
+  })
+
+  it('shows zoom controls with +/- buttons', () => {
+    useTrackingStore.setState({ history: [secondPoint, firstPoint] })
+    render(<PlaybackPage />)
+    expect(screen.getByLabelText('放大')).toBeInTheDocument()
+    expect(screen.getByLabelText('缩小')).toBeInTheDocument()
+  })
+
+  it('shows point detail popup on click', () => {
+    useTrackingStore.setState({ history: [secondPoint, firstPoint] })
+    render(<PlaybackPage />)
+    const startLabel = screen.getByText('起')
+    fireEvent.click(startLabel)
+    expect(screen.getByText(/点位详情/)).toBeInTheDocument()
+    expect(screen.getByText(/纬度:/)).toBeInTheDocument()
+    expect(screen.getByText(/经度:/)).toBeInTheDocument()
+  })
+
+  it('shows speed legend with color ranges', () => {
+    useTrackingStore.setState({ history: [secondPoint, firstPoint] })
+    render(<PlaybackPage />)
+    expect(screen.getByText(/低速/)).toBeInTheDocument()
+    expect(screen.getByText(/中速/)).toBeInTheDocument()
+    expect(screen.getByText(/高速/)).toBeInTheDocument()
   })
 })

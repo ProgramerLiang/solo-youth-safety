@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material'
+import { IconButton, Popover } from '@mui/material'
 import { EmptyState } from '../components/EmptyState'
 import { buildPlaybackRoute, type PlaybackBounds, type PlaybackPoint, type PlaybackPointRole } from '../domain/playback'
 import { computeMovementSummary } from '../domain/movementAnalysis'
@@ -57,6 +59,20 @@ function markerLabel(point: PlaybackPoint): string {
   return '•'
 }
 
+function speedColor(speedKmh: number | undefined): string {
+  if (speedKmh == null) return 'primary.main'
+  if (speedKmh < 5) return 'success.main'
+  if (speedKmh <= 30) return 'warning.main'
+  return 'error.main'
+}
+
+function speedLabel(speedKmh: number | undefined): string {
+  if (speedKmh == null) return '-'
+  if (speedKmh < 5) return '低速'
+  if (speedKmh <= 30) return '中速'
+  return '高速'
+}
+
 export function PlaybackPage() {
   const trackingHistory = useTrackingStore((s) => s.history)
   const sosHistory = useSosStore((s) => s.history)
@@ -65,6 +81,9 @@ export function PlaybackPage() {
   const risk = assessMovementRisk(trackingHistory, sosHistory)
   const geofenceZones = useGeofenceStore((s) => s.zones)
   const geofenceEvents = routeGeofenceEvents(geofenceZones, trackingHistory)
+  const [zoom, setZoom] = useState(1)
+  const [selectedPoint, setSelectedPoint] = useState<PlaybackPoint | null>(null)
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   return (
     <Stack spacing={2}>
@@ -266,21 +285,55 @@ export function PlaybackPage() {
                   borderColor: 'divider',
                 }}
               >
+                <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="放大"
+                    onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
+                    sx={{ bgcolor: 'background.paper' }}
+                  >
+                    <Typography variant="body2" fontWeight="bold">+</Typography>
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    aria-label="缩小"
+                    onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
+                    sx={{ bgcolor: 'background.paper' }}
+                  >
+                    <Typography variant="body2" fontWeight="bold">-</Typography>
+                  </IconButton>
+                  <Chip label={`${zoom.toFixed(2)}x`} size="small" sx={{ bgcolor: 'background.paper' }} />
+                </Stack>
                 <Box
                   sx={{
                     position: 'absolute',
-                    inset: 24,
-                    border: '1px dashed',
-                    borderColor: 'divider',
-                    borderRadius: 2,
+                    inset: 0,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                    width: `${100 / zoom}%`,
+                    height: `${100 / zoom}%`,
                   }}
-                />
-                {route.points.map((point) => {
-                  const tone = roleTone[point.role]
-                  const position = markerPosition(point, route.bounds)
-                  return (
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 24,
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                    }}
+                  />
+                  {route.points.map((point) => {
+                    const tone = roleTone[point.role]
+                    const position = markerPosition(point, route.bounds)
+                    const bgColor = point.source === 'tracking' && point.speedKmh != null ? speedColor(point.speedKmh) : tone.bg
+                    return (
                     <Box
                       key={point.id}
+                      onClick={(event) => {
+                        setSelectedPoint(point)
+                        setAnchorEl(event.currentTarget)
+                      }}
                       sx={{
                         position: 'absolute',
                         left: position.left,
@@ -290,6 +343,7 @@ export function PlaybackPage() {
                         flexDirection: 'column',
                         alignItems: 'center',
                         gap: 0.5,
+                        cursor: 'pointer',
                       }}
                     >
                       <Box
@@ -299,7 +353,7 @@ export function PlaybackPage() {
                           borderRadius: '999px',
                           display: 'grid',
                           placeItems: 'center',
-                          bgcolor: tone.bg,
+                          bgcolor: bgColor,
                           color: tone.fg,
                           border: '2px solid',
                           borderColor: 'background.paper',
@@ -324,9 +378,59 @@ export function PlaybackPage() {
                         {tone.label}
                       </Typography>
                     </Box>
-                  )
-                })}
+                    )
+                  })}
+                </Box>
               </Box>
+            </CardContent>
+          </Card>
+
+          <Popover
+            open={selectedPoint !== null}
+            anchorEl={anchorEl}
+            onClose={() => setSelectedPoint(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            {selectedPoint && (
+              <Box sx={{ p: 2, minWidth: 220 }}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    点位详情 · {roleTone[selectedPoint.role].label}
+                  </Typography>
+                  <Typography variant="body2">时间: {formatTime(selectedPoint.timestamp)}</Typography>
+                  <Typography variant="body2">纬度: {selectedPoint.lat.toFixed(5)}</Typography>
+                  <Typography variant="body2">经度: {selectedPoint.lng.toFixed(5)}</Typography>
+                  {selectedPoint.accuracy != null && (
+                    <Typography variant="body2">精度: {selectedPoint.accuracy} m</Typography>
+                  )}
+                  <Typography variant="body2">来源: {selectedPoint.source === 'tracking' ? '轨迹采样' : 'SOS 事件'}</Typography>
+                  {selectedPoint.speedKmh != null && (
+                    <Typography variant="body2">速度: {selectedPoint.speedKmh.toFixed(1)} km/h · {speedLabel(selectedPoint.speedKmh)}</Typography>
+                  )}
+                  <Typography variant="body2">{selectedPoint.detail}</Typography>
+                </Stack>
+              </Box>
+            )}
+          </Popover>
+
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="overline">速度图例</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={1}>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main' }} />
+                  <Typography variant="caption">低速 (&lt;5 km/h)</Typography>
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.main' }} />
+                  <Typography variant="caption">中速 (5-30 km/h)</Typography>
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'error.main' }} />
+                  <Typography variant="caption">高速 (&gt;30 km/h)</Typography>
+                </Stack>
+              </Stack>
             </CardContent>
           </Card>
 
