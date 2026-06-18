@@ -115,6 +115,15 @@ function applyEndpointRoles(points: PlaybackPoint[]): PlaybackPoint[] {
   return next
 }
 
+function toSpeedInput(point: PlaybackPoint): TrackingPoint {
+  return {
+    lat: point.lat,
+    lng: point.lng,
+    accuracy: point.accuracy ?? 0,
+    timestamp: point.timestamp,
+  }
+}
+
 export function buildPlaybackRoute(trackingPoints: TrackingPoint[], sosHistory: SosResult[]): PlaybackRoute {
   const tracking = trackingPoints.map(toTrackingPoint).filter((point): point is PlaybackPoint => point !== null)
   const sos = sosHistory.map(toSosPoint).filter((point): point is PlaybackPoint => point !== null)
@@ -123,7 +132,7 @@ export function buildPlaybackRoute(trackingPoints: TrackingPoint[], sosHistory: 
     const prev = points[i - 1]
     const curr = points[i]
     if (prev && curr) {
-      curr.speedKmh = getEffectiveSpeedKmh(prev, curr)
+      curr.speedKmh = getEffectiveSpeedKmh(toSpeedInput(prev), toSpeedInput(curr))
     }
   }
   const startedAt = points[0]?.timestamp ?? null
