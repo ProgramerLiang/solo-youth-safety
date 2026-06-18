@@ -8,6 +8,7 @@ export type PageId =
   | 'contacts'
   | 'theme'
   | 'tools'
+  | 'tripHistory'
 
 export const ALL_PAGE_IDS: PageId[] = [
   'overview',
@@ -19,6 +20,7 @@ export const ALL_PAGE_IDS: PageId[] = [
   'contacts',
   'theme',
   'tools',
+  'tripHistory',
 ]
 
 

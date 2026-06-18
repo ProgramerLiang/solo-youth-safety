@@ -18,6 +18,7 @@ import { ConfigPage } from './pages/ConfigPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { ThemePage } from './pages/ThemePage'
 import { ToolsPage } from './pages/ToolsPage'
+import { TripHistoryPage } from './pages/TripHistoryPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { PageId } from './types'
 
@@ -31,6 +32,7 @@ const pageMap: Record<PageId, React.ReactElement> = {
   contacts: <ContactsPage />,
   theme: <ThemePage />,
   tools: <ToolsPage />,
+  tripHistory: <TripHistoryPage />,
 }
 
 export function App() {

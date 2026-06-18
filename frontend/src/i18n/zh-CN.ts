@@ -12,6 +12,7 @@ export const zhCN = {
     contacts: { label: '联系人' },
     theme: { label: '主题' },
     tools: { label: '工具' },
+    tripHistory: { label: '行程历史' },
   },
 
   actions: {
