@@ -1,14 +1,7 @@
 import { create } from 'zustand'
 import type { PrivacyLockConfig } from '../types'
 import { loadPrivacyLockConfig, savePrivacyLockConfig } from '../data/privacyLockRepo'
-
-async function hashPin(pin: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(pin)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
-}
+import { verifyPin } from '../domain/privacyLock'
 
 interface PrivacyLockState {
   locked: boolean
@@ -31,7 +24,7 @@ export const usePrivacyLockStore = create<PrivacyLockState>((set, get) => ({
 
   initialize: async () => {
     const config = await loadPrivacyLockConfig()
-    set({ config, loaded: true })
+    set({ config, loaded: true, locked: config?.enabled === true })
   },
 
   setConfig: async (config: PrivacyLockConfig) => {
@@ -40,15 +33,14 @@ export const usePrivacyLockStore = create<PrivacyLockState>((set, get) => ({
   },
 
   lock: () => {
+    get().clearTimer()
     set({ locked: true })
-    get().startBackgroundTimer()
   },
 
   unlock: async (pin: string) => {
     const { config } = get()
-    if (!config) return false
-    const hash = await hashPin(pin)
-    if (hash === config.pinHash) {
+    if (!config || !config.enabled || !config.pinHash) return false
+    if (verifyPin(pin, config.pinHash)) {
       get().clearTimer()
       set({ locked: false })
       return true

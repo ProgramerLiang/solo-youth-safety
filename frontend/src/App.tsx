@@ -8,6 +8,7 @@ import { useSosStore } from './stores/useSosStore'
 import { useTrackingStore } from './stores/useTrackingStore'
 import { useContactsStore } from './stores/useContactsStore'
 import { useGeofenceStore } from './stores/useGeofenceStore'
+import { usePrivacyLockStore } from './stores/usePrivacyLockStore'
 import { AppShell } from './shell/AppShell'
 import { OverviewPage } from './pages/OverviewPage'
 import { SosPage } from './pages/SosPage'
@@ -44,6 +45,7 @@ export function App() {
   const initTracking = useTrackingStore((s) => s.initialize)
   const initContacts = useContactsStore((s) => s.initialize)
   const initGeofence = useGeofenceStore((s) => s.initialize)
+  const initPrivacyLock = usePrivacyLockStore((s) => s.initialize)
   const onboardingDone = useConfigStore((s) => s.onboardingDone)
 
   const { activePageId, navigate } = useHashRouter(onboardingDone)
@@ -57,7 +59,8 @@ export function App() {
     initTracking()
     initContacts()
     initGeofence()
-  }, [initIdentity, loadThemePrefs, initDevMode, initConfig, initSos, initTracking, initContacts, initGeofence])
+    initPrivacyLock()
+  }, [initIdentity, loadThemePrefs, initDevMode, initConfig, initSos, initTracking, initContacts, initGeofence, initPrivacyLock])
 
   return (
     <ErrorBoundary>
