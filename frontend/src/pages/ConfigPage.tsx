@@ -418,6 +418,92 @@ export function ConfigPage() {
         </CardContent>
       </Card>
 
+      {/* Trip Presets */}
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="overline">{zhCN.tripPreset.title}</Typography>
+          <Stack spacing={1} mt={1}>
+            {tripPresets.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                {zhCN.tripPreset.noPresets}
+              </Typography>
+            ) : (
+              tripPresets.map((preset) => (
+                <Stack
+                  key={preset.id}
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ gap: 1, flexWrap: 'wrap' }}
+                >
+                  <Typography variant="body2" sx={{ flex: '1 1 180px', minWidth: 0 }}>
+                    {preset.destination} · {preset.durationMinutes} 分钟
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={() => handleOpenPresetDialog(preset.id)}
+                    >
+                      {zhCN.tripPreset.edit}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="text"
+                      color="error"
+                      onClick={() => handleDeletePreset(preset.id)}
+                    >
+                      {zhCN.tripPreset.delete}
+                    </Button>
+                  </Stack>
+                </Stack>
+              ))
+            )}
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => handleOpenPresetDialog()}
+              sx={{ mt: 1 }}
+            >
+              {zhCN.tripPreset.add}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Dialog open={presetDialogOpen} onClose={handleClosePresetDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          {editingPresetId ? zhCN.tripPreset.edit : zhCN.tripPreset.add}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label={zhCN.tripPreset.destination}
+              value={presetDestination}
+              onChange={(e) => setPresetDestination(e.target.value)}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label={zhCN.tripPreset.duration}
+              value={presetDuration}
+              onChange={(e) => setPresetDuration(e.target.value)}
+              fullWidth
+              size="small"
+              type="number"
+              inputProps={{ min: 1 }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePresetDialog}>{zhCN.tripPreset.cancel}</Button>
+          <Button onClick={handleSavePreset} variant="contained">
+            {zhCN.tripPreset.save}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
           <Typography variant="overline">版本与配置</Typography>
