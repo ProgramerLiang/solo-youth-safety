@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Typography, Card, CardContent, TextField, Button, Chip, Box,
-  Alert, Snackbar, Switch, FormControlLabel, Checkbox,
+  Alert, Snackbar, Switch, FormControlLabel, Checkbox, Dialog, DialogTitle,
+  DialogContent, DialogActions,
 } from '@mui/material'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
@@ -177,6 +178,48 @@ export function ConfigPage() {
     setNewZoneLat('')
     setNewZoneLng('')
     setNewZoneRadius('200')
+  }
+
+  const handleOpenPresetDialog = (presetId?: string) => {
+    if (presetId) {
+      const preset = tripPresets.find((p) => p.id === presetId)
+      if (preset) {
+        setEditingPresetId(presetId)
+        setPresetDestination(preset.destination)
+        setPresetDuration(String(preset.durationMinutes))
+      }
+    } else {
+      setEditingPresetId(null)
+      setPresetDestination('')
+      setPresetDuration('')
+    }
+    setPresetDialogOpen(true)
+  }
+
+  const handleClosePresetDialog = () => {
+    setPresetDialogOpen(false)
+    setEditingPresetId(null)
+    setPresetDestination('')
+    setPresetDuration('')
+  }
+
+  const handleSavePreset = async () => {
+    const duration = parseInt(presetDuration, 10)
+    if (!presetDestination.trim() || isNaN(duration) || duration <= 0) return
+    
+    if (editingPresetId) {
+      await updateTripPreset(editingPresetId, {
+        destination: presetDestination.trim(),
+        durationMinutes: duration,
+      })
+    } else {
+      await addTripPreset(presetDestination.trim(), duration)
+    }
+    handleClosePresetDialog()
+  }
+
+  const handleDeletePreset = async (id: string) => {
+    await removeTripPreset(id)
   }
 
   const effectiveNotificationConfig = notificationConfig ?? DEFAULT_NOTIFICATION_CONFIG
