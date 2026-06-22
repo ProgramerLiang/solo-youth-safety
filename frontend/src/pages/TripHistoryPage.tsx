@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Box, Chip, Collapse, List, ListItem, ListItemText, Stack, Typography } from '@mui/material'
+import { Box, Card, Chip, Collapse, Grid, List, ListItem, ListItemText, Stack, Typography } from '@mui/material'
 import { EmptyState } from '../components/EmptyState'
 import { loadSafetyTripHistory } from '../data/safetyTripRepo'
 import type { SafetyTrip, SafetyTripEventType, SafetyTripStatus } from '../domain/safetyTrip'
+import { computeTripStats } from '../domain/tripStats'
 
 const statusLabel: Record<SafetyTripStatus, string> = {
   active: '进行中',
@@ -62,6 +63,45 @@ export function TripHistoryPage() {
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>
         安全行程历史
       </Typography>
+      {trips.length > 0 && (() => {
+        const stats = computeTripStats(trips)
+        return (
+          <Card sx={{ p: 2, mb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Stack alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">📊</Typography>
+                  <Typography variant="h5" fontWeight="bold">{stats.total}</Typography>
+                  <Typography variant="caption" color="text.secondary">总行程</Typography>
+                </Stack>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Stack alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">⏱️</Typography>
+                  <Typography variant="h5" fontWeight="bold">{stats.avgDurationMinutes}</Typography>
+                  <Typography variant="caption" color="text.secondary">平均时长（分）</Typography>
+                </Stack>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Stack alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">✓</Typography>
+                  <Typography variant="h5" fontWeight="bold">{Math.round(stats.onTimeRate * 100)}%</Typography>
+                  <Typography variant="caption" color="text.secondary">准时率</Typography>
+                </Stack>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Stack alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">📍</Typography>
+                  <Typography variant="body2" fontWeight="bold" sx={{ textAlign: 'center' }}>
+                    {stats.topDestinations.slice(0, 3).map(d => d.destination).join(', ') || '无'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">热门目的地</Typography>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Card>
+        )
+      })()}
       <List>
         {trips.map((trip) => (
           <ListItem

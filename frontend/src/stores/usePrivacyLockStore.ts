@@ -38,7 +38,7 @@ export const usePrivacyLockStore = create<PrivacyLockState>((set, get) => ({
   },
 
   lock: () => {
-    set({ locked: false })
+    set({ locked: true })
     get().startBackgroundTimer()
   },
 

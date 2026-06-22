@@ -163,6 +163,18 @@ export const zhCN = {
     noZones: '暂未设置围栏区域',
   },
 
+  tripPreset: {
+    title: '行程预设',
+    destination: '目的地',
+    duration: '时长（分钟）',
+    add: '添加预设',
+    edit: '编辑',
+    delete: '删除',
+    noPresets: '暂无行程预设',
+    save: '保存',
+    cancel: '取消',
+  },
+
   overview: {
     statusCard: '守护状态',
     sosCard: '最近 SOS',

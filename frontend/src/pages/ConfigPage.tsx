@@ -6,6 +6,7 @@ import {
 import { useConfigStore } from '../stores/useConfigStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
+import { useTripPresetStore } from '../stores/useTripPresetStore'
 import type { GeofenceZone } from '../domain/geofence'
 import {
   renderTemplate, getDefaultTemplate, getSimpleTemplate,
@@ -109,6 +110,14 @@ export function ConfigPage() {
   const updateRiskElevatedEnabled = useNotificationConfigStore((s) => s.updateRiskElevatedEnabled)
 
   const [showSaved, setShowSaved] = useState(false)
+
+  // Trip presets
+  const tripPresets = useTripPresetStore((s) => s.presets)
+  const tripPresetsLoaded = useTripPresetStore((s) => s.loaded)
+  const initializeTripPresets = useTripPresetStore((s) => s.initialize)
+  const addTripPreset = useTripPresetStore((s) => s.add)
+  const updateTripPreset = useTripPresetStore((s) => s.update)
+  const removeTripPreset = useTripPresetStore((s) => s.remove)
   const [newZoneLabel, setNewZoneLabel] = useState('')
   const [newZoneLat, setNewZoneLat] = useState('')
   const [newZoneLng, setNewZoneLng] = useState('')
@@ -124,6 +133,10 @@ export function ConfigPage() {
   useEffect(() => {
     refreshPermissionStatus()
   }, [])
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false)
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
+  const [presetDestination, setPresetDestination] = useState('')
+  const [presetDuration, setPresetDuration] = useState('')
 
   useEffect(() => {
     loadRiskRuleConfig().then(setRiskRules)
@@ -140,6 +153,10 @@ export function ConfigPage() {
 
   const handleRequestBackgroundRunPermission = async () => {
     await requestBackgroundRunPermission()
+
+  useEffect(() => {
+    if (!tripPresetsLoaded) initializeTripPresets()
+  }, [tripPresetsLoaded, initializeTripPresets])
     await refreshPermissionStatus()
   }
 

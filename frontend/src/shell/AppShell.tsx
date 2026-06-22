@@ -1,8 +1,11 @@
+import { useEffect } from 'react'
 import { Box, AppBar, Toolbar, Typography, IconButton, Container } from '@mui/material'
 import type { Theme } from '@mui/material/styles'
 import MenuIcon from '@mui/icons-material/Menu'
 import { useUiStore } from '../stores/useUiStore'
+import { usePrivacyLockStore } from '../stores/usePrivacyLockStore'
 import { NavigationDrawer } from './NavigationDrawer'
+import { PrivacyLockScreen } from '../components/PrivacyLockScreen'
 import { zhCN } from '../i18n/zh-CN'
 import type { PageId } from '../types'
 
@@ -19,7 +22,26 @@ function getShellChrome(theme: Theme): { backgroundColor: string; color: string 
 
 export function AppShell({ activePageId, onNavigate, children }: AppShellProps) {
   const openDrawer = useUiStore((s) => s.openDrawer)
+  const { locked, config, startBackgroundTimer, clearTimer } = usePrivacyLockStore()
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (config?.enabled) {
+          startBackgroundTimer()
+        }
+      } else {
+        clearTimer()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [config?.enabled, startBackgroundTimer, clearTimer])
+
+  if (locked && config?.enabled) {
+    return <PrivacyLockScreen onUnlock={() => {}} />
+  }
   return (
     <Box sx={(theme) => {
       const shell = getShellChrome(theme)

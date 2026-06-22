@@ -10,6 +10,7 @@ import { useContactsStore } from '../stores/useContactsStore'
 import { useTrackingStore } from '../stores/useTrackingStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useTripPresetStore } from '../stores/useTripPresetStore'
 import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 import { deriveSafetyTripStatus } from '../domain/safetyTrip'
 import { useLocationFreshness } from '../hooks/useLocationFreshness'
@@ -83,6 +84,9 @@ export function OverviewPage() {
   const notificationConfig = useNotificationConfigStore((s) => s.config)
   const notificationLoaded = useNotificationConfigStore((s) => s.loaded)
   const notificationInitialize = useNotificationConfigStore((s) => s.initialize)
+  const presets = useTripPresetStore((s) => s.list())
+  const presetLoaded = useTripPresetStore((s) => s.loaded)
+  const presetInitialize = useTripPresetStore((s) => s.initialize)
   const previousRiskLevel = useRef<RiskLevel | null>(null)
   const [tripDialogOpen, setTripDialogOpen] = useState(false)
   const [tripDest, setTripDest] = useState('')
@@ -100,6 +104,10 @@ export function OverviewPage() {
   useEffect(() => {
     if (!notificationLoaded) notificationInitialize()
   }, [notificationLoaded, notificationInitialize])
+
+  useEffect(() => {
+    if (!presetLoaded) presetInitialize()
+  }, [presetLoaded, presetInitialize])
 
   const timestampMs = freshness.timestamp
   const geofenceEvents = useMemo(() => routeGeofenceEvents(geofenceZones, trackHistory), [geofenceZones, trackHistory])
@@ -261,6 +269,28 @@ export function OverviewPage() {
         <DialogTitle>创建安全行程</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {presets.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                  快速选择
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
+                  {presets.map((preset) => (
+                    <Chip
+                      key={preset.id}
+                      label={`${preset.destination} (${preset.durationMinutes}分钟)`}
+                      onClick={() => {
+                        setTripDest(preset.destination)
+                        setTripMinutes(preset.durationMinutes)
+                      }}
+                      size="small"
+                      variant="outlined"
+                      clickable
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            )}
             <TextField
               label="目的地名称"
               value={tripDest}
