@@ -74,7 +74,7 @@ export function computeFinalStatus(result: SosResult): SosResult {
 
 export function createSimulationResult(): SosResult {
   return {
-    stage: 'completed',
+    stage: 'done',
     steps: {
       location: { label: '训练模式 - 模拟定位成功', badge: '\u2713', detail: '模拟定位，未调用系统定位', tone: 'success' },
       persistence: { label: '训练模式 - 模拟记录', badge: '\u2713', detail: '模拟记录，未写入历史', tone: 'success' },
