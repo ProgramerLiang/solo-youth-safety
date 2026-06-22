@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material'
+import { Box, Card, CardContent, Chip, Slider, Stack, Typography } from '@mui/material'
 import { IconButton, Popover } from '@mui/material'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
@@ -472,6 +472,28 @@ export function PlaybackPage() {
                     />
                   ))}
                 </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="overline">时间轴</Typography>
+              <Stack direction="row" alignItems="center" spacing={2} mt={1}>
+                <Typography variant="caption" sx={{ minWidth: 120 }}>
+                  {route.points[playbackIndex] ? formatTime(route.points[playbackIndex].timestamp) : '--'}
+                </Typography>
+                <Slider
+                  value={playbackIndex}
+                  min={0}
+                  max={route.points.length - 1}
+                  onChange={(_, value) => setPlaybackIndex(value as number)}
+                  aria-label="时间轴"
+                  sx={{ flex: 1 }}
+                />
+                <Typography variant="caption" sx={{ minWidth: 60 }}>
+                  {playbackIndex + 1} / {route.points.length}
+                </Typography>
               </Stack>
             </CardContent>
           </Card>

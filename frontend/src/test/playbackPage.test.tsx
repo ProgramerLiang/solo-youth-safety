@@ -74,7 +74,7 @@ describe('PlaybackPage', () => {
     expect(within(map).getByText('结束点')).toBeInTheDocument()
     expect(within(map).getByText('警')).toBeInTheDocument()
 
-    expect(screen.getByText('时间轴')).toBeInTheDocument()
+    expect(screen.getAllByText('时间轴').length).toBeGreaterThan(0)
     expect(screen.getByText(/SOS 关键节点/)).toBeInTheDocument()
 
     // Movement analysis section
@@ -116,5 +116,17 @@ describe('PlaybackPage', () => {
     expect(screen.getByText('1x')).toBeInTheDocument()
     expect(screen.getByText('2x')).toBeInTheDocument()
     expect(screen.getByText('4x')).toBeInTheDocument()
+  })
+
+  it('shows timeline slider with current point info', () => {
+    useTrackingStore.setState({ history: [secondPoint, firstPoint] })
+    render(<PlaybackPage />)
+    const slider = screen.getByRole('slider', { name: /时间轴/i })
+    expect(slider).toBeInTheDocument()
+    expect(slider).toHaveAttribute('aria-valuemin', '0')
+    expect(slider).toHaveAttribute('aria-valuemax', '1')
+    // Check progress text within timeline card (caption vs body2 in playback control)
+    const captions = screen.getAllByText('1 / 2')
+    expect(captions.length).toBeGreaterThan(0)
   })
 })
