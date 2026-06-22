@@ -56,7 +56,7 @@ describe('TripHistoryPage', () => {
     render(<TripHistoryPage />)
     const items = await screen.findAllByText('回家')
     // Click the list item (not the stats card destination)
-    fireEvent.click(items[items.length - 1])
+    fireEvent.click(items[items.length - 1]!)
     expect(screen.getByText('到达')).toBeInTheDocument()
   })
 })

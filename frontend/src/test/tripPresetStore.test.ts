@@ -47,9 +47,9 @@ describe('useTripPresetStore', () => {
     await useTripPresetStore.getState().add('学校', 60)
     const state = useTripPresetStore.getState()
     expect(state.presets.length).toBe(1)
-    expect(state.presets[0].destination).toBe('学校')
-    expect(state.presets[0].durationMinutes).toBe(60)
-    expect(state.presets[0].id).toMatch(/^preset_/)
+    expect(state.presets[0]!.destination).toBe('学校')
+    expect(state.presets[0]!.durationMinutes).toBe(60)
+    expect(state.presets[0]!.id).toMatch(/^preset_/)
     
     const saved = JSON.parse(localStorage.getItem('safety_v2_trip_presets')!)
     expect(saved.length).toBe(1)
@@ -65,8 +65,8 @@ describe('useTripPresetStore', () => {
     
     await useTripPresetStore.getState().update('p1', { destination: '诊所' })
     const state = useTripPresetStore.getState()
-    expect(state.presets[0].destination).toBe('诊所')
-    expect(state.presets[0].durationMinutes).toBe(15)
+    expect(state.presets[0]!.destination).toBe('诊所')
+    expect(state.presets[0]!.durationMinutes).toBe(15)
     
     const saved = JSON.parse(localStorage.getItem('safety_v2_trip_presets')!)
     expect(saved[0].destination).toBe('诊所')
@@ -81,8 +81,8 @@ describe('useTripPresetStore', () => {
     
     await useTripPresetStore.getState().update('p1', { durationMinutes: 90 })
     const state = useTripPresetStore.getState()
-    expect(state.presets[0].durationMinutes).toBe(90)
-    expect(state.presets[0].destination).toBe('公园')
+    expect(state.presets[0]!.durationMinutes).toBe(90)
+    expect(state.presets[0]!.destination).toBe('公园')
   })
 
   it('remove deletes preset and persists', async () => {
@@ -96,7 +96,7 @@ describe('useTripPresetStore', () => {
     await useTripPresetStore.getState().remove('p1')
     const state = useTripPresetStore.getState()
     expect(state.presets.length).toBe(1)
-    expect(state.presets[0].id).toBe('p2')
+    expect(state.presets[0]!.id).toBe('p2')
     
     const saved = JSON.parse(localStorage.getItem('safety_v2_trip_presets')!)
     expect(saved.length).toBe(1)

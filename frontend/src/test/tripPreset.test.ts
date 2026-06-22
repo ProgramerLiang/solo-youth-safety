@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createTripPreset, updateTripPreset, validatePreset } from '../domain/tripPreset'
 import { loadTripPresets, saveTripPresets, MAX_TRIP_PRESETS } from '../data/tripPresetRepo'
 import type { TripPreset } from '../types'
@@ -157,10 +157,10 @@ describe('saveTripPresets', () => {
     }))
 
     await saveTripPresets(presets)
-    const saved = vi.mocked(storage.setJson).mock.calls[0][1] as TripPreset[]
+    const saved = vi.mocked(storage.setJson).mock.calls[0]![1] as TripPreset[]
     expect(saved).toHaveLength(MAX_TRIP_PRESETS)
-    expect(saved[0].id).toBe('p0')
-    expect(saved[9].id).toBe('p9')
+    expect(saved[0]!.id).toBe('p0')
+    expect(saved[9]!.id).toBe('p9')
   })
 
   it('preserves order when trimming', async () => {
@@ -171,9 +171,9 @@ describe('saveTripPresets', () => {
     ]
 
     await saveTripPresets(presets)
-    const saved = vi.mocked(storage.setJson).mock.calls[0][1] as TripPreset[]
-    expect(saved[0].id).toBe('first')
-    expect(saved[1].id).toBe('second')
-    expect(saved[2].id).toBe('third')
+    const saved = vi.mocked(storage.setJson).mock.calls[0]![1] as TripPreset[]
+    expect(saved[0]!.id).toBe('first')
+    expect(saved[1]!.id).toBe('second')
+    expect(saved[2]!.id).toBe('third')
   })
 })

@@ -14,8 +14,8 @@ export const ALL_PAGE_IDS: PageId[] = [
   'overview',
   'sos',
   'history',
-  'tracking',
   'playback',
+  'tracking',
   'config',
   'contacts',
   'theme',
@@ -23,10 +23,11 @@ export const ALL_PAGE_IDS: PageId[] = [
   'tripHistory',
 ]
 
+
 export interface PageItem {
   id: PageId
   label: string
-  icon: string
+  description: string
 }
 
 // Theme
@@ -34,27 +35,29 @@ export type ThemeMode = 'light' | 'dark' | 'auto'
 export type PaletteMode = 'dynamic' | 'preset' | 'custom'
 
 export interface DynamicColorInfo {
-  /** argb uint32 */
-  sourceColor: number
-  /** hex string for UI display */
-  sourceHex: string
+  seed: number
+  primary: string
+  secondary: string
+  tertiary: string
+  neutral: string
+  neutralVariant: string
+  error: string
 }
 
 export interface ThemePreferences {
   mode: ThemeMode
   paletteMode: PaletteMode
-  dynamicColor?: DynamicColorInfo
-  customColors?: Record<string, string>
-  presetName?: string
+  presetId: string | null
+  customSeed: string | null
+  dynamicInfo: DynamicColorInfo | null
 }
 
 export const PRESET_PALETTES: Record<string, string> = {
-  blue: '#1976d2',
-  green: '#2e7d32',
-  purple: '#7b1fa2',
-  orange: '#f57c00',
-  teal: '#00796b',
-  pink: '#c2185b',
+  purple: '#6750A4',
+  blue: '#1565C0',
+  green: '#2E7D32',
+  orange: '#C45A00',
+  pink: '#AD1457',
 }
 
 // SOS
@@ -69,20 +72,24 @@ export type SosFinalStatus =
 
 export interface SosStep {
   label: string
-  status: 'pending' | 'running' | 'success' | 'error'
-  error?: string
+  badge: string
+  detail: string
+  tone: 'idle' | 'success' | 'warn' | 'danger'
 }
 
 export interface SosResult {
-  status: SosFinalStatus
-  timestamp: string
+  stage: 'idle' | 'arming' | 'locating' | 'persisting' | 'notifying' | 'done'
+  steps: { location: SosStep; persistence: SosStep; sms: SosStep; call: SosStep }
+  finalStatus: SosFinalStatus
+  finalLabel: string
+  summary: string
+  note?: string
+  triggeredAt?: number
   location?: {
-    latitude: number
-    longitude: number
-    accuracy?: number
+    lat: number
+    lng: number
+    accuracy: number | null
   }
-  steps: SosStep[]
-  contactsNotified: string[]
 }
 
 // Data models
@@ -93,58 +100,70 @@ export interface Contact {
 }
 
 export interface AppConfig {
-  contacts: Contact[]
-  sos: { countdown: number }
-  tracking: { interval: number }
-  identity: { name: string; phone: string }
+  callNumber: string
+  smsNumber: string
+  smsTemplate: string
+  onboardingDone: boolean
 }
 
 export interface TrackingSnapshot {
-  id: string
-  timestamp: string
-  latitude: number
-  longitude: number
-  accuracy?: number
-  altitude?: number
-  speed?: number
-  heading?: number
+  enabled: boolean
+  intervalSeconds: number
+  pendingCount: number
+  lastCapturedAt: string | null
+  lastAcknowledgedAt: string | null
+  lastSyncedAt?: string | null
+  nextRetryAt: string | null
+  queue?: TrackingPoint[]
+  history?: TrackingPoint[]
 }
 
 export interface StoredIdentity {
-  name: string
-  phone: string
+  userId: string
+  deviceId: string
+  platform: string
 }
 
 export interface TrackingPoint {
   lat: number
   lng: number
-  timestamp: string
-  accuracy?: number
+  accuracy: number
+  timestamp: number
 }
 
 export interface SosEvent {
-  id: string
-  type: 'trigger' | 'cancel' | 'complete'
+  userId: string
+  deviceId: string
+  lat: number | null
+  lng: number | null
   timestamp: string
-  reason?: string
+  id?: string
 }
 
 export interface NotificationLog {
-  id: string
-  timestamp: string
-  message: string
+  channel: 'call' | 'sms'
+  status: string
+  detail: string
 }
 
 export interface SosHistoryItem {
   id: string
+  userId: string
+  deviceId: string
+  lat: number | null
+  lng: number | null
   timestamp: string
-  status: SosFinalStatus
-  location?: { latitude: number; longitude: number }
-  contactsNotified: string[]
-  steps: SosStep[]
+  notifications: NotificationLog[]
 }
 
-// Trip statistics
+// Trip Presets (v0.4.33)
+export interface TripPreset {
+  id: string
+  destination: string
+  durationMinutes: number
+}
+
+// Trip Statistics (v0.4.33)
 export interface TripStats {
   total: number
   avgDurationMinutes: number
@@ -152,34 +171,8 @@ export interface TripStats {
   topDestinations: Array<{ destination: string; count: number }>
 }
 
-export interface TripPreset {
-  id: string
-  destination: string
-  durationMinutes: number
-}
-
+// Privacy Lock (v0.4.33)
 export interface PrivacyLockConfig {
   enabled: boolean
   pinHash: string
-}
-
-// Privacy Lock
-export interface PrivacyLockConfig {
-  enabled: boolean
-  pinHash: string
-}
-
-// Trip Preset
-export interface TripPreset {
-  id: string
-  destination: string
-  durationMinutes: number
-}
-
-// Trip Statistics
-export interface TripStats {
-  total: number
-  avgDurationMinutes: number
-  onTimeRate: number
-  topDestinations: Array<{ destination: string; count: number }>
 }
