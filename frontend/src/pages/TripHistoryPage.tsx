@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Box, Chip, List, ListItem, ListItemText, Stack, Typography } from '@mui/material'
+import { Box, Chip, Collapse, List, ListItem, ListItemText, Stack, Typography } from '@mui/material'
 import { EmptyState } from '../components/EmptyState'
 import { loadSafetyTripHistory } from '../data/safetyTripRepo'
-import type { SafetyTrip, SafetyTripStatus } from '../domain/safetyTrip'
+import type { SafetyTrip, SafetyTripEventType, SafetyTripStatus } from '../domain/safetyTrip'
 
 const statusLabel: Record<SafetyTripStatus, string> = {
   active: '进行中',
@@ -18,6 +18,22 @@ const statusColor: Record<SafetyTripStatus, 'success' | 'error' | 'default'> = {
   cancelled: 'default',
 }
 
+const eventLabel: Record<SafetyTripEventType, string> = {
+  created: '创建',
+  extended: '延长',
+  arrived: '到达',
+  cancelled: '取消',
+  overdue_seen: '超时记录',
+}
+
+const eventIcon: Record<SafetyTripEventType, string> = {
+  created: '▶',
+  extended: '⏱',
+  arrived: '✓',
+  cancelled: '✕',
+  overdue_seen: '⚠',
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -26,6 +42,7 @@ function formatTime(iso: string): string {
 export function TripHistoryPage() {
   const [trips, setTrips] = useState<SafetyTrip[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSafetyTripHistory().then((data) => {
@@ -47,7 +64,12 @@ export function TripHistoryPage() {
       </Typography>
       <List>
         {trips.map((trip) => (
-          <ListItem key={trip.id} divider sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          <ListItem
+            key={trip.id}
+            divider
+            sx={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' }}
+            onClick={() => setExpandedId(expandedId === trip.id ? null : trip.id)}
+          >
             <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%' }}>
               <ListItemText
                 primary={trip.destination}
@@ -58,6 +80,20 @@ export function TripHistoryPage() {
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
               {trip.events.length} 条事件
             </Typography>
+            <Collapse in={expandedId === trip.id} sx={{ width: '100%', mt: 1 }}>
+              <Stack spacing={0.5} sx={{ pl: 1 }}>
+                {trip.events.map((evt) => (
+                  <Stack key={evt.id} direction="row" spacing={1} alignItems="center">
+                    <Typography variant="caption" sx={{ minWidth: 16 }}>{eventIcon[evt.type]}</Typography>
+                    <Typography variant="caption" fontWeight="bold">{eventLabel[evt.type]}</Typography>
+                    <Typography variant="caption" color="text.secondary">{formatTime(evt.timestamp)}</Typography>
+                    {evt.detail && (
+                      <Typography variant="caption" color="text.disabled">{evt.detail}</Typography>
+                    )}
+                  </Stack>
+                ))}
+              </Stack>
+            </Collapse>
           </ListItem>
         ))}
       </List>

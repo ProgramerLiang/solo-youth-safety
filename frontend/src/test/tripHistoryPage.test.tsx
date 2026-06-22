@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { TripHistoryPage } from '../pages/TripHistoryPage'
 import { appendSafetyTripHistory, saveCurrentSafetyTrip } from '../data/safetyTripRepo'
 import { storage } from '../data/storage'
@@ -47,7 +47,15 @@ describe('TripHistoryPage', () => {
   it('shows time and event count for each trip', async () => {
     await appendSafetyTripHistory(arrivedTrip)
     render(<TripHistoryPage />)
-    expect(await screen.findByText(/2026/)).toBeInTheDocument()
+    expect(await screen.findByText(/2026-06-15 18:00/)).toBeInTheDocument()
     expect(screen.getByText(/1 条事件/)).toBeInTheDocument()
+  })
+
+  it('expands event timeline on click', async () => {
+    await appendSafetyTripHistory(arrivedTrip)
+    render(<TripHistoryPage />)
+    const item = await screen.findByText('回家')
+    fireEvent.click(item)
+    expect(screen.getByText('到达')).toBeInTheDocument()
   })
 })
