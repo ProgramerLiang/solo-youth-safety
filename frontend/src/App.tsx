@@ -46,6 +46,7 @@ export function App() {
   const initContacts = useContactsStore((s) => s.initialize)
   const initGeofence = useGeofenceStore((s) => s.initialize)
   const initPrivacyLock = usePrivacyLockStore((s) => s.initialize)
+  const privacyLockLoaded = usePrivacyLockStore((s) => s.loaded)
   const onboardingDone = useConfigStore((s) => s.onboardingDone)
 
   const { activePageId, navigate } = useHashRouter(onboardingDone)
@@ -61,6 +62,14 @@ export function App() {
     initGeofence()
     initPrivacyLock()
   }, [initIdentity, loadThemePrefs, initDevMode, initConfig, initSos, initTracking, initContacts, initGeofence, initPrivacyLock])
+
+  if (!privacyLockLoaded) {
+    return (
+      <ErrorBoundary>
+        <div aria-label="正在加载隐私设置" />
+      </ErrorBoundary>
+    )
+  }
 
   return (
     <ErrorBoundary>
