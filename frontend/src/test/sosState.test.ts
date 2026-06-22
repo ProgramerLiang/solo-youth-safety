@@ -3,6 +3,7 @@ import {
   createInitialResult,
   updateStepTone,
   computeFinalStatus,
+  createSimulationResult,
 } from '../domain/sosState'
 
 describe('sosState', () => {
@@ -63,5 +64,15 @@ describe('sosState', () => {
     result = updateStepTone(result, 'call', 'success', '', '')
     const final = computeFinalStatus(result)
     expect(final.finalStatus).toBe('location-failed')
+  })
+
+  it('createSimulationResult returns training-mode result', () => {
+    const result = createSimulationResult()
+    expect(result.finalLabel).toBe('训练完成')
+    expect(result.finalStatus).toBe('success')
+    expect(result.summary).toContain('模拟训练')
+    expect(result.steps.location.label).toContain('训练模式')
+    expect(result.steps.sms.detail).toContain('未发送')
+    expect(result.steps.call.detail).toContain('未拨打')
   })
 })

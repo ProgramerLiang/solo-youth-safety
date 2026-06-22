@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import {
   Stack, Typography, Card, CardContent, Button, Chip, Box, Alert,
 } from '@mui/material'
 import { useSosStore } from '../stores/useSosStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useSosCountdown } from '../hooks/useSosCountdown'
+import { createSimulationResult } from '../domain/sosState'
 import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { useTrackingStore } from '../stores/useTrackingStore'
 import { useIdentityStore } from '../stores/useIdentityStore'
@@ -32,6 +33,11 @@ export function SosPage() {
   const freshness = useLocationFreshness(null)
 
   const onElapsed = useCallback(async () => {
+    if (simulationModeRef.current) {
+      useSosStore.setState({ sosResult: createSimulationResult(), arming: false, countdownActive: false })
+      simulationModeRef.current = false
+      return
+    }
     const now = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
     const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
@@ -51,6 +57,8 @@ export function SosPage() {
   }, [userId, deviceId, callNumber, smsNumber, smsTemplate, triggerNow, reportLocationFailure])
 
   const countdown = useSosCountdown(onElapsed)
+  const [, setSimulationMode] = useState(false)
+  const simulationModeRef = useRef(false)
 
   const handleTrigger = () => {
     arm()
@@ -60,6 +68,19 @@ export function SosPage() {
   const handleCancel = () => {
     cancel()
     countdown.cancel()
+    simulationModeRef.current = false
+    setSimulationMode(false)
+  }
+
+  const handleSimulationTrigger = () => {
+    simulationModeRef.current = true
+    setSimulationMode(true)
+    arm()
+    countdown.start()
+  }
+
+  const handleSimulationReturn = () => {
+    cancel()
   }
 
   const steps = Object.values(sosResult.steps)
@@ -137,6 +158,23 @@ export function SosPage() {
               </Typography>
             </CardContent>
           </Card>
+
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>模拟训练</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                模拟训练不会拨打电话或发送短信，帮助你熟悉 SOS 操作流程。
+              </Typography>
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={handleSimulationTrigger}
+                sx={{ borderRadius: 4, py: 1.5 }}
+              >
+                开始模拟训练
+              </Button>
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -162,11 +200,20 @@ export function SosPage() {
             <StatusStepStack steps={steps} />
 
             <Stack direction="row" spacing={1} mt={2} flexWrap="wrap" useFlexGap>
+              {sosResult.finalLabel === '训练完成' ? (
+                <>
+                  <Button size="small" variant="outlined" onClick={handleSimulationTrigger}>重新训练</Button>
+                  <Button size="small" variant="outlined" onClick={handleSimulationReturn}>返回</Button>
+                </>
+              ) : (
+                <>
               <Button size="small" variant="outlined" onClick={retry}>{zhCN.sos.retry}</Button>
               {canDispatchWithoutFreshLocation && (
                 <>
                   <Button size="small" variant="outlined" onClick={callOnly}>{zhCN.sos.callOnly}</Button>
                   <Button size="small" variant="outlined" onClick={smsOnly}>{zhCN.sos.smsOnly}</Button>
+                </>
+              )}
                 </>
               )}
             </Stack>

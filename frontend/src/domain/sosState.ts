@@ -71,3 +71,18 @@ export function computeFinalStatus(result: SosResult): SosResult {
 
   return { ...result, finalStatus, finalLabel }
 }
+
+export function createSimulationResult(): SosResult {
+  return {
+    stage: 'completed',
+    steps: {
+      location: { label: '训练模式 - 模拟定位成功', badge: '\u2713', detail: '模拟定位，未调用系统定位', tone: 'success' },
+      persistence: { label: '训练模式 - 模拟记录', badge: '\u2713', detail: '模拟记录，未写入历史', tone: 'success' },
+      sms: { label: '训练模式 - 未发送短信', badge: '-', detail: '训练模式未发送短信', tone: 'idle' },
+      call: { label: '训练模式 - 未拨打电话', badge: '-', detail: '训练模式未拨打电话', tone: 'idle' },
+    },
+    finalStatus: 'success',
+    finalLabel: '训练完成',
+    summary: '这是一次模拟训练，未拨打电话或发送短信。',
+  }
+}
