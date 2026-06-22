@@ -8,11 +8,13 @@ import { useConfigStore } from '../stores/useConfigStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
 import { useTripPresetStore } from '../stores/useTripPresetStore'
+import { usePrivacyLockStore } from '../stores/usePrivacyLockStore'
 import type { GeofenceZone } from '../domain/geofence'
 import {
   renderTemplate, getDefaultTemplate, getSimpleTemplate,
   getAvailablePlaceholders, buildMapUrl,
 } from '../domain/template'
+import { hashPin } from '../domain/privacyLock'
 import { zhCN } from '../i18n/zh-CN'
 import { getStorageDriverLabel } from '../data/storage'
 import {
@@ -131,6 +133,17 @@ export function ConfigPage() {
   const [presetDestination, setPresetDestination] = useState('')
   const [presetDuration, setPresetDuration] = useState('')
 
+  // Privacy lock
+  const privacyLockConfig = usePrivacyLockStore((s) => s.config)
+  const privacyLockLoaded = usePrivacyLockStore((s) => s.loaded)
+  const initializePrivacyLock = usePrivacyLockStore((s) => s.initialize)
+  const setPrivacyLockConfig = usePrivacyLockStore((s) => s.setConfig)
+  const [pinDialogOpen, setPinDialogOpen] = useState(false)
+  const [pinDialogMode, setPinDialogMode] = useState<'setup' | 'change'>('setup')
+  const [newPin, setNewPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [pinError, setPinError] = useState('')
+
   useEffect(() => {
     loadRiskRuleConfig().then(setRiskRules)
   }, [])
@@ -142,6 +155,18 @@ export function ConfigPage() {
   useEffect(() => {
     if (!tripPresetsLoaded) initializeTripPresets()
   }, [tripPresetsLoaded, initializeTripPresets])
+
+  useEffect(() => {
+    if (!privacyLockLoaded) initializePrivacyLock()
+  }, [privacyLockLoaded, initializePrivacyLock])
+
+  const refreshPermissionStatus = async () => {
+    setPermissionStatus(await getStartupPermissionStatus())
+  }
+
+  useEffect(() => {
+    refreshPermissionStatus()
+  }, [])
 
   const handleRequestLocationPermission = async () => {
     await requestStartupLocationPermission()
@@ -216,6 +241,39 @@ export function ConfigPage() {
       await addTripPreset(presetDestination.trim(), duration)
     }
     handleClosePresetDialog()
+  }
+
+  const handleOpenPinDialog = (mode: 'setup' | 'change') => {
+    setPinDialogMode(mode)
+    setNewPin('')
+    setConfirmPin('')
+    setPinError('')
+    setPinDialogOpen(true)
+  }
+
+  const handleClosePinDialog = () => {
+    setPinDialogOpen(false)
+    setNewPin('')
+    setConfirmPin('')
+    setPinError('')
+  }
+
+  const handleSavePin = async () => {
+    if (newPin.length < 4 || newPin.length > 6) {
+      setPinError('PIN 必须为 4-6 位数字')
+      return
+    }
+    if (newPin !== confirmPin) {
+      setPinError('两次输入的 PIN 不一致')
+      return
+    }
+    const pinHash = hashPin(newPin)
+    await setPrivacyLockConfig({ enabled: true, pinHash })
+    handleClosePinDialog()
+  }
+
+  const handleDisablePrivacyLock = async () => {
+    await setPrivacyLockConfig({ enabled: false, pinHash: '' })
   }
 
   const handleDeletePreset = async (id: string) => {
@@ -499,6 +557,105 @@ export function ConfigPage() {
           <Button onClick={handleClosePresetDialog}>{zhCN.tripPreset.cancel}</Button>
           <Button onClick={handleSavePreset} variant="contained">
             {zhCN.tripPreset.save}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Privacy Lock */}
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="overline">隐私锁屏</Typography>
+          <Stack spacing={2} mt={1}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={privacyLockConfig?.enabled ?? false}
+                  onChange={(e) => {
+                    if (e.target.checked && !privacyLockConfig?.pinHash) {
+                      handleOpenPinDialog('setup')
+                    } else if (!e.target.checked) {
+                      handleDisablePrivacyLock()
+                    }
+                  }}
+                />
+              }
+              label="启用隐私锁屏"
+            />
+            {privacyLockConfig?.enabled && (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleOpenPinDialog('change')}
+                >
+                  修改 PIN
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="error"
+                  onClick={handleDisablePrivacyLock}
+                >
+                  关闭锁屏
+                </Button>
+              </Stack>
+            )}
+            {!privacyLockConfig?.enabled && !privacyLockConfig?.pinHash && (
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => handleOpenPinDialog('setup')}
+              >
+                设置 PIN
+              </Button>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Dialog open={pinDialogOpen} onClose={handleClosePinDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          {pinDialogMode === 'setup' ? '设置 PIN' : '修改 PIN'}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="输入 PIN（4-6 位数字）"
+              type="tel"
+              inputMode="numeric"
+              value={newPin}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '')
+                if (val.length <= 6) setNewPin(val)
+              }}
+              fullWidth
+              size="small"
+              error={!!pinError}
+            />
+            <TextField
+              label="确认 PIN"
+              type="tel"
+              inputMode="numeric"
+              value={confirmPin}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '')
+                if (val.length <= 6) setConfirmPin(val)
+              }}
+              fullWidth
+              size="small"
+              error={!!pinError}
+              helperText={pinError}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePinDialog}>取消</Button>
+          <Button
+            onClick={handleSavePin}
+            variant="contained"
+            disabled={newPin.length < 4 || confirmPin.length < 4}
+          >
+            保存
           </Button>
         </DialogActions>
       </Dialog>

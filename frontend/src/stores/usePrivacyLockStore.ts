@@ -12,6 +12,7 @@ async function hashPin(pin: string): Promise<string> {
 
 interface PrivacyLockState {
   locked: boolean
+  loaded: boolean
   config: PrivacyLockConfig | null
   lockTimer: number | null
   initialize: () => Promise<void>
@@ -24,12 +25,13 @@ interface PrivacyLockState {
 
 export const usePrivacyLockStore = create<PrivacyLockState>((set, get) => ({
   locked: false,
+  loaded: false,
   config: null,
   lockTimer: null,
 
   initialize: async () => {
     const config = await loadPrivacyLockConfig()
-    set({ config })
+    set({ config, loaded: true })
   },
 
   setConfig: async (config: PrivacyLockConfig) => {

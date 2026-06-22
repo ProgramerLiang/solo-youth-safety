@@ -42,6 +42,7 @@ export function AppShell({ activePageId, onNavigate, children }: AppShellProps) 
   if (locked && config?.enabled) {
     return <PrivacyLockScreen onUnlock={() => {}} />
   }
+
   return (
     <Box sx={(theme) => {
       const shell = getShellChrome(theme)
