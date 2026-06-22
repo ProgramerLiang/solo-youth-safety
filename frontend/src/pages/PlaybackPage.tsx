@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material'
 import { IconButton, Popover } from '@mui/material'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import PauseIcon from '@mui/icons-material/Pause'
 import { EmptyState } from '../components/EmptyState'
 import { buildPlaybackRoute, type PlaybackBounds, type PlaybackPoint, type PlaybackPointRole } from '../domain/playback'
 import { computeMovementSummary } from '../domain/movementAnalysis'
@@ -84,6 +86,33 @@ export function PlaybackPage() {
   const [zoom, setZoom] = useState(1)
   const [selectedPoint, setSelectedPoint] = useState<PlaybackPoint | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playbackIndex, setPlaybackIndex] = useState(0)
+  const [playbackSpeed, setPlaybackSpeed] = useState<1 | 2 | 4>(1)
+
+  useEffect(() => {
+    if (!isPlaying) return
+    if (playbackIndex >= route.points.length - 1) {
+      setIsPlaying(false)
+      return
+    }
+    const intervalMs = 1000 / playbackSpeed
+    const timer = setInterval(() => {
+      setPlaybackIndex((prev) => {
+        if (prev >= route.points.length - 1) {
+          setIsPlaying(false)
+          return prev
+        }
+        return prev + 1
+      })
+    }, intervalMs)
+    return () => clearInterval(timer)
+  }, [isPlaying, playbackIndex, playbackSpeed, route.points.length])
+
+  const handlePlayPause = () => {
+    if (playbackIndex >= route.points.length - 1) setPlaybackIndex(0)
+    setIsPlaying((p) => !p)
+  }
 
   return (
     <Stack spacing={2}>
@@ -327,6 +356,7 @@ export function PlaybackPage() {
                     const tone = roleTone[point.role]
                     const position = markerPosition(point, route.bounds)
                     const bgColor = point.source === 'tracking' && point.speedKmh != null ? speedColor(point.speedKmh) : tone.bg
+                    const isCurrentPoint = route.points.indexOf(point) === playbackIndex && isPlaying
                     return (
                     <Box
                       key={point.id}
@@ -348,8 +378,8 @@ export function PlaybackPage() {
                     >
                       <Box
                         sx={{
-                          width: point.role === 'sos' ? 42 : 34,
-                          height: point.role === 'sos' ? 42 : 34,
+                        width: isCurrentPoint ? (point.role === 'sos' ? 52 : 44) : (point.role === 'sos' ? 42 : 34),
+                        height: isCurrentPoint ? (point.role === 'sos' ? 52 : 44) : (point.role === 'sos' ? 42 : 34),
                           borderRadius: '999px',
                           display: 'grid',
                           placeItems: 'center',
@@ -357,7 +387,9 @@ export function PlaybackPage() {
                           color: tone.fg,
                           border: '2px solid',
                           borderColor: 'background.paper',
-                          boxShadow: 3,
+                          boxShadow: isCurrentPoint ? 6 : 3,
+                        outline: isCurrentPoint ? '4px solid' : 'none',
+                        outlineColor: isCurrentPoint ? 'warning.main' : 'transparent',
                           fontSize: point.role === 'sos' ? 12 : 10,
                           fontWeight: 700,
                         }}
@@ -413,6 +445,36 @@ export function PlaybackPage() {
               </Box>
             )}
           </Popover>
+
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="overline">动画播放</Typography>
+              <Stack direction="row" alignItems="center" spacing={2} mt={1}>
+                <IconButton
+                  aria-label={isPlaying ? '暂停' : '播放'}
+                  onClick={handlePlayPause}
+                  size="medium"
+                  sx={{ border: '1px solid', borderColor: 'divider' }}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </IconButton>
+                <Typography variant="body2">
+                  {playbackIndex + 1} / {route.points.length}
+                </Typography>
+                <Stack direction="row" spacing={0.5}>
+                  {([1, 2, 4] as const).map((s) => (
+                    <Chip
+                      key={s}
+                      label={`${s}x`}
+                      size="small"
+                      color={playbackSpeed === s ? 'primary' : 'default'}
+                      onClick={() => setPlaybackSpeed(s)}
+                    />
+                  ))}
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card variant="outlined" sx={{ borderRadius: 3 }}>
             <CardContent>

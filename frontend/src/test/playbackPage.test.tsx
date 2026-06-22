@@ -108,4 +108,13 @@ describe('PlaybackPage', () => {
     expect(screen.getByText(/中速/)).toBeInTheDocument()
     expect(screen.getByText(/高速/)).toBeInTheDocument()
   })
+
+  it('shows playback controls with play button and speed options', () => {
+    useTrackingStore.setState({ history: [secondPoint, firstPoint] })
+    render(<PlaybackPage />)
+    expect(screen.getByLabelText('播放')).toBeInTheDocument()
+    expect(screen.getByText('1x')).toBeInTheDocument()
+    expect(screen.getByText('2x')).toBeInTheDocument()
+    expect(screen.getByText('4x')).toBeInTheDocument()
+  })
 })
