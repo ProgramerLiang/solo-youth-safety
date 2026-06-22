@@ -54,8 +54,9 @@ describe('TripHistoryPage', () => {
   it('expands event timeline on click', async () => {
     await appendSafetyTripHistory(arrivedTrip)
     render(<TripHistoryPage />)
-    const item = await screen.findByText('回家')
-    fireEvent.click(item)
+    const items = await screen.findAllByText('回家')
+    // Click the list item (not the stats card destination)
+    fireEvent.click(items[items.length - 1])
     expect(screen.getByText('到达')).toBeInTheDocument()
   })
 })

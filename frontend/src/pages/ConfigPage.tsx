@@ -125,14 +125,6 @@ export function ConfigPage() {
   const [permissionStatus, setPermissionStatus] = useState<StartupPermissionStatus | null>(null)
   const [riskRules, setRiskRules] = useState<RiskRuleConfig>(DEFAULT_RISK_RULE_CONFIG)
   const [riskRulesSaved, setRiskRulesSaved] = useState(false)
-
-  const refreshPermissionStatus = async () => {
-    setPermissionStatus(await getStartupPermissionStatus())
-  }
-
-  useEffect(() => {
-    refreshPermissionStatus()
-  }, [])
   const [presetDialogOpen, setPresetDialogOpen] = useState(false)
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
   const [presetDestination, setPresetDestination] = useState('')
@@ -146,6 +138,10 @@ export function ConfigPage() {
     if (!notificationLoaded) initializeNotificationConfig()
   }, [notificationLoaded, initializeNotificationConfig])
 
+  useEffect(() => {
+    if (!tripPresetsLoaded) initializeTripPresets()
+  }, [tripPresetsLoaded, initializeTripPresets])
+
   const handleRequestLocationPermission = async () => {
     await requestStartupLocationPermission()
     await refreshPermissionStatus()
@@ -153,10 +149,6 @@ export function ConfigPage() {
 
   const handleRequestBackgroundRunPermission = async () => {
     await requestBackgroundRunPermission()
-
-  useEffect(() => {
-    if (!tripPresetsLoaded) initializeTripPresets()
-  }, [tripPresetsLoaded, initializeTripPresets])
     await refreshPermissionStatus()
   }
 

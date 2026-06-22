@@ -44,16 +44,16 @@ describe('usePrivacyLockStore', () => {
     expect(saved).toEqual(cfg)
   })
 
-  it('lock starts background timer', () => {
+  it('lock starts background timer and sets locked', () => {
     usePrivacyLockStore.getState().lock()
     const state = usePrivacyLockStore.getState()
-    expect(state.locked).toBe(false)
+    expect(state.locked).toBe(true)
     expect(state.lockTimer).not.toBeNull()
   })
 
-  it('lock sets locked to true after 30 seconds', () => {
+  it('lock maintains locked state after 30 seconds', () => {
     usePrivacyLockStore.getState().lock()
-    expect(usePrivacyLockStore.getState().locked).toBe(false)
+    expect(usePrivacyLockStore.getState().locked).toBe(true)
     vi.advanceTimersByTime(30000)
     expect(usePrivacyLockStore.getState().locked).toBe(true)
     expect(usePrivacyLockStore.getState().lockTimer).toBeNull()
