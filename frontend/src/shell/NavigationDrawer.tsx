@@ -18,7 +18,6 @@ const pageLabel: Record<PageId, string> = {
   contacts: zhCN.pages.contacts.label,
   theme: zhCN.pages.theme.label,
   tools: zhCN.pages.tools.label,
-  tripHistory: zhCN.pages.tripHistory.label,
 }
 
 export function NavigationDrawer({ activePageId, onNavigate }: NavigationDrawerProps) {

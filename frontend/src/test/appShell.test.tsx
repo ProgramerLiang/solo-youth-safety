@@ -58,6 +58,9 @@ describe('AppShell navigation', () => {
       </AppShell>,
     )
 
+    expect(screen.getByRole('button', { name: '轨迹' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '行程历史' })).not.toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '轨迹' }))
 
     expect(onNavigate).toHaveBeenCalledWith('tracking')

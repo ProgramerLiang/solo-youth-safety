@@ -8,7 +8,6 @@ export type PageId =
   | 'contacts'
   | 'theme'
   | 'tools'
-  | 'tripHistory'
 
 export const ALL_PAGE_IDS: PageId[] = [
   'overview',
@@ -20,7 +19,6 @@ export const ALL_PAGE_IDS: PageId[] = [
   'contacts',
   'theme',
   'tools',
-  'tripHistory',
 ]
 
 
@@ -156,14 +154,14 @@ export interface SosHistoryItem {
   notifications: NotificationLog[]
 }
 
-// Trip Presets (v0.4.33)
+// Trip Presets
 export interface TripPreset {
   id: string
   destination: string
   durationMinutes: number
 }
 
-// Trip Statistics (v0.4.33)
+// Trip Statistics
 export interface TripStats {
   total: number
   avgDurationMinutes: number
@@ -171,7 +169,7 @@ export interface TripStats {
   topDestinations: Array<{ destination: string; count: number }>
 }
 
-// Privacy Lock (v0.4.33)
+// Privacy Lock
 export interface PrivacyLockConfig {
   enabled: boolean
   pinHash: string
