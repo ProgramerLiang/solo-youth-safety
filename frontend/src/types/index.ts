@@ -174,3 +174,39 @@ export interface PrivacyLockConfig {
   enabled: boolean
   pinHash: string
 }
+
+// Smart Rules (v0.5.0)
+export type RuleSignal = 'riskLevel' | 'tripStatus' | 'tripOvertimeMinutes' | 'geofenceEvent' | 'stationaryMinutes'
+export type RuleOperator = 'eq' | 'gte' | 'gt'
+export type RuleActionType = 'localNotification' | 'preArmSos'
+
+export interface RuleCondition {
+  signal: RuleSignal
+  operator: RuleOperator
+  value: string | number
+  label: string
+}
+
+export interface RuleAction {
+  type: RuleActionType
+  config: Record<string, string>
+  label: string
+}
+
+export interface AutomationRule {
+  id: string
+  name: string
+  enabled: boolean
+  conditions: RuleCondition[]
+  actions: RuleAction[]
+  cooldownMinutes: number
+  lastFiredAt: number | null
+}
+
+export interface RuleEvaluationState {
+  riskLevel: 'ok' | 'attention' | 'warning'
+  tripStatus: 'active' | 'overtime' | 'arrived' | 'cancelled' | null
+  tripOvertimeMinutes: number | null
+  latestGeofenceEvent: { type: 'entered' | 'left'; zoneName: string } | null
+  stationaryMinutes: number | null
+}
