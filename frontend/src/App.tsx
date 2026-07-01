@@ -19,6 +19,7 @@ import { ConfigPage } from './pages/ConfigPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { ThemePage } from './pages/ThemePage'
 import { ToolsPage } from './pages/ToolsPage'
+import { RuleEnginePage } from './pages/RuleEnginePage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { PageId } from './types'
 
@@ -32,6 +33,7 @@ const pageMap: Record<PageId, React.ReactElement> = {
   contacts: <ContactsPage />,
   theme: <ThemePage />,
   tools: <ToolsPage />,
+  smartRules: <RuleEnginePage />,
 }
 
 export function App() {
