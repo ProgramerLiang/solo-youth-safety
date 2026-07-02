@@ -1,15 +1,45 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { OverviewPage } from '../pages/OverviewPage'
-import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useConfigStore } from '../stores/useConfigStore'
+import { useContactsStore } from '../stores/useContactsStore'
+import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
+import { useRuleEngineStore } from '../stores/useRuleEngineStore'
+import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useTrackingStore } from '../stores/useTrackingStore'
 import { saveCurrentSafetyTrip } from '../data/safetyTripRepo'
 import type { SafetyTrip } from '../domain/safetyTrip'
 
+const originalRuleEvaluate = useRuleEngineStore.getState().evaluate
+
 beforeEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
   localStorage.clear()
-  useSafetyTripStore.setState({ current: null, history: [], loaded: true })
+  useConfigStore.setState({ callNumber: '', smsNumber: '', smsTemplate: '', onboardingDone: false, loaded: true })
+  useContactsStore.setState({ list: [], editingId: null, draft: { name: '', phone: '' }, loaded: true })
+  useGeofenceStore.setState({ zones: [], loaded: true })
   useNotificationConfigStore.setState({ config: null, loaded: true })
+  useRuleEngineStore.setState({ rules: [], loaded: true, evaluate: originalRuleEvaluate })
+  useSafetyTripStore.setState({ current: null, history: [], loaded: true, _notificationId: '' })
+  useTrackingStore.setState({
+    enabled: false,
+    intervalSeconds: 60,
+    pendingCount: 0,
+    lastCapturedAt: null,
+    lastAcknowledgedAt: null,
+    busy: false,
+    queue: [],
+    history: [],
+    loaded: true,
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  useRuleEngineStore.setState({ evaluate: originalRuleEvaluate })
 })
 
 describe('OverviewPage', () => {
@@ -36,6 +66,42 @@ describe('OverviewPage', () => {
     expect(screen.getByText('配置风险')).toBeInTheDocument()
     expect(screen.getByText('轨迹追踪正常')).toBeInTheDocument()
     expect(screen.getByText('暂无围栏事件')).toBeInTheDocument()
+  })
+
+  it('evaluates smart rules with current risk, overdue trip, and geofence state', () => {
+    const now = new Date('2026-06-15T12:00:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const evaluate = vi.spyOn(useRuleEngineStore.getState(), 'evaluate').mockReturnValue([])
+    const trip: SafetyTrip = {
+      id: 't1',
+      destination: '回宿舍',
+      createdAt: new Date(now.getTime() - 40 * 60_000).toISOString(),
+      expectedArrivalAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
+      status: 'active',
+      events: [],
+    }
+
+    useConfigStore.setState({ callNumber: '110', smsNumber: '120', smsTemplate: 'SOS', onboardingDone: true })
+    useContactsStore.setState({ list: [{ id: 'c1', name: '室友', phone: '13000000000' }] })
+    useSafetyTripStore.setState({ current: trip })
+    useGeofenceStore.setState({ zones: [{ id: 'zf-1', label: '宿舍', lat: 31, lng: 121, radiusM: 100 }] })
+    useTrackingStore.setState({
+      history: [
+        { lat: 31, lng: 121, accuracy: 10, timestamp: now.getTime() - 5 * 60_000 },
+        { lat: 31.002, lng: 121, accuracy: 10, timestamp: now.getTime() - 4 * 60_000 },
+      ],
+    })
+
+    render(<OverviewPage />)
+
+    expect(evaluate).toHaveBeenCalledWith(expect.objectContaining({
+      riskLevel: 'warning',
+      tripStatus: 'overtime',
+      tripOvertimeMinutes: 10,
+      latestGeofenceEvent: { type: 'left', zoneName: '宿舍' },
+      stationaryMinutes: null,
+    }), expect.any(Number))
   })
 })
 

@@ -18,6 +18,8 @@ import {
   cancelNotification,
 } from '../data/localNotificationRepo'
 import { useNotificationConfigStore } from './useNotificationConfigStore'
+import { useRuleEngineStore } from './useRuleEngineStore'
+import type { RuleEvaluationState } from '../types'
 
 export type { SafetyTrip, SafetyTripStatus }
 
@@ -32,6 +34,28 @@ async function scheduleTripNotification(trip: SafetyTrip): Promise<string> {
   if (!config || !config.enabled || !config.tripExpiring.enabled) return ''
   const id = await scheduleTripExpiryNotification(trip, config.tripExpiring.leadMinutes)
   return id
+}
+
+function toRuleTripStatus(status: SafetyTripStatus | null): RuleEvaluationState['tripStatus'] {
+  if (status === 'overdue') return 'overtime'
+  return status
+}
+
+function tripOvertimeMinutes(trip: SafetyTrip, now: number): number | null {
+  const status = deriveSafetyTripStatus(trip, now)
+  if (status !== 'overdue') return null
+  return Math.max(0, Math.floor((now - new Date(trip.expectedArrivalAt).getTime()) / 60_000))
+}
+
+function evaluateTripRules(trip: SafetyTrip, now: number): void {
+  const status = deriveSafetyTripStatus(trip, now)
+  useRuleEngineStore.getState().evaluate({
+    riskLevel: 'ok',
+    tripStatus: toRuleTripStatus(status),
+    tripOvertimeMinutes: tripOvertimeMinutes(trip, now),
+    latestGeofenceEvent: null,
+    stationaryMinutes: null,
+  }, now)
 }
 
 interface SafetyTripState {
@@ -77,6 +101,7 @@ export const useSafetyTripStore = create<SafetyTripState>((set, get) => ({
     await appendSafetyTripHistory(arrived)
     await saveCurrentSafetyTrip(null)
     set({ current: null, history: [...get().history, arrived], _notificationId: '' })
+    evaluateTripRules(arrived, now)
   },
   extend: async (minutes) => {
     const trip = get().current
@@ -88,6 +113,7 @@ export const useSafetyTripStore = create<SafetyTripState>((set, get) => ({
     if (oldNotifId) cancelNotification(oldNotifId)
     const newNotifId = await scheduleTripNotification(extended)
     set({ current: extended, _notificationId: newNotifId })
+    evaluateTripRules(extended, now)
   },
   cancel: async () => {
     const trip = get().current
@@ -99,6 +125,7 @@ export const useSafetyTripStore = create<SafetyTripState>((set, get) => ({
     await appendSafetyTripHistory(cancelled)
     await saveCurrentSafetyTrip(null)
     set({ current: null, history: [...get().history, cancelled], _notificationId: '' })
+    evaluateTripRules(cancelled, now)
   },
 
   currentStatus: (now) => {

@@ -39,7 +39,7 @@ describe('useRuleEngineStore', () => {
 
   it('addRule creates new rule with generated id', async () => {
     await useRuleEngineStore.getState().initialize()
-    const input = {
+    const input: Omit<AutomationRule, 'id' | 'lastFiredAt'> = {
       name: '新规则', enabled: true,
       conditions: [{ signal: 'riskLevel', operator: 'gte', value: 'warning', label: '' }],
       actions: [{ type: 'preArmSos', config: {}, label: '' }],

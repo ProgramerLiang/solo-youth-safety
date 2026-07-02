@@ -10,17 +10,19 @@ import { useContactsStore } from '../stores/useContactsStore'
 import { useTrackingStore } from '../stores/useTrackingStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useSafetyTripStore } from '../stores/useSafetyTripStore'
+import { useRuleEngineStore } from '../stores/useRuleEngineStore'
 import { useTripPresetStore } from '../stores/useTripPresetStore'
 import { useNotificationConfigStore } from '../stores/useNotificationConfigStore'
-import { deriveSafetyTripStatus } from '../domain/safetyTrip'
+import { deriveSafetyTripStatus, type SafetyTripStatus } from '../domain/safetyTrip'
 import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { aggregateRiskData } from '../domain/riskAssessment'
 import type { RiskItem, RiskLevel } from '../domain/riskAssessment'
-import { routeGeofenceEvents } from '../domain/geofence'
+import { routeGeofenceEvents, type GeofenceResult } from '../domain/geofence'
 import { DEFAULT_RISK_RULE_CONFIG } from '../domain/riskRules'
 import { loadRiskRuleConfig } from '../data/riskRuleRepo'
 import type { RiskRuleConfig } from '../domain/riskRules'
 import { scheduleRiskNotification } from '../data/localNotificationRepo'
+import type { RuleEvaluationState } from '../types'
 import { RiskLevelIndicator } from '../components/RiskLevelIndicator'
 import { RiskGroupCard } from '../components/RiskGroupCard'
 import { EmptyRiskGroup } from '../components/EmptyRiskGroup'
@@ -65,6 +67,25 @@ function tripTimeLabel(expectedArrivalAt: string, now = Date.now()): string {
   return `剩余约 ${diffMinutes} 分钟 · 预计到达：${new Date(expectedArrivalAt).toLocaleTimeString('zh-CN')}`
 }
 
+function toRuleTripStatus(status: SafetyTripStatus | null): RuleEvaluationState['tripStatus'] {
+  if (status === 'overdue') return 'overtime'
+  return status
+}
+
+function tripOvertimeMinutes(expectedArrivalAt: string, now: number): number {
+  return Math.max(0, Math.floor((now - new Date(expectedArrivalAt).getTime()) / 60_000))
+}
+
+function latestRuleGeofenceEvent(events: GeofenceResult[]): RuleEvaluationState['latestGeofenceEvent'] {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i]
+    if (!event) continue
+    if (event.event === 'enter' || event.event === 'inside') return { type: 'entered', zoneName: event.zoneLabel }
+    if (event.event === 'exit') return { type: 'left', zoneName: event.zoneLabel }
+  }
+  return null
+}
+
 export function OverviewPage() {
   const callNumber = useConfigStore((s) => s.callNumber)
   const smsNumber = useConfigStore((s) => s.smsNumber)
@@ -84,6 +105,7 @@ export function OverviewPage() {
   const notificationConfig = useNotificationConfigStore((s) => s.config)
   const notificationLoaded = useNotificationConfigStore((s) => s.loaded)
   const notificationInitialize = useNotificationConfigStore((s) => s.initialize)
+  const evaluateRules = useRuleEngineStore((s) => s.evaluate)
   const presets = useTripPresetStore((s) => s.list())
   const presetLoaded = useTripPresetStore((s) => s.loaded)
   const presetInitialize = useTripPresetStore((s) => s.initialize)
@@ -130,6 +152,18 @@ export function OverviewPage() {
     [risk.items],
   )
   const riskGroups = useMemo(() => groupRiskItems(sortedItems), [sortedItems])
+
+  useEffect(() => {
+    const now = Date.now()
+    const tripStatus = tripCurrent ? deriveSafetyTripStatus(tripCurrent, now) : null
+    evaluateRules({
+      riskLevel: risk.level,
+      tripStatus: toRuleTripStatus(tripStatus),
+      tripOvertimeMinutes: tripCurrent && tripStatus === 'overdue' ? tripOvertimeMinutes(tripCurrent.expectedArrivalAt, now) : null,
+      latestGeofenceEvent: latestRuleGeofenceEvent(geofenceEvents),
+      stationaryMinutes: null,
+    }, now)
+  }, [evaluateRules, geofenceEvents, risk.level, tripCurrent])
 
   useEffect(() => {
     if (previousRiskLevel.current === null) {
