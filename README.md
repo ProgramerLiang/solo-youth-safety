@@ -1,6 +1,6 @@
 # 独行青年安全守护应用：统一项目文档
 
-更新时间：2026-06-29
+更新时间：2026-07-02
 
 > **单一事实来源**：本文件统一承担项目现状、能力边界、运行构建、测试验证、路线图、任务清单、审查结论和文档治理职责。其他 README、API 文档、历史计划和审查页只作为专项参考或历史归档，不再单独维护一套项目状态。
 
@@ -19,9 +19,9 @@
 
 | 项 | 当前事实 | 依据 |
 | 前端入口 | `frontend/src/main.tsx` -> `frontend/src/App.tsx` | 当前 Vite 入口 |
-| 前端 / Android 版本 | `0.5.0` | `frontend/package.json` |
+| 前端 / Android 版本 | `0.5.1` | `frontend/package.json` |
 | 本地快照导出版本 | 跟随 `frontend/package.json` 输出当前版本 | `frontend/src/data/snapshot.ts` |
-| package-lock 版本元数据 | 已收口为 `0.5.0` | `frontend/package-lock.json` |
+| package-lock 版本元数据 | 已收口为 `0.5.1` | `frontend/package-lock.json` |
 | 前端运行模式 | TS 入口以本地持久化为主 | 当前 TS 源码无远端 API 调用 |
 | 后端 / API | 预计弃用；代码与 API 文档仅历史归档 | `backend/`、`docs/api/README.md` 不再作为当前路线 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
