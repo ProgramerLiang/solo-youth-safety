@@ -3,7 +3,7 @@ import type { PageId } from '../types'
 
 function parseHash(): PageId {
   const hash = window.location.hash.replace('#', '') || 'overview'
-  const valid: PageId[] = ['overview', 'sos', 'history', 'playback', 'tracking', 'config', 'contacts', 'theme', 'tools']
+  const valid: PageId[] = ['overview', 'sos', 'history', 'playback', 'tracking', 'config', 'contacts', 'theme', 'tools', 'smartRules']
   if (valid.includes(hash as PageId)) {
     return hash as PageId
   }
