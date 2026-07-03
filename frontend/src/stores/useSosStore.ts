@@ -10,7 +10,9 @@ import type { SosStepKey } from '../domain/sosState'
 interface SosState {
   arming: boolean
   countdownActive: boolean
+  preArmSource: string | null
   sosResult: SosResult
+  preArmRule: (ruleName: string) => void
   history: SosResult[]
   initialized: boolean
 
@@ -41,6 +43,7 @@ interface SosState {
 export const useSosStore = create<SosState>((set, get) => ({
   arming: false,
   countdownActive: false,
+  preArmSource: null,
   sosResult: createInitialResult(),
   history: [],
   initialized: false,
@@ -50,9 +53,11 @@ export const useSosStore = create<SosState>((set, get) => ({
     set({ history, initialized: true })
   },
 
-  arm: () => set({ arming: true, countdownActive: true, sosResult: createInitialResult() }),
+  arm: () => set({ arming: true, countdownActive: true, preArmSource: null, sosResult: createInitialResult() }),
 
-  cancel: () => set({ arming: false, countdownActive: false, sosResult: createInitialResult() }),
+  cancel: () => set({ arming: false, countdownActive: false, preArmSource: null, sosResult: createInitialResult() }),
+
+  preArmRule: (ruleName: string) => set({ arming: true, countdownActive: true, preArmSource: ruleName, sosResult: createInitialResult() }),
 
   triggerNow: async (vars) => {
     let result = createInitialResult()

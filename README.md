@@ -26,6 +26,7 @@
 | 后端 / API | 预计弃用；代码与 API 文档仅历史归档 | `backend/`、`docs/api/README.md` 不再作为当前路线 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
 | Android Manifest | 声明网络、前台定位、电话、短信、电池优化设置入口、旧版外部存储权限；未声明后台定位、前台服务、开机恢复、唤醒锁 | `frontend/android/app/src/main/AndroidManifest.xml` |
+| 智能规则引擎 | v0.5.0 已落地：本地可配置的触发-动作链路（条件+动作+冷却），支持 5 种信号、3 种操作符、AND 组合、本地通知和预武装 SOS 动作 | `frontend/src/domain/ruleEngine.ts` / `frontend/src/stores/useRuleEngineStore.ts` |
 | 原生桥 | Java 插件已注册，TS 已回接 `EmergencyActions` / `SystemLocationBridge` / `StartupPermissions`；Android 原生定位优先走系统 `LocationManager`，TS 校验坐标有效性，先尝试系统低精度 / 缓存快速定位，异常或非法坐标时再升级 GPS 高精度，不再把 Google-backed Capacitor Geolocation 作为 Android fallback；首次配置页可申请定位权限、打开后台运行/省电设置、检查旧版存储访问；Web 仍使用 Capacitor Geolocation | `frontend/src/native/nativeActions.ts` / `frontend/src/native/nativeLocation.ts` / `frontend/src/native/permissions.ts` |
 
 ## 3. 不可突破的能力边界
@@ -46,7 +47,7 @@
 - Android 长时后台保活。
 - 被系统杀死、force-stop、最近任务划掉后仍持续追踪。
 - 当前版本已具备长期前台服务方案或稳定常驻通知机制。
-- 自动报警、围栏、异常检测、规则引擎已经完成。
+- 自动报警、围栏、异常检测已经完成。
 - 正式应急平台、完整账号体系、生产级隐私合规闭环已经完成。
 - 实时地图监护已经完成。地图化历史回放（本地，无实时地图监护）MVP 已交付：本地轨迹历史回放 + SOS 坐标回放页。
 - 当前仍保留远端后端联调或生产 API 路线。
@@ -88,6 +89,7 @@
 - 轨迹：手动采样、应用存活期间周期自动采样、待处理队列持久化、本地确认清空；状态字段、UI 和测试均按本地确认语义收口，真实远端同步目标不在当前后端弃用路线中。
 - 回放：本地轨迹历史与 SOS 坐标地图化回放（CSS/SVG 画布，无地图 SDK），展示开始点 / 结束点 / SOS 关键节点、时间轴、轨迹范围、回放时长、缩放控制、点位详情、速度图例、动画播放与倍速控制；只读取本地轨迹历史与 SOS 历史，不接远端、不实时。
 - 风险规则：配置页可调整本地风险规则开关与阈值；总览页风险提示尊重本地规则配置并展示触发规则；仍只做本地提示，不自动触发 SOS。
+- 智能规则：配置页可创建/编辑/删除自动化规则，设置多条件 AND 组合与本地通知/预武装 SOS 动作，支持冷却机制防重复触发；总览页风险刷新时自动评估匹配规则；安全行程状态变更（到达/延长/取消）时触发评估。
 - 安全行程：总览页可创建本地安全行程倒计时，支持确认到达、延长 10 分钟和取消；超时未确认只进入本地风险提示，不自动通知联系人或触发 SOS。
 - 行程历史：已从侧边栏主导航移除，页面实现仍保留在代码中，但不再作为当前发版可见入口。
 - 行程历史详情：点击行程历史条目展开事件时间线，展示创建 / 延长 / 到达 / 取消 / 超时记录及时间戳。
@@ -217,7 +219,7 @@ https://uri.amap.com/marker?position={lng},{lat}
 
 #### F. 暂不进入近期开发
 
-- [ ] 规则引擎、地理围栏、异常移动识别、自动报警触发链路只保留为 P2 研究项。
+- [x] ~~规则引擎~~、地理围栏、异常移动识别、自动报警触发链路只保留为 P2 研究项。
 - [ ] 风险区域提示、安全导航、安全路线、偷拍检测、AI 情绪陪伴、AI 伪装声音、长期保活和硬件定位模块不进入近期承诺。
 
 

@@ -5,6 +5,15 @@ import type { AutomationRule, RuleEvaluationState } from '../types'
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false },
+  registerPlugin: () => ({}),
+}))
+
+vi.mock('@capacitor/local-notifications', () => ({
+  LocalNotifications: {
+    schedule: () => Promise.resolve({ notifications: [{ id: 1 }] }),
+    requestPermissions: () => Promise.resolve({ display: 'granted' }),
+    cancel: () => Promise.resolve(),
+  },
 }))
 
 function sampleRule(overrides: Partial<AutomationRule> = {}): AutomationRule {

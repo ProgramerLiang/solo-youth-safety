@@ -1,3 +1,5 @@
+import { useSosStore } from './useSosStore'
+import { scheduleRuleNotification } from '../data/localNotificationRepo'
 import { create } from 'zustand'
 import { loadRules, saveRules } from '../data/ruleEngineRepo'
 import { evaluateAllRules } from '../domain/ruleEngine'
@@ -68,6 +70,18 @@ export const useRuleEngineStore = create<RuleEngineState>((set, get) => ({
       // Fire and forget persist
       saveRules(updated)
       set({ rules: updated })
+    }
+    // Process actions for each fired rule
+    for (const rule of fired) {
+      for (const action of rule.actions) {
+        if (action.type === 'localNotification') {
+          const title = action.config.title ?? '规则提醒'
+          const bodyText = action.config.body ?? '规则已触发'
+          scheduleRuleNotification(rule.name, title, bodyText)
+        } else if (action.type === 'preArmSos') {
+          useSosStore.getState().preArmRule(rule.name)
+        }
+      }
     }
     return fired
   },

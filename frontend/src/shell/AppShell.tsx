@@ -1,3 +1,4 @@
+import { PreArmOverlay } from '../components/PreArmOverlay'
 import { useEffect } from 'react'
 import { Box, AppBar, Toolbar, Typography, IconButton, Container } from '@mui/material'
 import type { Theme } from '@mui/material/styles'
@@ -70,6 +71,7 @@ export function AppShell({ activePageId, onNavigate, children }: AppShellProps) 
       <Container maxWidth="md" sx={{ py: 2, flex: 1 }}>
         {children}
       </Container>
+      <PreArmOverlay />
     </Box>
   )
 }

@@ -62,6 +62,32 @@ export async function scheduleRiskNotification(): Promise<string> {
   }
 }
 
+export async function scheduleRuleNotification(
+  ruleName: string,
+  title: string,
+  body: string,
+): Promise<string> {
+  try {
+    const result = await LocalNotifications.schedule({
+      notifications: [
+        {
+          title,
+          body: `[${ruleName}] ${body}`,
+          schedule: { at: new Date(Date.now() + 1000) },
+          id: generateNumericId(),
+          extra: { ruleName, source: 'smart-rule' },
+          group: 'smart-rules',
+          groupSummary: true,
+        },
+      ],
+    })
+    const numericId = result.notifications?.[0]?.id
+    return numericId != null ? `rule-${numericId}` : ''
+  } catch {
+    return ''
+  }
+}
+
 function loadLastRiskNotificationAt(): number | null {
   try {
     if (typeof localStorage === 'undefined') return null
