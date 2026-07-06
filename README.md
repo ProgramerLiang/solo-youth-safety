@@ -10,7 +10,7 @@
 
 - Android MVP 演示底座：React + Vite 前端通过 Capacitor 打包为 Android App。
 - 前端主线：TypeScript + MUI + Zustand，本地持久化为主。
-- 后端状态：FastAPI + SQLite 代码与 API 文档已弃用并仅作为历史归档；CI 与前端主线不再保留后端联调入口。
+- 后端状态：FastAPI + SQLite 后端代码已移除；旧 API 文档仅作为历史归档；CI 与前端主线不再保留后端联调入口。
 - 当前目标：先把 Android MVP 变成可信试用底座，再选择性向原始愿景中的地图回放、规则引擎、风险提示等能力靠拢。
 
 当前项目**不是**完整守护平台、正式应急平台、正式账号体系、远端联调平台或生产级安全后端。
@@ -23,7 +23,7 @@
 | 本地快照导出版本 | 跟随 `frontend/package.json` 输出当前版本 | `frontend/src/data/snapshot.ts` |
 | package-lock 版本元数据 | 已收口为 `0.6.0` | `frontend/package-lock.json` |
 | 前端运行模式 | TS 入口以本地持久化为主 | 当前 TS 源码无远端 API 调用 |
-| 后端 / API | 已弃用；代码与 API 文档仅历史归档；CI 不再运行后端测试，前端主线无远端 / 本地后端 shim | `backend/`、`docs/api/README.md` 只作历史参考 |
+| 后端 / API | 已弃用；后端代码已移除；CI 不再运行后端测试，前端主线无远端 / 本地后端 shim | `backend/README.md`、`backend/data/safety.db`、`docs/api/README.md` 只作历史参考 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
 | Android Manifest | 声明网络、前台定位、电话、短信、电池优化设置入口、旧版外部存储权限；未声明后台定位、前台服务、开机恢复、唤醒锁 | `frontend/android/app/src/main/AndroidManifest.xml` |
 | 智能规则引擎 | v0.5.0 已落地：本地可配置的触发-动作链路（条件+动作+冷却），支持 5 种信号、3 种操作符、AND 组合、本地通知和预武装 SOS 动作 | `frontend/src/domain/ruleEngine.ts` / `frontend/src/stores/useRuleEngineStore.ts` |
@@ -104,7 +104,8 @@
 
 ### 4.2 后端 / API 状态
 
-- FastAPI + SQLite 后端代码仍在仓库中，但已弃用并仅作为历史归档保留。
+- FastAPI + SQLite 后端代码已从仓库移除。
+- `backend/` 当前仅保留归档说明与本地数据库文件 `backend/data/safety.db`；该数据库文件不是当前运行、验证或联调目标。
 - `docs/api/README.md` 仅作为历史契约参考，不再代表当前路线图或验收目标。
 - 当前 TS 前端主线不调用远端 API，也不再保留旧版远端 / 本地后端 shim。
 - CI 当前只验证前端主线；不再运行后端测试或安装后端依赖。
@@ -231,7 +232,7 @@ https://uri.amap.com/marker?position={lng},{lat}
 | 原始条目 | 当前归属 | 当前判断 |
 | --- | --- | --- |
 | 及时报警与追踪定位 | 当前主线 | 部分实现：手动 SOS、本地记录、联系人、手动轨迹采样、应用存活期间周期采样底座存在，本地地图化历史回放 MVP 已交付；后台持续追踪、自动触发仍缺失。 |
-| 远端身份 / 鉴权 / 最小授权可见 | 历史归档 | 后端预计弃用；当前前端主线不再以正式账号、token、session、远端授权或后端审计为收口目标。 |
+| 远端身份 / 鉴权 / 最小授权可见 | 历史归档 | 后端已弃用且代码已移除；当前前端主线不再以正式账号、token、session、远端授权或后端审计为收口目标。 |
 | SOS 失败恢复与用户可见状态机 | 当前主线 | 部分实现：TS 入口已有结果摘要、步骤状态和补救动作；原生插件真实返回、权限失败与错误日志归一仍需回接。 |
 | Android 后台限制 / 前台服务边界 | 当前主线 | 本轮真机运行正常；结论只覆盖“前台 / 应用存活期间”。Manifest 未声明后台定位、前台服务、开机恢复或保活能力。 |
 | 地图化回放 | P1 | 已实现：本地轨迹历史 + SOS 坐标 CSS/SVG 地图化回放（无地图 SDK），含开始/结束点、SOS 关键节点、时间轴、轨迹范围、回放时长；不接远端，不宣称实时地图监护。 |
@@ -294,7 +295,7 @@ npm run android:release
 
 ### 7.4 后端 / API
 
-后端已弃用，当前不作为运行、验证、路线图或验收目标。`backend/` 与 `docs/api/README.md` 仅保留为历史归档；CI 不再运行后端测试。除非重新立项，不再新增后端运行指引、契约收口或联调任务。
+后端已弃用，当前不作为运行、验证、路线图或验收目标。后端代码已移除；`backend/` 仅保留归档说明与 `backend/data/safety.db` 本地数据库文件，`docs/api/README.md` 仅保留为历史归档；CI 不再运行后端测试。除非重新立项，不再新增后端运行指引、契约收口或联调任务。
 
 ## 8. Android 真机验证模板
 
@@ -341,10 +342,9 @@ new/
 │   ├── scripts/           # Android release 辅助脚本
 │   ├── package.json
 │   └── README.md          # 前端专项命令入口，状态以本文件为准
-├── backend/               # 历史归档：FastAPI + SQLite，预计弃用
-│   ├── main.py
-│   ├── tests/test_api.py
-│   └── README.md          # 后端归档说明
+├── backend/               # 后端已弃用；仅保留归档说明与本地数据库文件
+│   ├── data/safety.db     # 本地数据库文件，不作为当前运行/验证目标
+│   └── README.md          # 后端移除说明
 ├── docs/
 │   ├── api/README.md      # 历史归档：旧 API 端点参考
 │   ├── mvp/               # 已归档的旧路线图 / 审查 / 整改入口
@@ -359,7 +359,7 @@ new/
 
 - 修改当前项目状态、能力边界、路线图、任务清单、审查结论：只更新本 `README.md`。
 - 修改前端本地运行命令：可更新 `frontend/README.md`，但不得新增与本文件冲突的项目状态说明。
-- 后端 / API 已进入预计弃用状态；除非重新立项，不再维护 `backend/README.md` 或 `docs/api/README.md` 作为当前能力来源。
+- 后端 / API 已弃用；除非重新立项，不再维护 `backend/README.md` 或 `docs/api/README.md` 作为当前能力来源。
 - `docs/mvp/` 下旧路线图、任务清单、整改入口、审查报告不再作为正式入口；保留文件仅为兼容历史链接。
 - `docs/ui/` 与 `docs/superpowers/` 是 agent 产出的历史设计 / 实施资料，不再作为当前实现事实来源。
 - `.pi/AGENTS.md` 只保留简短 agent 上下文，事实以本文件为准。
