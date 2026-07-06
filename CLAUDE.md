@@ -18,8 +18,8 @@
 
 - 统一项目文档：`README.md`
 - 前端目录：`frontend/`
-- 后端目录：`backend/`
-- API 专项契约：`docs/api/README.md`
+- 后端归档目录：`backend/`
+- API 归档参考：`docs/api/README.md`
 - 原始愿景来源：`神秘组织内部资料.md`
 
 ## 不要碰的东西

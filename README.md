@@ -1,6 +1,6 @@
 # 独行青年安全守护应用：统一项目文档
 
-更新时间：2026-07-03
+更新时间：2026-07-06
 
 > **单一事实来源**：本文件统一承担项目现状、能力边界、运行构建、测试验证、路线图、任务清单、审查结论和文档治理职责。其他 README、API 文档、历史计划和审查页只作为专项参考或历史归档，不再单独维护一套项目状态。
 
@@ -10,7 +10,7 @@
 
 - Android MVP 演示底座：React + Vite 前端通过 Capacitor 打包为 Android App。
 - 前端主线：TypeScript + MUI + Zustand，本地持久化为主。
-- 后端状态：FastAPI + SQLite 代码与 API 文档仅作为历史归档；后续路线默认不再继续后端联调或远端化收口。
+- 后端状态：FastAPI + SQLite 代码与 API 文档已弃用并仅作为历史归档；CI 与前端主线不再保留后端联调入口。
 - 当前目标：先把 Android MVP 变成可信试用底座，再选择性向原始愿景中的地图回放、规则引擎、风险提示等能力靠拢。
 
 当前项目**不是**完整守护平台、正式应急平台、正式账号体系、远端联调平台或生产级安全后端。
@@ -23,7 +23,7 @@
 | 本地快照导出版本 | 跟随 `frontend/package.json` 输出当前版本 | `frontend/src/data/snapshot.ts` |
 | package-lock 版本元数据 | 已收口为 `0.6.0` | `frontend/package-lock.json` |
 | 前端运行模式 | TS 入口以本地持久化为主 | 当前 TS 源码无远端 API 调用 |
-| 后端 / API | 预计弃用；代码与 API 文档仅历史归档 | `backend/`、`docs/api/README.md` 不再作为当前路线 |
+| 后端 / API | 已弃用；代码与 API 文档仅历史归档；CI 不再运行后端测试，前端主线无远端 / 本地后端 shim | `backend/`、`docs/api/README.md` 只作历史参考 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
 | Android Manifest | 声明网络、前台定位、电话、短信、电池优化设置入口、旧版外部存储权限；未声明后台定位、前台服务、开机恢复、唤醒锁 | `frontend/android/app/src/main/AndroidManifest.xml` |
 | 智能规则引擎 | v0.5.0 已落地：本地可配置的触发-动作链路（条件+动作+冷却），支持 5 种信号、3 种操作符、AND 组合、本地通知和预武装 SOS 动作 | `frontend/src/domain/ruleEngine.ts` / `frontend/src/stores/useRuleEngineStore.ts` |
@@ -61,7 +61,7 @@
 
 | 层 | 目录 | 职责 | 依赖方向 |
 | --- | --- | --- | --- |
-| DOM / 入口 | `main.jsx`, `App.tsx`, `providers/` | React 渲染入口，全局 Provider 挂载，路由分发 | ↓ pages/shell |
+| DOM / 入口 | `main.tsx`, `App.tsx`, `providers/` | React 渲染入口，全局 Provider 挂载，路由分发 | ↓ pages/shell |
 | 页面 | `pages/` | 单页组件，组合 UI 与数据，不直接操作 native/持久化 | ↓ stores/hooks/components |
 | 外壳 | `shell/` | 布局（AppBar/Drawer/导航），纯 UI 编排 | ↓ stores |
 | 组件 | `components/` | 跨页复用 UI 片段（状态栈/错误边界/确认弹窗/空态） | 无依赖 |
@@ -104,10 +104,11 @@
 
 ### 4.2 后端 / API 状态
 
-- FastAPI + SQLite 后端代码仍在仓库中，但后续预计弃用。
+- FastAPI + SQLite 后端代码仍在仓库中，但已弃用并仅作为历史归档保留。
 - `docs/api/README.md` 仅作为历史契约参考，不再代表当前路线图或验收目标。
-- 当前 TS 前端主线未默认调用远端 API。
-- 后续新增或修订项目状态时，不再以恢复后端联调作为默认目标。
+- 当前 TS 前端主线不调用远端 API，也不再保留旧版远端 / 本地后端 shim。
+- CI 当前只验证前端主线；不再运行后端测试或安装后端依赖。
+- 后续新增或修订项目状态时，不再以恢复后端联调作为默认目标；如需重新立项，必须先写新契约再改实现。
 
 ### 4.3 短信模板契约
 
@@ -151,8 +152,8 @@ https://uri.amap.com/marker?position={lng},{lat}
    - “本地确认”已按本地语义收口到 UI、持久化字段和回归测试：清空本地待处理队列，不代表远端 API 同步；后端弃用后不得继续写成远端 API 已接入。
    - 断网、回前台、重启后恢复等场景按本轮真机结果收口为当前入口无异常；不得外推为远端同步或长时后台能力。
 4. **工程一致性修复**
-   - `frontend/src/data/snapshot.ts` 已使用 `package.json` 版本作为快照版本，配置页已展示前端 / Android、快照、持久化、远端后端状态和能力边界事实，并固定短信预览、全局填充按钮与主题页选中态 Chip 主题对比度。
-   - `frontend/package-lock.json` 顶层版本元数据已同步到 `0.5.0`。
+   - `frontend/src/data/snapshot.ts` 已使用 `package.json` 版本作为快照版本，配置页已展示前端 / Android、快照、持久化、后端 / API 归档状态和能力边界事实，并固定短信预览、全局填充按钮与主题页选中态 Chip 主题对比度。
+   - `frontend/package-lock.json` 顶层版本元数据已同步到 `0.6.0`。
 5. **回归基线固定**
    - 将 SOS 状态机、Android 能力边界文案、轨迹队列语义、原生桥错误归一、系统定位非法坐标回退、Android 快速低精度优先定位、定位链路自检、首次权限配置引导、本地风险规则配置、本地安全行程倒计时与历史列表及事件时间线、本地通知配置 / 调度 / 防抖、总览风险等级与分组仪表盘、轨迹回放缩放 / 点位详情 / 速度图例 / 动画播放、SOS 模拟训练、诊断报告脱敏导出、诊断摘要解析、导出目录提示、地理围栏窄屏可触达布局纳入稳定回归范围。
 
@@ -293,7 +294,7 @@ npm run android:release
 
 ### 7.4 后端 / API
 
-后端预计弃用，当前不作为运行、验证、路线图或验收目标。`backend/` 与 `docs/api/README.md` 仅保留为历史归档；除非重新立项，不再新增后端运行指引、契约收口或联调任务。
+后端已弃用，当前不作为运行、验证、路线图或验收目标。`backend/` 与 `docs/api/README.md` 仅保留为历史归档；CI 不再运行后端测试。除非重新立项，不再新增后端运行指引、契约收口或联调任务。
 
 ## 8. Android 真机验证模板
 

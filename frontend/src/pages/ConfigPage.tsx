@@ -678,8 +678,8 @@ export function ConfigPage() {
               <Chip label={storageDriverLabel} size="small" />
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-              <Typography variant="body2">远端后端</Typography>
-              <Chip label="未接入当前前端主线" size="small" color="default" />
+              <Typography variant="body2">后端 / API</Typography>
+              <Chip label="已归档，不接入当前主线" size="small" color="default" />
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
               <Typography variant="body2">能力边界</Typography>

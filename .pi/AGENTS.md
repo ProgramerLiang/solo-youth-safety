@@ -6,6 +6,6 @@
 
 - `README.md`：单一事实来源
 - `CLAUDE.md`：Claude Code 操作约束
-- `docs/api/README.md`：API 专项契约
+- `docs/api/README.md`：API 归档参考
 
 本文件不再单独描述项目阶段、技术栈或测试命令，避免与统一文档漂移。

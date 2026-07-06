@@ -61,7 +61,6 @@ const V1_TO_V2_KEYS: Record<string, string> = {
   safety_developer_mode_v1: 'safety_v2_devmode',
   safety_identity_v1: 'safety_v2_identity',
   safety_tracking_state_v1: 'safety_v2_tracking',
-  safety_local_backend_v1: 'safety_v2_backend_mode',
 }
 
 export async function migrateV1ToV2(): Promise<boolean> {
