@@ -30,7 +30,8 @@ export function SosPage() {
   const deviceId = useIdentityStore((s) => s.deviceId)
 
 
-  const freshness = useLocationFreshness(null)
+  const lastCapturedAt = useTrackingStore((s) => s.lastCapturedAt)
+  const freshness = useLocationFreshness(lastCapturedAt)
 
   const onElapsed = useCallback(async () => {
     if (simulationModeRef.current) {
@@ -45,10 +46,10 @@ export function SosPage() {
     const tracking = useTrackingStore.getState()
     const prevCapturedAt = tracking.lastCapturedAt
     await tracking.captureNow()
-    const history = useTrackingStore.getState().history
-    const pos = history[history.length - 1]
+    const nextTracking = useTrackingStore.getState()
+    const pos = nextTracking.history[nextTracking.history.length - 1]
     // Check that captureNow actually produced a new point
-    if (!pos || tracking.lastCapturedAt === prevCapturedAt) {
+    if (!pos || nextTracking.lastCapturedAt === prevCapturedAt) {
       await reportLocationFailure('无法获取当前位置，未发送短信或拨打电话')
       return
     }

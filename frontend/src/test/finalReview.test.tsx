@@ -117,6 +117,35 @@ describe('final review regressions', () => {
     expect(screen.queryByRole('button', { name: '仅短信' })).not.toBeInTheDocument()
   })
 
+  it('uses the newly captured location for SOS instead of the stale pre-capture timestamp', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-01T04:00:10.000Z'))
+    geolocationMock.getCurrentPosition.mockResolvedValueOnce({
+      coords: { latitude: 31.2309, longitude: 121.4742, accuracy: 10 },
+    })
+    nativeActionsMock.triggerNativeSms.mockResolvedValue({ success: true, detail: 'sms dispatched' })
+    nativeActionsMock.triggerNativeCall.mockResolvedValue({ success: true, detail: 'call triggered' })
+    useConfigStore.setState({
+      callNumber: '13800138000',
+      smsNumber: '13800138001',
+      smsTemplate: 'SOS {lat},{lng}',
+    })
+    render(<SosPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /触发 SOS/ }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    await act(async () => undefined)
+
+    const result = useSosStore.getState().sosResult
+    expect(result.finalStatus).toBe('success')
+    expect(result.location).toEqual({ lat: 31.2309, lng: 121.4742, accuracy: 10 })
+    expect(nativeActionsMock.triggerNativeSms).toHaveBeenCalledOnce()
+    expect(nativeActionsMock.triggerNativeCall).toHaveBeenCalledOnce()
+    expect(nativeActionsMock.triggerNativeSms.mock.calls[0]?.[1]).toContain('31.230900,121.474200')
+  })
+
   it('renders tracking backlog as local pending data in tools', async () => {
     useTrackingStore.setState({ pendingCount: 3, queue: [queuedPoint, queuedPoint, queuedPoint] })
 

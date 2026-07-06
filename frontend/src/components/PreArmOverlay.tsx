@@ -34,9 +34,9 @@ export function PreArmOverlay() {
     const tracking = useTrackingStore.getState()
     const prevCapturedAt = tracking.lastCapturedAt
     await tracking.captureNow()
-    const history = useTrackingStore.getState().history
-    const pos = history[history.length - 1]
-    if (!pos || tracking.lastCapturedAt === prevCapturedAt) {
+    const nextTracking = useTrackingStore.getState()
+    const pos = nextTracking.history[nextTracking.history.length - 1]
+    if (!pos || nextTracking.lastCapturedAt === prevCapturedAt) {
       await reportLocationFailure('无法获取当前位置，未发送短信或拨打电话')
       return
     }
