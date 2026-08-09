@@ -4,7 +4,7 @@ import { ToolsPage } from '../pages/ToolsPage'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import type { DiagnosticReport } from '../data/diagnostics'
 vi.mock('../native/nativeExport', () => ({
-  saveExportFile: vi.fn(async () => ({ saved: false, location: null })),
+  saveExportFile: vi.fn(async () => ({ saved: false, location: null, error: null })),
 }))
 
 function sampleReport(): DiagnosticReport {

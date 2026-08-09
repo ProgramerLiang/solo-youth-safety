@@ -192,6 +192,7 @@ export const zhCN = {
     snapshotExported: '快照已导出',
     diagnosticsExported: '诊断报告已导出',
     exportLocationHint: '请到系统“下载/Downloads”目录或浏览器下载记录查看。',
+    exportFailed: '导出失败,未保存文件',
     snapshotImported: '快照已导入，请刷新页面',
     dataCleared: '本地数据已清空，建议刷新页面',
     importFailed: '导入失败：文件格式错误',

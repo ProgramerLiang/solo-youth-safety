@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import {
   Stack, Typography, Card, CardContent, Button, Chip, Box, Alert, Snackbar, TextField,
 } from '@mui/material'
@@ -138,34 +139,37 @@ export function ToolsPage() {
     const snap = await exportSnapshot()
     const fileName = `safety-snapshot-${Date.now()}.json`
     const content = JSON.stringify(snap, null, 2)
-    const nativeResult = await saveExportFile(fileName, 'application/json', content)
-    if (!nativeResult.saved) {
-      const blob = new Blob([content], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      a.click()
-      URL.revokeObjectURL(url)
-    }
-    setSnackbarMsg(`${zhCN.feedback.snapshotExported},${nativeResult.location ?? zhCN.feedback.exportLocationHint}`)
+    await exportWithResult(fileName, content, zhCN.feedback.snapshotExported)
   }
 
   const handleExportDiagnostics = async () => {
     const report = await exportDiagnosticReport()
     const fileName = `safety-diagnostics-${Date.now()}.json`
     const content = JSON.stringify(report, null, 2)
+    await exportWithResult(fileName, content, zhCN.feedback.diagnosticsExported)
+  }
+
+  // 原生环境优先走 NativeExport(MediaStore/公共下载目录);失败时明确报错,绝不静默回退
+  // 到 WebView 里无效的 a[download](Capacitor WebView 无下载管理器,点击无反应)。
+  const exportWithResult = async (fileName: string, content: string, successLabel: string) => {
     const nativeResult = await saveExportFile(fileName, 'application/json', content)
-    if (!nativeResult.saved) {
-      const blob = new Blob([content], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      a.click()
-      URL.revokeObjectURL(url)
+    if (nativeResult.saved) {
+      setSnackbarMsg(`${successLabel},${nativeResult.location ?? zhCN.feedback.exportLocationHint}`)
+      return
     }
-    setSnackbarMsg(`${zhCN.feedback.diagnosticsExported},${nativeResult.location ?? zhCN.feedback.exportLocationHint}`)
+    if (Capacitor.isNativePlatform()) {
+      setSnackbarMsg(`${zhCN.feedback.exportFailed}${nativeResult.error ? ':' + nativeResult.error : ''}`)
+      return
+    }
+    // Web 环境:浏览器自身下载
+    const blob = new Blob([content], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+    URL.revokeObjectURL(url)
+    setSnackbarMsg(`${successLabel},${zhCN.feedback.exportLocationHint}`)
   }
 
   const handleParseDiagnostics = () => {

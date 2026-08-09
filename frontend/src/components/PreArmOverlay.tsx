@@ -41,7 +41,10 @@ export function PreArmOverlay() {
   }, [userId, deviceId, callNumber, smsNumber, smsTemplate, triggerNow, reportLocationFailure])
 
   useEffect(() => {
-    if (!arming || !countdownActive) {
+    // 仅当本次武装来自智能规则预武装(preArmSource 非空)时才运行倒计时。
+    // 手动 SOS 会设置 arming=true 但 preArmSource=null,此时绝不能在此启动
+    // 第二个倒计时,否则两个 onElapsed 会竞争同一个 sosResult 状态并误报定位失败。
+    if (!arming || !countdownActive || !preArmSource) {
       setRemaining(COUNTDOWN_SECONDS)
       triggeredRef.current = false
       if (timerRef.current !== null) {
@@ -77,7 +80,7 @@ export function PreArmOverlay() {
         timerRef.current = null
       }
     }
-  }, [arming, countdownActive, onElapsed])
+  }, [arming, countdownActive, preArmSource, onElapsed])
 
   if (!preArmSource) return null
 
