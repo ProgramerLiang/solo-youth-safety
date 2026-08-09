@@ -3,7 +3,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, 
 import { useSosStore } from '../stores/useSosStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useIdentityStore } from '../stores/useIdentityStore'
-import { useTrackingStore } from '../stores/useTrackingStore'
+import { getSosLocation } from '../data/sosLocation'
 
 const COUNTDOWN_SECONDS = 5
 
@@ -31,27 +31,13 @@ export function PreArmOverlay() {
     const pad = (n: number) => String(n).padStart(2, '0')
     const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
-    const tracking = useTrackingStore.getState()
-    const prevCapturedAt = tracking.lastCapturedAt
-    await tracking.captureNow()
-    const nextTracking = useTrackingStore.getState()
-    const pos = nextTracking.history[nextTracking.history.length - 1]
-    if (!pos || nextTracking.lastCapturedAt === prevCapturedAt) {
-      await reportLocationFailure('无法获取当前位置，未发送短信或拨打电话')
+    const pos = await getSosLocation()
+    if (!pos) {
+      await reportLocationFailure('无法获取当前位置,未发送短信或拨打电话')
       return
     }
 
-    await triggerNow({
-      lat: pos.lat,
-      lng: pos.lng,
-      accuracy: pos.accuracy,
-      userId,
-      deviceId,
-      callNumber,
-      smsNumber,
-      smsTemplate,
-      time: timeStr,
-    })
+    await triggerNow({ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, userId, deviceId, callNumber, smsNumber, smsTemplate, time: timeStr })
   }, [userId, deviceId, callNumber, smsNumber, smsTemplate, triggerNow, reportLocationFailure])
 
   useEffect(() => {

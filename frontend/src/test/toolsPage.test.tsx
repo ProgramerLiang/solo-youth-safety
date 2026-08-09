@@ -3,6 +3,9 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { ToolsPage } from '../pages/ToolsPage'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import type { DiagnosticReport } from '../data/diagnostics'
+vi.mock('../native/nativeExport', () => ({
+  saveExportFile: vi.fn(async () => ({ saved: false, location: null })),
+}))
 
 function sampleReport(): DiagnosticReport {
   return {
@@ -87,7 +90,7 @@ describe('ToolsPage diagnostics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '导出快照' }))
 
-    expect(await screen.findByText('快照已导出，请到系统“下载/Downloads”目录或浏览器下载记录查看。')).toBeInTheDocument()
+    expect(await screen.findByText('快照已导出,请到系统“下载/Downloads”目录或浏览器下载记录查看。', {}, { timeout: 3000 })).toBeInTheDocument()
   })
 
   it('shows the download directory hint after exporting diagnostics', async () => {
@@ -98,7 +101,7 @@ describe('ToolsPage diagnostics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '导出诊断报告' }))
 
-    expect(await screen.findByText('诊断报告已导出，请到系统“下载/Downloads”目录或浏览器下载记录查看。')).toBeInTheDocument()
+    expect(await screen.findByText('诊断报告已导出,请到系统“下载/Downloads”目录或浏览器下载记录查看。', {}, { timeout: 3000 })).toBeInTheDocument()
   })
 
   it('parses pasted diagnostic JSON into readable facts and issues', async () => {

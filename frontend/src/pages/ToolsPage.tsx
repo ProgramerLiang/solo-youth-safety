@@ -14,6 +14,8 @@ import { useTrackingStore } from '../stores/useTrackingStore'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { exportSnapshot, importSnapshot, clearAllData } from '../data/snapshot'
 import { exportDiagnosticReport } from '../data/diagnostics'
+import { saveExportFile } from '../native/nativeExport'
+
 import { parseDiagnosticReportJson, summarizeDiagnosticReport } from '../data/diagnosticSummary'
 import type { DiagnosticSummary } from '../data/diagnosticSummary'
 import { loadLocationSelfTestReport, runAndSaveLocationSelfTest } from '../data/locationSelfTestRepo'
@@ -134,26 +136,36 @@ export function ToolsPage() {
 
   const handleExportSnapshot = async () => {
     const snap = await exportSnapshot()
-    const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `safety-snapshot-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    setSnackbarMsg(`${zhCN.feedback.snapshotExported}，${zhCN.feedback.exportLocationHint}`)
+    const fileName = `safety-snapshot-${Date.now()}.json`
+    const content = JSON.stringify(snap, null, 2)
+    const nativeResult = await saveExportFile(fileName, 'application/json', content)
+    if (!nativeResult.saved) {
+      const blob = new Blob([content], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    setSnackbarMsg(`${zhCN.feedback.snapshotExported},${nativeResult.location ?? zhCN.feedback.exportLocationHint}`)
   }
 
   const handleExportDiagnostics = async () => {
     const report = await exportDiagnosticReport()
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `safety-diagnostics-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    setSnackbarMsg(`${zhCN.feedback.diagnosticsExported}，${zhCN.feedback.exportLocationHint}`)
+    const fileName = `safety-diagnostics-${Date.now()}.json`
+    const content = JSON.stringify(report, null, 2)
+    const nativeResult = await saveExportFile(fileName, 'application/json', content)
+    if (!nativeResult.saved) {
+      const blob = new Blob([content], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    setSnackbarMsg(`${zhCN.feedback.diagnosticsExported},${nativeResult.location ?? zhCN.feedback.exportLocationHint}`)
   }
 
   const handleParseDiagnostics = () => {
