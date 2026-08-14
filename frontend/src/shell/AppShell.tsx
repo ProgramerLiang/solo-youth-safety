@@ -1,4 +1,5 @@
 import { PreArmOverlay } from '../components/PreArmOverlay'
+import { BottomNav } from '../components/BottomNav'
 import { useEffect } from 'react'
 import { Box, AppBar, Toolbar, Typography, IconButton, Container } from '@mui/material'
 import type { Theme } from '@mui/material/styles'
@@ -68,10 +69,11 @@ export function AppShell({ activePageId, onNavigate, children }: AppShellProps) 
 
       <NavigationDrawer activePageId={activePageId} onNavigate={onNavigate} />
 
-      <Container maxWidth="md" sx={{ py: 2, flex: 1 }}>
+      <Container maxWidth="md" sx={{ py: 2, pb: 8, flex: 1 }}>
         {children}
       </Container>
       <PreArmOverlay />
+      <BottomNav activePageId={activePageId} onNavigate={onNavigate} />
     </Box>
   )
 }
