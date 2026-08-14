@@ -24,55 +24,26 @@ const SLOT_TARGET: Record<HomeSlotKey, PageId> = {
   membership: 'membership',
 }
 
-function useSlotBody(slotKey: HomeSlotKey, onNavigate: (pageId: PageId) => void): { label: string; body: JSX.Element } {
-  const label = HOME_SLOT_CANDIDATES.find((c) => c.key === slotKey)?.label ?? slotKey
-
-  switch (slotKey) {
-    case 'safetyTrip': {
-      const trip = useSafetyTripStore((s) => s.current)
-      if (!trip) return { label, body: <Typography variant="body2" color="text.secondary">无进行中行程</Typography> }
-      const status = deriveSafetyTripStatus(trip, Date.now())
-      return {
-        label,
-        body: (
-          <Box>
-            <Typography variant="body2">{trip.destination}</Typography>
-            <Chip size="small" color={status === 'overdue' ? 'error' : 'success'} label={status === 'overdue' ? '超时' : '进行中'} sx={{ mt: 0.5 }} />
-          </Box>
-        ),
-      }
-    }
-    case 'contacts': {
-      const list = useContactsStore((s) => s.list)
-      if (list.length === 0) return { label, body: <Typography variant="body2" color="text.secondary">暂无联系人,点击添加</Typography> }
-      return { label, body: <Typography variant="body2">{list.length} 人 · {list[0]?.name}</Typography> }
-    }
-    case 'trackingFreshness': {
-      const lastCapturedAt = useTrackingStore((s) => s.lastCapturedAt)
-      const freshness = useLocationFreshness(lastCapturedAt ? new Date(lastCapturedAt).getTime() : null)
-      return { label, body: <Typography variant="body2">{freshness.level === 'fresh' ? '新鲜' : freshness.level === 'stale' ? '过期' : '未知'}</Typography> }
-    }
-    case 'smartRisk': {
-      return { label, body: <Typography variant="body2" color="text.secondary">查看当前风险项</Typography> }
-    }
-    case 'recentSos': {
-      const sosHistory = useSosStore((s) => s.history)
-      if (!sosHistory || sosHistory.length === 0) return { label, body: <Typography variant="body2" color="text.secondary">暂无 SOS 记录</Typography> }
-      return { label, body: <Typography variant="body2">{sosHistory.length} 条记录</Typography> }
-    }
-    case 'geofence': {
-      const zones = useGeofenceStore((s) => s.zones)
-      return { label, body: <Typography variant="body2">{zones.length} 个围栏</Typography> }
-    }
-    case 'membership': {
-      return { label, body: <Typography variant="body2" color="text.secondary">查看会员权益</Typography> }
-    }
-  }
-}
-
 export function HomeSlotCard({ slotKey, onNavigate }: HomeSlotCardProps) {
-  const { label, body } = useSlotBody(slotKey, onNavigate)
+  const label = HOME_SLOT_CANDIDATES.find((c) => c.key === slotKey)?.label ?? slotKey
   const target = SLOT_TARGET[slotKey]
+
+  // 所有 hooks 在顶层调用,不能有条件
+  const safetyTripCurrent = useSafetyTripStore((s) => s.current)
+  const contactsList = useContactsStore((s) => s.list)
+  const lastCapturedAt = useTrackingStore((s) => s.lastCapturedAt)
+  const sosHistory = useSosStore((s) => s.history)
+  const geofenceZones = useGeofenceStore((s) => s.zones)
+  const freshness = useLocationFreshness(lastCapturedAt ? new Date(lastCapturedAt).getTime() : null)
+
+  const body = renderBody(slotKey, {
+    safetyTripCurrent,
+    contactsList,
+    lastCapturedAt,
+    freshness,
+    sosHistory,
+    geofenceZones,
+  })
 
   return (
     <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
@@ -88,4 +59,49 @@ export function HomeSlotCard({ slotKey, onNavigate }: HomeSlotCardProps) {
       </CardActionArea>
     </Card>
   )
+}
+
+interface SlotData {
+  safetyTripCurrent: ReturnType<typeof useSafetyTripStore.getState>['current']
+  contactsList: ReturnType<typeof useContactsStore.getState>['list']
+  lastCapturedAt: ReturnType<typeof useTrackingStore.getState>['lastCapturedAt']
+  freshness: ReturnType<typeof useLocationFreshness>
+  sosHistory: ReturnType<typeof useSosStore.getState>['history']
+  geofenceZones: ReturnType<typeof useGeofenceStore.getState>['zones']
+}
+
+function renderBody(slotKey: HomeSlotKey, data: SlotData): React.ReactElement {
+  switch (slotKey) {
+    case 'safetyTrip': {
+      const trip = data.safetyTripCurrent
+      if (!trip) return <Typography variant="body2" color="text.secondary">无进行中行程</Typography>
+      const status = deriveSafetyTripStatus(trip, Date.now())
+      return (
+        <Box>
+          <Typography variant="body2">{trip.destination}</Typography>
+          <Chip size="small" color={status === 'overdue' ? 'error' : 'success'} label={status === 'overdue' ? '超时' : '进行中'} sx={{ mt: 0.5 }} />
+        </Box>
+      )
+    }
+    case 'contacts': {
+      if (data.contactsList.length === 0) return <Typography variant="body2" color="text.secondary">暂无联系人,点击添加</Typography>
+      return <Typography variant="body2">{data.contactsList.length} 人 · {data.contactsList[0]?.name}</Typography>
+    }
+    case 'trackingFreshness': {
+      return <Typography variant="body2">{data.freshness.level === 'fresh' ? '新鲜' : data.freshness.level === 'stale' ? '过期' : '未知'}</Typography>
+    }
+    case 'smartRisk': {
+      return <Typography variant="body2" color="text.secondary">查看当前风险项</Typography>
+    }
+    case 'recentSos': {
+      if (!data.sosHistory || data.sosHistory.length === 0) return <Typography variant="body2" color="text.secondary">暂无 SOS 记录</Typography>
+      return <Typography variant="body2">{data.sosHistory.length} 条记录</Typography>
+    }
+    case 'geofence': {
+      return <Typography variant="body2">{data.geofenceZones.length} 个围栏</Typography>
+    }
+    case 'membership': {
+      return <Typography variant="body2" color="text.secondary">查看会员权益</Typography>
+    }
+  }
 }

@@ -5,7 +5,6 @@ import { AiCompanionPlaceholder } from '../components/AiCompanionPlaceholder'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useContactsStore } from '../stores/useContactsStore'
-import { useSafetyTripStore } from '../stores/useSafetyTripStore'
 import { zhCN } from '../i18n/zh-CN'
 import type { PageId } from '../types'
 
@@ -18,8 +17,6 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const callNumber = useConfigStore((s) => s.callNumber)
   const smsNumber = useConfigStore((s) => s.smsNumber)
   const contactsCount = useContactsStore((s) => s.list.length)
-  const tripCurrent = useSafetyTripStore((s) => s.current)
-  const tripCreate = useSafetyTripStore((s) => s.createTrip)
   const configComplete = !!(callNumber && smsNumber && contactsCount > 0)
 
   return (

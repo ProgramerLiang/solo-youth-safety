@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { HomeSosButton } from '../components/HomeSosButton'
 import { useSosStore } from '../stores/useSosStore'
 import { useConfigStore } from '../stores/useConfigStore'

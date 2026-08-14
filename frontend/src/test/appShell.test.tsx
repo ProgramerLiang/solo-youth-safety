@@ -78,7 +78,7 @@ describe('AppShell theme surfaces', () => {
     const result = render(
       <MuiThemeProvider theme={theme}>
         <CssBaseline />
-        <AppShell activePageId="overview" onNavigate={vi.fn()}>
+        <AppShell activePageId="home" onNavigate={vi.fn()}>
           <div>content</div>
         </AppShell>
       </MuiThemeProvider>,

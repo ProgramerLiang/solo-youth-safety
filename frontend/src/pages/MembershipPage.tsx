@@ -1,6 +1,5 @@
 import { Stack, Typography, Card, CardContent, Box } from '@mui/material'
 import StarIcon from '@mui/icons-material/Star'
-import { zhCN } from '../i18n/zh-CN'
 
 const BENEFITS = [
   { title: '本地优先守护', desc: '一切敏感数据留在本机,你的位置与联系人不上云。' },
