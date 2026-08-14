@@ -13,7 +13,13 @@ import { StatusStepStack } from '../components/StatusStepStack'
 import { getSosLocation } from '../data/sosLocation'
 import { zhCN } from '../i18n/zh-CN'
 
-export function SosPage() {
+import type { PageId } from '../types'
+
+interface SosPageProps {
+  onNavigate?: (pageId: PageId) => void
+}
+
+export function SosPage({ onNavigate }: SosPageProps) {
   const sosResult = useSosStore((s) => s.sosResult)
   const arm = useSosStore((s) => s.arm)
   const cancel = useSosStore((s) => s.cancel)
@@ -90,7 +96,11 @@ export function SosPage() {
       <Typography variant="h5">{zhCN.pages.sos.label}</Typography>
 
       {!onboardingDone && (
-        <Alert severity="info">请先在「配置」页设置号码后再触发 SOS</Alert>
+        <Alert severity="info" action={
+          onNavigate ? <Button size="small" color="inherit" onClick={() => onNavigate('config')}>前往配置</Button> : undefined
+        }>
+          请先在「配置」页设置号码后再触发 SOS
+        </Alert>
       )}
 
       {!hasResult && (

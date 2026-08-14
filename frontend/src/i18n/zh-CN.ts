@@ -3,7 +3,7 @@ export const zhCN = {
   tagline: '前台采样 · 手动 SOS · 本地存储',
 
   pages: {
-    overview: { label: '总览' },
+    home: { label: '首页' },
     sos: { label: 'SOS' },
     history: { label: '历史' },
     playback: { label: '回放' },
@@ -13,6 +13,30 @@ export const zhCN = {
     theme: { label: '主题' },
     tools: { label: '工具' },
     smartRules: { label: '智能规则' },
+    messages: { label: '消息' },
+    scenes: { label: '场景' },
+    membership: { label: '会员' },
+    profile: { label: '我的' },
+  },
+
+  bottomNav: {
+    home: '首页',
+    messages: '消息',
+    scenes: '场景',
+    membership: '会员',
+    profile: '我的',
+  },
+
+  home: {
+    sosLabel: '触发 SOS',
+    configShortcut: '一键前往配置',
+    aiTitle: 'AI 陪伴助手',
+    aiSubtitle: '即将上线,敬请期待。陪伴助手将在后续版本提供本地情绪陪伴与安全提醒。',
+  },
+
+  membership: {
+    title: '会员权益',
+    comingSoon: '所有功能均已免费开放,会员权益即将上线,敬请期待。',
   },
 
   actions: {

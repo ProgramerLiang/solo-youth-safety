@@ -10,7 +10,7 @@ import { useContactsStore } from './stores/useContactsStore'
 import { useGeofenceStore } from './stores/useGeofenceStore'
 import { usePrivacyLockStore } from './stores/usePrivacyLockStore'
 import { AppShell } from './shell/AppShell'
-import { OverviewPage } from './pages/OverviewPage'
+import { HomePage } from './pages/HomePage'
 import { SosPage } from './pages/SosPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { PlaybackPage } from './pages/PlaybackPage'
@@ -20,20 +20,28 @@ import { ContactsPage } from './pages/ContactsPage'
 import { ThemePage } from './pages/ThemePage'
 import { ToolsPage } from './pages/ToolsPage'
 import { RuleEnginePage } from './pages/RuleEnginePage'
+import { MembershipPage } from './pages/MembershipPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { PageId } from './types'
 
-const pageMap: Record<PageId, React.ReactElement> = {
-  overview: <OverviewPage />,
-  sos: <SosPage />,
-  history: <HistoryPage />,
-  playback: <PlaybackPage />,
-  tracking: <TrackingPage />,
-  config: <ConfigPage />,
-  contacts: <ContactsPage />,
-  theme: <ThemePage />,
-  tools: <ToolsPage />,
-  smartRules: <RuleEnginePage />,
+function pageMap(activePageId: PageId, navigate: (page: PageId) => void): React.ReactElement {
+  switch (activePageId) {
+    case 'home': return <HomePage onNavigate={navigate} />
+    case 'sos': return <SosPage onNavigate={navigate} />
+    case 'history': return <HistoryPage />
+    case 'playback': return <PlaybackPage />
+    case 'tracking': return <TrackingPage />
+    case 'config': return <ConfigPage />
+    case 'contacts': return <ContactsPage />
+    case 'theme': return <ThemePage />
+    case 'tools': return <ToolsPage />
+    case 'smartRules': return <RuleEnginePage />
+    case 'messages': return <div />
+    case 'scenes': return <div />
+    case 'membership': return <MembershipPage />
+    case 'profile': return <div />
+    default: return <HomePage onNavigate={navigate} />
+  }
 }
 
 export function App() {
@@ -74,7 +82,7 @@ export function App() {
   return (
     <ErrorBoundary>
       <AppShell activePageId={activePageId} onNavigate={navigate}>
-        {pageMap[activePageId]}
+        {pageMap(activePageId, navigate)}
       </AppShell>
     </ErrorBoundary>
   )

@@ -1,24 +1,23 @@
 import { Chip, Drawer, List, ListItemButton, ListItemText, Box, Typography, Divider } from '@mui/material'
 import { useUiStore } from '../stores/useUiStore'
 import { useDevModeStore } from '../stores/useDevModeStore'
-import { ALL_PAGE_IDS, type PageId } from '../types'
+import type { PageId } from '../types'
 import { zhCN } from '../i18n/zh-CN'
+
 interface NavigationDrawerProps {
   activePageId: PageId
   onNavigate: (pageId: PageId) => void
 }
 
-const pageLabel: Record<PageId, string> = {
-  overview: zhCN.pages.overview.label,
+// 侧边栏仅保留辅助页;底栏已承载主入口
+const SIDEBAR_PAGES: PageId[] = ['sos', 'history', 'playback', 'tracking']
+
+const pageLabel: Partial<Record<PageId, string>> = {
   sos: zhCN.pages.sos.label,
   history: zhCN.pages.history.label,
   playback: zhCN.pages.playback.label,
   tracking: zhCN.pages.tracking.label,
-  config: zhCN.pages.config.label,
-  contacts: zhCN.pages.contacts.label,
-  theme: zhCN.pages.theme.label,
   tools: zhCN.pages.tools.label,
-  smartRules: zhCN.pages.smartRules.label,
 }
 
 export function NavigationDrawer({ activePageId, onNavigate }: NavigationDrawerProps) {
@@ -30,6 +29,8 @@ export function NavigationDrawer({ activePageId, onNavigate }: NavigationDrawerP
     onNavigate(pageId)
     closeDrawer()
   }
+
+  const sidebar = devEnabled ? [...SIDEBAR_PAGES, 'tools' as PageId] : SIDEBAR_PAGES
 
   return (
     <Drawer
@@ -47,7 +48,7 @@ export function NavigationDrawer({ activePageId, onNavigate }: NavigationDrawerP
         </Typography>
         <Divider sx={{ mb: 1 }} />
         <List>
-          {ALL_PAGE_IDS.map((pageId) => (
+          {sidebar.map((pageId) => (
             <ListItemButton
               key={pageId}
               selected={activePageId === pageId}
@@ -55,7 +56,7 @@ export function NavigationDrawer({ activePageId, onNavigate }: NavigationDrawerP
               sx={{ mx: 1, borderRadius: 2 }}
             >
               <ListItemText
-                primary={pageLabel[pageId]}
+                primary={pageLabel[pageId] ?? pageId}
                 primaryTypographyProps={{
                   fontWeight: activePageId === pageId ? 600 : 400,
                 }}

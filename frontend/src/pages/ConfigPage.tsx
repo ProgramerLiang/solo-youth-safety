@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useUiStore } from '../stores/useUiStore'
 import {
   Stack, Typography, Card, CardContent, TextField, Button, Chip, Box,
   Alert, Snackbar, Switch, FormControlLabel, Checkbox, Dialog, DialogTitle,
@@ -167,6 +168,20 @@ export function ConfigPage() {
   useEffect(() => {
     refreshPermissionStatus()
   }, [])
+
+  // 消费外部 scrollAnchor(如场景面板"地理围栏"跳转),自动滚到对应区块
+  const scrollAnchor = useUiStore((s) => s.consumeScrollAnchor)
+  const consumeScroll = useRef(scrollAnchor)
+  useEffect(() => {
+    const anchor = consumeScroll.current()
+    if (anchor === 'geofence') {
+      const el = document.querySelector('[data-testid="geofence-form"]')
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else if (anchor === 'privacy') {
+      const el = document.querySelector('[data-testid="privacy-lock-section"]')
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
 
   const handleRequestLocationPermission = async () => {
     await requestStartupLocationPermission()
@@ -562,7 +577,7 @@ export function ConfigPage() {
       </Dialog>
 
       {/* Privacy Lock */}
-      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+      <Card variant="outlined" sx={{ borderRadius: 3 }} data-testid="privacy-lock-section">
         <CardContent>
           <Typography variant="overline">隐私锁屏</Typography>
           <Stack spacing={2} mt={1}>

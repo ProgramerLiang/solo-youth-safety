@@ -48,14 +48,14 @@ describe('useLocationFreshness', () => {
 })
 
 describe('useHashRouter guard', () => {
-  it('treats tripHistory hash as overview', async () => {
+  it('treats unknown hash as home fallback', async () => {
     const { useHashRouter } = await import('../hooks/useHashRouter')
     const originalHash = window.location.hash
     window.location.hash = 'tripHistory'
 
     const { result } = renderHook(() => useHashRouter(true))
 
-    expect(result.current.activePageId).toBe('overview')
+    expect(result.current.activePageId).toBe('home')
 
     window.location.hash = originalHash
   })

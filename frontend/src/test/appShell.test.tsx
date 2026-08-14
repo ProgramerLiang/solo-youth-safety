@@ -46,7 +46,7 @@ describe('AppShell navigation', () => {
     expect(screen.queryByRole('button', { name: '轨迹' })).not.toBeInTheDocument()
   })
 
-  it('uses the side drawer as the only page navigation surface', () => {
+  it('provides page navigation via both the bottom bar and the side drawer', () => {
     const onNavigate = vi.fn()
     useUiStore.setState({ drawerOpen: true, drawerOffset: 0 })
     vi.stubGlobal('__APP_VERSION__', 'test')
@@ -58,8 +58,8 @@ describe('AppShell navigation', () => {
       </AppShell>,
     )
 
+    // 抽屉内辅助页可点击
     expect(screen.getByRole('button', { name: '轨迹' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '行程历史' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '轨迹' }))
 
