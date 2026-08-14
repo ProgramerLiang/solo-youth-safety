@@ -1,5 +1,5 @@
 export type PageId =
-  | 'overview'
+  | 'home'
   | 'sos'
   | 'history'
   | 'tracking'
@@ -9,9 +9,13 @@ export type PageId =
   | 'theme'
   | 'tools'
   | 'smartRules'
+  | 'messages'
+  | 'scenes'
+  | 'membership'
+  | 'profile'
 
 export const ALL_PAGE_IDS: PageId[] = [
-  'overview',
+  'home',
   'sos',
   'history',
   'playback',
@@ -21,6 +25,10 @@ export const ALL_PAGE_IDS: PageId[] = [
   'theme',
   'tools',
   'smartRules',
+  'messages',
+  'scenes',
+  'membership',
+  'profile',
 ]
 
 

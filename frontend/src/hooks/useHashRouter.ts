@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PageId } from '../types'
 
 function parseHash(): PageId {
-  const hash = window.location.hash.replace('#', '') || 'overview'
-  const valid: PageId[] = ['overview', 'sos', 'history', 'playback', 'tracking', 'config', 'contacts', 'theme', 'tools', 'smartRules']
+  const hash = window.location.hash.replace('#', '') || 'home'
+  const valid: PageId[] = [
+    'home', 'sos', 'history', 'playback', 'tracking',
+    'config', 'contacts', 'theme', 'tools', 'smartRules',
+    'messages', 'scenes', 'membership', 'profile',
+  ]
   if (valid.includes(hash as PageId)) {
     return hash as PageId
   }
-  return 'overview'
+  return 'home'
 }
 
 export function useHashRouter(onboardingDone: boolean) {
