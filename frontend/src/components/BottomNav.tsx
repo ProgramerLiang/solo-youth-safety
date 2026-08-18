@@ -3,6 +3,7 @@ import { BottomNavigation, BottomNavigationAction, Paper, Popover } from '@mui/m
 import HomeIcon from '@mui/icons-material/Home'
 import NotificationsIcon from '@mui/icons-material/Notifications'
 import ExploreIcon from '@mui/icons-material/Explore'
+import SmartToyIcon from '@mui/icons-material/SmartToy'
 import StarIcon from '@mui/icons-material/Star'
 import PersonIcon from '@mui/icons-material/Person'
 import { MessagesPanel } from './MessagesPanel'
@@ -21,6 +22,7 @@ const TABS: { label: string; page: PageId; icon: React.ReactElement; panel?: Pan
   { label: '首页', page: 'home', icon: <HomeIcon /> },
   { label: '消息', page: 'messages', icon: <NotificationsIcon />, panel: 'messages' },
   { label: '场景', page: 'scenes', icon: <ExploreIcon />, panel: 'scenes' },
+  { label: 'AI', page: 'ai', icon: <SmartToyIcon /> },
   { label: '会员', page: 'membership', icon: <StarIcon /> },
   { label: '我的', page: 'profile', icon: <PersonIcon />, panel: 'profile' },
 ]

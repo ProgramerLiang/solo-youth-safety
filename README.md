@@ -19,9 +19,9 @@
 
 | 项 | 当前事实 | 依据 |
 | 前端入口 | `frontend/src/main.tsx` -> `frontend/src/App.tsx` | 当前 Vite 入口 |
-| 前端 / Android 版本 | `0.8.3` | `frontend/package.json` |
+| 前端 / Android 版本 | `0.8.4` | `frontend/package.json` |
 | 本地快照导出版本 | 跟随 `frontend/package.json` 输出当前版本 | `frontend/src/data/snapshot.ts` |
-| package-lock 版本元数据 | 已收口为 `0.8.3` | `frontend/package-lock.json` |
+| package-lock 版本元数据 | 已收口为 `0.8.4` | `frontend/package-lock.json` |
 | 前端运行模式 | TS 入口以本地持久化为主 | 当前 TS 源码无远端 API 调用 |
 | 后端 / API | 已弃用；后端代码已移除；CI 不再运行后端测试，前端主线无远端 / 本地后端 shim | `backend/README.md`、`backend/data/safety.db`、`docs/api/README.md` 只作历史参考 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
@@ -78,7 +78,8 @@
 - domain 层零 IO、零外部依赖，仅纯函数。
 - 旧版 .js 文件已全部删除；当前入口统一为 `main.tsx`，存储抽象统一为 `data/storage.ts`，不再有双轨存储抽象。
 - 页面：总览、SOS、历史、回放、轨迹、配置、联系人、主题、工具。
-- 导航：底栏 5 Tab 为主导航（首页、消息面板、场景面板、会员、我的面板），侧边栏仅保留辅助页（SOS/历史/回放/轨迹）。页面间支持一键跳转（SOS → 配置、首页卡片 → 对应页、场景面板 → 围栏锚点）。
+- 导航： 底栏 6 Tab 为主导航（首页、消息面板、场景面板、AI、会员、我的面板），侧边栏仅保留辅助页（SOS/历史/回放/轨迹）。页面间支持一键跳转（SOS → 配置、首页卡片 → 对应页、场景面板 → 围栏锚点）。
+- AI 陪伴助手（debug）：OpenAI Function Calling 对话，支持 Markovdown 渲染、多对话管理（新建/切换/重命名/删除）、对话持久化、12 个安全工具（8 只读自动执行 + 4 写入需确认）、防提示词攻击系统提示、独立 AI 配置页面（在"我的"中入口）、底栏直达按钮。仅 debug 包可用。
 - 首页：大号圆形 SOS 按钮 + 四栏自定义卡片（默认安全行程/紧急联系人/轨迹新鲜度/智能风险提示）+ AI 陪伴助手占位 + 守护状态统计卡。替代原总览页。
 - 配置：电话、短信号码、短信模板、模板变量预览、配置导入 / 导出、版本与配置事实面板、能力边界事实面板、本地通知开关、风险规则中心、行程预设管理、隐私 PIN 锁设置；短信预览使用主题色，填充按钮与主题页选中选项悬停态集中使用主题对比色，避免深色 / 浅色模式下低对比度。
 - 首次配置：配置页展示定位、后台运行、存储访问权限引导；定位走系统授权弹窗，后台运行打开系统设置，现代 Android 存储导出不申请广泛权限。

@@ -23,6 +23,7 @@ import { ToolsPage } from './pages/ToolsPage'
 import { RuleEnginePage } from './pages/RuleEnginePage'
 import { MembershipPage } from './pages/MembershipPage'
 import { AiPage } from './pages/AiPage'
+import { AiConfigPage } from './pages/AiConfigPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { PageId } from './types'
 
@@ -41,7 +42,8 @@ function pageMap(activePageId: PageId, navigate: (page: PageId) => void): React.
     case 'messages': return <div />
     case 'scenes': return <div />
     case 'membership': return <MembershipPage />
-    case 'ai': return <AiPage />
+    case 'ai': return <AiPage onNavigate={navigate} />
+    case 'ai-config': return <AiConfigPage onNavigate={navigate} />
     case 'profile': return <div />
     default: return <HomePage onNavigate={navigate} />
   }
