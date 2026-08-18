@@ -9,6 +9,9 @@ describe('ScenesPanel', () => {
     useUiStore.setState({ scrollAnchor: null })
     render(<ScenesPanel onNavigate={onNavigate} onClose={vi.fn()} />)
 
+    // 先切到「功能」Tab
+    fireEvent.click(screen.getByRole('tab', { name: '功能' }))
+
     fireEvent.click(screen.getByRole('button', { name: '智能规则' }))
     expect(onNavigate).toHaveBeenCalledWith('smartRules')
 
