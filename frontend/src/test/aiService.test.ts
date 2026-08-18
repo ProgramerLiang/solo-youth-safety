@@ -14,7 +14,7 @@ describe('chatCompletion', () => {
     } as Response)
 
     const result = await chatCompletion([{ role: 'user', content: 'hi' }], [])
-    expect(result.choices[0].message.content).toBe('Hello!')
+    expect(result.choices[0]!.message.content!).toBe('Hello!')
     expect(fetch).toHaveBeenCalledWith(
       'https://api.openai.com/v1/chat/completions',
       expect.objectContaining({
@@ -32,8 +32,16 @@ describe('chatCompletion', () => {
 
     const tools = [{ type: 'function' as const, function: { name: 'get_contacts', description: '', parameters: {} } }]
     const result = await chatCompletion([{ role: 'user', content: 'contacts' }], tools)
-    expect(result.choices[0].message.tool_calls).toHaveLength(1)
-    expect(result.choices[0].message.tool_calls![0].function.name).toBe('get_contacts')
+    const choice = result.choices[0]
+    expect(choice).toBeDefined()
+    const msg = choice!.message
+    expect(msg).toBeDefined()
+    const tc = msg!.tool_calls
+    expect(tc).toBeDefined()
+    expect(tc).toHaveLength(1)
+    const firstTc = tc![0]
+    expect(firstTc).toBeDefined()
+    expect(firstTc!.function.name).toBe('get_contacts')
   })
 
   it('throws on HTTP error', async () => {

@@ -4,7 +4,7 @@ import SendIcon from '@mui/icons-material/Send'
 import { AiChatMessage } from './AiChatMessage'
 import { chatCompletion } from '../ai/aiService'
 import { TOOL_DEFINITIONS, TOOL_PERMISSIONS, runTool } from '../ai/aiTools'
-import { addMessage, getMessages, clearMessages, initializeMemory, type AiMessage } from '../ai/aiMemory'
+import { addMessage, getMessages, initializeMemory, type AiMessage } from '../ai/aiMemory'
 import { buildSystemPrompt } from '../ai/aiContext'
 import { useAiConfigStore } from '../ai/aiConfigStore'
 
@@ -63,6 +63,7 @@ export function AiChatBox() {
       try {
         const response = await chatCompletion(msgs, TOOL_DEFINITIONS)
         const choice = response.choices[0]
+        if (!choice) { throw new Error('AI 返回空响应') }
 
         addMessage({
           role: 'assistant',

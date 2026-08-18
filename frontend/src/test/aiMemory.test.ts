@@ -7,16 +7,18 @@ describe('aiMemory', () => {
   it('starts empty after init', async () => {
     await initializeMemory('system prompt')
     const msgs = getMessages()
-    expect(msgs.length).toBe(1)
-    expect(msgs[0].role).toBe('system')
-    expect(msgs[0].content).toBe('system prompt')
+    expect(msgs).toHaveLength(1)
+    const first = msgs[0]
+    expect(first).toBeDefined()
+    expect(first!.role).toBe('system')
+    expect(first!.content).toBe('system prompt')
   })
 
   it('addMessage appends message', async () => {
     await initializeMemory('sys')
     addMessage({ role: 'user', content: 'hi' })
     expect(getMessages().length).toBe(2)
-    expect(getMessages()[1].content).toBe('hi')
+    expect(getMessages()[1]!.content!).toBe('hi')
   })
 
   it('trims to 50 messages max', async () => {
@@ -30,7 +32,7 @@ describe('aiMemory', () => {
     addMessage({ role: 'user', content: 'hi' })
     clearMessages()
     expect(getMessages().length).toBe(1)
-    expect(getMessages()[0].role).toBe('system')
+    expect(getMessages()[0]!.role).toBe('system')
   })
 
   it('persists to localStorage and loads back', async () => {

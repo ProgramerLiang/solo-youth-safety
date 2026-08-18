@@ -57,7 +57,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
           size="small"
           label="API 地址"
           value={config.baseUrl}
-          onChange={(e) => setConfig({ baseUrl: e.target.value })}
+          onChange={(e) => setAiConfig({ baseUrl: e.target.value })}
           placeholder="https://api.openai.com/v1"
           fullWidth
         />
@@ -66,7 +66,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
           label="API Key"
           type="password"
           value={config.key}
-          onChange={(e) => setConfig({ key: e.target.value })}
+          onChange={(e) => setAiConfig({ key: e.target.value })}
           placeholder="sk-..."
           fullWidth
         />
@@ -74,7 +74,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
           size="small"
           label="模型"
           value={config.model}
-          onChange={(e) => setConfig({ model: e.target.value })}
+          onChange={(e) => setAiConfig({ model: e.target.value })}
           placeholder="gpt-4o-mini"
           fullWidth
         />

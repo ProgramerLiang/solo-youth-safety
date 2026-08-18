@@ -5,7 +5,6 @@ import { useSafetyTripStore } from '../stores/useSafetyTripStore'
 import { useGeofenceStore } from '../stores/useGeofenceStore'
 import { useRuleEngineStore } from '../stores/useRuleEngineStore'
 import { useSosStore } from '../stores/useSosStore'
-import { useLocationFreshness } from '../hooks/useLocationFreshness'
 import { aggregateRiskData } from '../domain/riskAssessment'
 import { routeGeofenceEvents } from '../domain/geofence'
 

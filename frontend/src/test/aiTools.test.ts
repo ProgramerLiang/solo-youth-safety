@@ -33,13 +33,19 @@ describe('aiTools', () => {
   it('get_contacts returns the contact list', async () => {
     useContactsStore.setState({ list: [{ id: '1', name: '张三', phone: '13800138000' }] })
     const result = await runTool('get_contacts', {})
-    expect(result.contacts).toHaveLength(1)
-    expect(result.contacts[0].name).toBe('张三')
+    const data = result as { contacts?: Array<{ name: string; phone: string }> }
+    const contacts = data.contacts
+    expect(contacts).toBeDefined()
+    expect(contacts).toHaveLength(1)
+    const first = contacts![0]
+    expect(first).toBeDefined()
+    expect(first!.name).toBe('张三')
   })
 
   it('get_contacts returns empty list when no contacts', async () => {
     const result = await runTool('get_contacts', {})
-    expect(result.contacts).toEqual([])
+    const data = result as { contacts?: Array<unknown> }
+    expect(data.contacts).toEqual([])
   })
 
   it('read tools require no confirmation', () => {
@@ -49,7 +55,7 @@ describe('aiTools', () => {
   })
 
   it('returns error for unknown tool', async () => {
-    const result = await runTool('nonexistent')
+    const result = await runTool('nonexistent', {})
     expect('error' in result && result.error).toBeDefined()
   })
 
