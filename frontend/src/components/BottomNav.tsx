@@ -2,9 +2,12 @@ import { useState, useCallback, useRef } from 'react'
 import { Box, Paper, Slide, useMediaQuery, useTheme } from '@mui/material'
 import { keyframes } from '@emotion/react'
 import HomeIcon from '@mui/icons-material/Home'
+import NotificationsIcon from '@mui/icons-material/Notifications'
 import ExploreIcon from '@mui/icons-material/Explore'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
+import StarIcon from '@mui/icons-material/Star'
 import PersonIcon from '@mui/icons-material/Person'
+import { MessagesPanel } from './MessagesPanel'
 import { ScenesPanel } from './ScenesPanel'
 import { ProfilePanel } from './ProfilePanel'
 import type { PageId } from '../types'
@@ -14,7 +17,7 @@ interface BottomNavProps {
   onNavigate: (pageId: PageId) => void
 }
 
-type PanelType = 'scenes' | 'profile'
+type PanelType = 'messages' | 'scenes' | 'profile'
 
 interface TabDef {
   label: string
@@ -25,8 +28,10 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { label: '首页', page: 'home', icon: <HomeIcon /> },
+  { label: '消息', page: 'messages', icon: <NotificationsIcon />, panel: 'messages' },
   { label: '场景', page: 'scenes', icon: <ExploreIcon />, panel: 'scenes' },
   { label: 'AI', page: 'ai', icon: <SmartToyIcon /> },
+  { label: '会员', page: 'membership', icon: <StarIcon /> },
   { label: '我的', page: 'profile', icon: <PersonIcon />, panel: 'profile' },
 ]
 
@@ -222,6 +227,7 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
           }}
           elevation={6}
         >
+          {panel === 'messages' && <MessagesPanel onNavigate={panelNavigate} onClose={handleClose} />}
           {panel === 'scenes' && <ScenesPanel onNavigate={panelNavigate} onClose={handleClose} />}
           {panel === 'profile' && <ProfilePanel onNavigate={panelNavigate} onClose={handleClose} />}
         </Paper>
