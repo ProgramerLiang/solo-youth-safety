@@ -9,6 +9,7 @@ import { useTrackingStore } from './stores/useTrackingStore'
 import { useContactsStore } from './stores/useContactsStore'
 import { useGeofenceStore } from './stores/useGeofenceStore'
 import { usePrivacyLockStore } from './stores/usePrivacyLockStore'
+import { useAiConfigStore } from './ai/aiConfigStore'
 import { AppShell } from './shell/AppShell'
 import { HomePage } from './pages/HomePage'
 import { SosPage } from './pages/SosPage'
@@ -56,6 +57,7 @@ export function App() {
   const initContacts = useContactsStore((s) => s.initialize)
   const initGeofence = useGeofenceStore((s) => s.initialize)
   const initPrivacyLock = usePrivacyLockStore((s) => s.initialize)
+  const initAi = useAiConfigStore((s) => s.initialize)
   const privacyLockLoaded = usePrivacyLockStore((s) => s.loaded)
   const onboardingDone = useConfigStore((s) => s.onboardingDone)
 
@@ -71,6 +73,7 @@ export function App() {
     initContacts()
     initGeofence()
     initPrivacyLock()
+    initAi()
   }, [initIdentity, loadThemePrefs, initDevMode, initConfig, initSos, initTracking, initContacts, initGeofence, initPrivacyLock])
 
   if (!privacyLockLoaded) {

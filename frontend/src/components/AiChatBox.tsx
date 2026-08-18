@@ -135,7 +135,7 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
   }
 
   return (
-    <Stack sx={{ height: fullHeight ? '100%' : 400, display: 'flex', flexDirection: 'column' }}>
+    <Stack sx={{ flex: fullHeight ? '1 1 0' : '0 0 auto', height: fullHeight ? 'auto' : 400, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <Box ref={listRef} sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
         {messages.slice(1).map((msg, i) => (
           <AiChatMessage
