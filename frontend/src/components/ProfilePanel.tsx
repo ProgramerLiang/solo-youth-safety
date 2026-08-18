@@ -1,6 +1,5 @@
-import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, Switch, FormControl, InputLabel, Select, MenuItem, Card, CardContent } from '@mui/material'
+import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, Switch, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
-import StarIcon from '@mui/icons-material/Star'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useUiStore } from '../stores/useUiStore'
@@ -13,11 +12,6 @@ interface ProfilePanelProps {
   onNavigate: (pageId: PageId) => void
   onClose: () => void
 }
-
-const BENEFITS = [
-  { title: '本地优先守护', desc: '一切敏感数据留在本机,你的位置与联系人不上云。' },
-  { title: '智能场景扩展', desc: '围栏、行程、风险规则组合,后续支持更多自动守护场景。' },
-]
 
 export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
   const devEnabled = useDevModeStore((s) => s.enabled)
@@ -50,25 +44,6 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
         <IconButton size="small" onClick={onClose} aria-label="关闭我的面板"><CloseIcon fontSize="small" /></IconButton>
       </Box>
       <Divider />
-
-      {/* membership card */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <StarIcon color="warning" fontSize="small" />
-            <Typography variant="body2" fontWeight={600}>会员</Typography>
-          </Box>
-          <Typography variant="caption" color="text.secondary">所有功能均已免费开放,会员权益即将上线。</Typography>
-          <Box sx={{ display: 'flex', gap: 1.5, mt: 1, flexWrap: 'wrap' }}>
-            {BENEFITS.map((b) => (
-              <Box key={b.title} sx={{ flex: '1 0 45%' }}>
-                <Typography variant="caption" fontWeight={600}>{b.title}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{b.desc}</Typography>
-              </Box>
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
 
       {/* nav entries */}
       <List dense disablePadding>
