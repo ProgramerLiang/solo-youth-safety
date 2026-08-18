@@ -29,7 +29,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         ))}
       </Box>
 
-      <AiCompanionPlaceholder />
+      <AiCompanionPlaceholder onNavigate={onNavigate} />
 
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>

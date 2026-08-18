@@ -1,7 +1,7 @@
 {
   "name": "solo-youth-safety-frontend",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -37,6 +37,8 @@
     "@mui/material": "^6.5.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

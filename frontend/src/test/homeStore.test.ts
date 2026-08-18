@@ -8,7 +8,7 @@ describe('useHomeStore', () => {
   it('HOME_SLOT_CANDIDATES includes the seven slot types', () => {
     expect(HOME_SLOT_CANDIDATES.map((c) => c.key)).toEqual<HomeSlotKey[]>([
       'safetyTrip', 'contacts', 'trackingFreshness', 'smartRisk',
-      'recentSos', 'geofence', 'membership',
+      'recentSos', 'geofence', 'membership', 'aiAssistant',
     ])
   })
 

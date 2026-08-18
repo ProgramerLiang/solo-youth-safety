@@ -6,6 +6,7 @@ export type HomeSlotKey =
   | 'recentSos'
   | 'geofence'
   | 'membership'
+  | 'aiAssistant'
 
 export interface HomeSlotCandidate {
   key: HomeSlotKey
@@ -20,6 +21,7 @@ export const HOME_SLOT_CANDIDATES: HomeSlotCandidate[] = [
   { key: 'recentSos', label: '最近 SOS' },
   { key: 'geofence', label: '围栏状态' },
   { key: 'membership', label: '会员权益' },
+  { key: 'aiAssistant', label: 'AI 陪伴助手' },
 ]
 
 export const DEFAULT_HOME_SLOTS: HomeSlotKey[] = [

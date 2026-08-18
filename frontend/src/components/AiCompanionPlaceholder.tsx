@@ -1,24 +1,35 @@
-import { Card, CardContent, Typography, Button, Box } from '@mui/material'
+import { Card, CardActionArea, CardContent, Typography, Button, Box } from '@mui/material'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { useAiConfigStore } from '../ai/aiConfigStore'
-import { AiChatBox } from './AiChatBox'
+import type { PageId } from '../types'
 
-export function AiCompanionPlaceholder() {
+interface AiCompanionPlaceholderProps {
+  onNavigate?: (pageId: PageId) => void
+}
+
+export function AiCompanionPlaceholder({ onNavigate }: AiCompanionPlaceholderProps) {
   const companionEnabled = useHomeStore((s) => s.companionEnabled)
   const setCompanionEnabled = useHomeStore((s) => s.setCompanionEnabled)
   const devEnabled = useDevModeStore((s) => s.enabled)
   const aiEnabled = useAiConfigStore((s) => s.config.enabled)
 
-  // debug 模式 + AI 助手启用 → 显示完整对话 UI
+  // debug 模式 + AI 助手启用 → 可点击入口卡,点击跳转独立 AI 页
   if (devEnabled && aiEnabled) {
     return (
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
-        <CardContent>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>🤖 AI 陪伴助手</Typography>
-          <AiChatBox />
-        </CardContent>
+        <CardActionArea onClick={() => onNavigate?.('ai')} aria-label="AI 陪伴助手">
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SmartToyIcon color="primary" />
+              <Box>
+                <Typography variant="subtitle2">AI 陪伴助手</Typography>
+                <Typography variant="body2" color="text.secondary">点击进入对话 · 已配置 API</Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </CardActionArea>
       </Card>
     )
   }

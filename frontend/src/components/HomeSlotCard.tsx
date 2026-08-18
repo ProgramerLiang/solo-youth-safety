@@ -22,6 +22,7 @@ const SLOT_TARGET: Record<HomeSlotKey, PageId> = {
   recentSos: 'history',
   geofence: 'config',
   membership: 'membership',
+  aiAssistant: 'ai',
 }
 
 export function HomeSlotCard({ slotKey, onNavigate }: HomeSlotCardProps) {
@@ -102,6 +103,9 @@ function renderBody(slotKey: HomeSlotKey, data: SlotData): React.ReactElement {
     }
     case 'membership': {
       return <Typography variant="body2" color="text.secondary">查看会员权益</Typography>
+    }
+    case 'aiAssistant': {
+      return <Typography variant="body2" color="text.secondary">AI 对话与安全分析</Typography>
     }
   }
 }

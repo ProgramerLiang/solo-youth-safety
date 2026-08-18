@@ -1,4 +1,6 @@
 import { Box, Typography, Chip, CircularProgress } from '@mui/material'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface AiChatMessageProps {
   role: 'user' | 'assistant' | 'system' | 'tool'
@@ -67,9 +69,15 @@ export function AiChatMessage({ role, content, toolName, isRunning }: AiChatMess
         }}
       >
         {!isUser && <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>🤖 安全助手</Typography>}
-        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {content || ''}
-        </Typography>
+        {role === 'assistant' ? (
+          <Box sx={{ '& p': { my: 0.5 }, '& code': { px: 0.5, py: 0.25, bgcolor: 'action.hover', borderRadius: 0.5, fontSize: '0.85em' }, '& pre': { p: 1, bgcolor: 'grey.200', borderRadius: 1, overflow: 'auto', fontSize: '0.85em' } }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
+          </Box>
+        ) : (
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {content || ''}
+          </Typography>
+        )}
       </Box>
     </Box>
   )

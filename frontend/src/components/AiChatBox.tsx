@@ -8,7 +8,11 @@ import { addMessage, getMessages, initializeMemory, type AiMessage } from '../ai
 import { buildSystemPrompt } from '../ai/aiContext'
 import { useAiConfigStore } from '../ai/aiConfigStore'
 
-export function AiChatBox() {
+interface AiChatBoxProps {
+  fullHeight?: boolean
+}
+
+export function AiChatBox({ fullHeight }: AiChatBoxProps) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -131,7 +135,7 @@ export function AiChatBox() {
   }
 
   return (
-    <Stack sx={{ height: 400, display: 'flex', flexDirection: 'column' }}>
+    <Stack sx={{ height: fullHeight ? '100%' : 400, display: 'flex', flexDirection: 'column' }}>
       <Box ref={listRef} sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
         {messages.slice(1).map((msg, i) => (
           <AiChatMessage
