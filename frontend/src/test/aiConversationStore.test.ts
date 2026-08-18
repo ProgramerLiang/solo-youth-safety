@@ -13,7 +13,6 @@ describe('useAiConversationStore', () => {
 
   it('create adds a new conversation and switches to it', async () => {
     await useAiConversationStore.getState().initialize()
-    const firstId = useAiConversationStore.getState().activeConversationId
     const newId = useAiConversationStore.getState().create()
     expect(useAiConversationStore.getState().conversations).toHaveLength(2)
     expect(useAiConversationStore.getState().activeConversationId).toBe(newId)

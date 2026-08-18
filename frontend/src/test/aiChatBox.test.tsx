@@ -8,12 +8,13 @@ beforeEach(() => {
   useAiConfigStore.setState({ config: { baseUrl: 'https://api.openai.com/v1', key: 'sk-test', model: 'gpt-4o-mini', enabled: true }, loaded: true })
   useDevModeStore.setState({ enabled: true, tapProgress: 0, loaded: true })
   localStorage.removeItem('safety_v2_ai_messages')
+  localStorage.removeItem('safety_v2_ai_conversations')
 })
 
 describe('AiChatBox', () => {
-  it('shows welcome message on first render', async () => {
+  it('shows new conversation prompt on first render', async () => {
     render(<AiChatBox />)
-    expect(await screen.findByText(/你好/)).toBeInTheDocument()
+    expect(await screen.findByText(/新对话,发送消息开始/)).toBeInTheDocument()
   })
 
   it('renders send button and input field', () => {

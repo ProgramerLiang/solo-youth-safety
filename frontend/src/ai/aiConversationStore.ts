@@ -89,7 +89,9 @@ export const useAiConversationStore = create<AiConversationState>((set, get) => 
     const state = get()
     const conv = state.conversations.find((c) => c.id === state.activeConversationId)
     if (!conv) return
-    const updated = { ...conv, messages: [...conv.messages, msg], updatedAt: Date.now() }
+    const updated = structuredClone(conv)
+    updated.messages = [...conv.messages, msg]
+    updated.updatedAt = Date.now()
     const next = state.conversations.map((c) => c.id === updated.id ? updated : c)
     set({ conversations: next })
     storage.setJson(CONVERSATIONS_KEY, next)
@@ -100,7 +102,10 @@ export const useAiConversationStore = create<AiConversationState>((set, get) => 
     const conv = state.conversations.find((c) => c.id === state.activeConversationId)
     if (!conv) return
     const system = conv.messages[0]
-    const updated = { ...conv, messages: system ? [system] : [{ role: 'system', content: '' }], updatedAt: Date.now() }
+    const newMsgs: AiMessage[] = system ? [{ role: system.role, content: system.content ?? '' }] : [{ role: 'system', content: '' }]
+    const updated = structuredClone(conv)
+    updated.messages = newMsgs
+    updated.updatedAt = Date.now()
     const next = state.conversations.map((c) => c.id === updated.id ? updated : c)
     set({ conversations: next })
     storage.setJson(CONVERSATIONS_KEY, next)
@@ -110,7 +115,9 @@ export const useAiConversationStore = create<AiConversationState>((set, get) => 
     const state = get()
     const conv = state.conversations.find((c) => c.id === state.activeConversationId)
     if (!conv) return
-    const updated = { ...conv, messages: msgs, updatedAt: Date.now() }
+    const updated = structuredClone(conv)
+    updated.messages = msgs
+    updated.updatedAt = Date.now()
     const next = state.conversations.map((c) => c.id === updated.id ? updated : c)
     set({ conversations: next })
     storage.setJson(CONVERSATIONS_KEY, next)

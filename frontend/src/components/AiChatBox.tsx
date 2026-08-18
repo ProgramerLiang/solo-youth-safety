@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Stack, Box, TextField, IconButton, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress } from '@mui/material'
+import { Stack, Box, TextField, IconButton, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress, Tooltip, Chip } from '@mui/material'
 import SendIcon from '@mui/icons-material/Send'
+import AddIcon from '@mui/icons-material/Add'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { AiChatMessage } from './AiChatMessage'
 import { chatCompletion } from '../ai/aiService'
 import { TOOL_DEFINITIONS, TOOL_PERMISSIONS, runTool } from '../ai/aiTools'
-import { addMessage, getMessages, initializeMemory, type AiMessage } from '../ai/aiMemory'
+import { useAiConversationStore } from '../ai/aiConversationStore'
 import { buildSystemPrompt } from '../ai/aiContext'
-import { useAiConfigStore } from '../ai/aiConfigStore'
 
 interface AiChatBoxProps {
   fullHeight?: boolean
@@ -20,49 +21,62 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
     args: Record<string, unknown>
     resolve: (ok: boolean) => void
   } | null>(null)
-  const [messages, setMessages] = useState<AiMessage[]>([])
+  const [initializing, setInitializing] = useState(true)
   const listRef = useRef<HTMLDivElement>(null)
-  const aiConfig = useAiConfigStore((s) => s.config)
-  const initialized = useRef(false)
+
+  const conversations = useAiConversationStore((s) => s.conversations)
+  const activeConvId = useAiConversationStore((s) => s.activeConversationId)
+  const create = useAiConversationStore((s) => s.create)
+  const remove = useAiConversationStore((s) => s.remove)
+  const addMessage = useAiConversationStore((s) => s.addMessage)
+  const setMessages = useAiConversationStore((s) => s.setMessages)
+  const clearConv = useAiConversationStore((s) => s.clearMessages)
+  const initialize = useAiConversationStore((s) => s.initialize)
+  const loaded = useAiConversationStore((s) => s.loaded)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  const activeConv = conversations.find((c) => c.id === activeConvId)
 
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true
-      initializeMemory(buildSystemPrompt()).then(() => {
-        const saved = getMessages()
-        setMessages(saved)
-        if (saved.length === 1) {
-          addMessage({ role: 'assistant', content: '你好!我是你的安全助手。我可以帮你查看位置、联系人、行程信息,也可以帮你创建行程、添加联系人。需要我做什么?' })
-          setMessages([...getMessages()])
+    if (!loaded) {
+      initialize().then(() => {
+        const conv = useAiConversationStore.getState().getActiveConversation()
+        if (conv && conv.messages.length <= 1) {
+          const sysPrompt = buildSystemPrompt()
+          setMessages([{ role: 'system', content: sysPrompt }])
         }
+        setInitializing(false)
       })
+    } else {
+      setInitializing(false)
     }
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded])
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages])
+  }, [activeConv?.messages])
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || busy) return
-    setBusy(true)
-    addMessage({ role: 'user', content: text })
-    setMessages([...getMessages()])
+  const handleNewConversation = useCallback(() => {
+    create()
+  }, [create])
 
-    await processConversation()
+  const confirmDelete = useCallback(() => {
+    if (deleteConfirm) {
+      remove(deleteConfirm)
+      setDeleteConfirm(null)
+    }
+  }, [deleteConfirm, remove])
 
-    setInput('')
-    setBusy(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy])
-
-  const processConversation = async () => {
+  const processConversation = useCallback(async () => {
     let rounds = 0
     const maxRounds = 10
 
     while (rounds < maxRounds) {
       rounds++
-      const msgs = getMessages()
+      const conv = useAiConversationStore.getState().getActiveConversation()
+      if (!conv) return
+      const msgs = conv.messages
 
       try {
         const response = await chatCompletion(msgs, TOOL_DEFINITIONS)
@@ -74,24 +88,19 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
           content: choice.message.content ?? null,
           tool_calls: choice.message.tool_calls,
         })
-        setMessages([...getMessages()])
 
         if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
-          return // AI 直接回复,结束
+          return
         }
 
-        // 处理每个 tool_call
         for (const tc of choice.message.tool_calls) {
           const toolName = tc.function.name
           const args = JSON.parse(tc.function.arguments || '{}')
           const perm = TOOL_PERMISSIONS[toolName]
 
           if (perm === 'read') {
-            // 只读:自动执行
             addMessage({ role: 'tool', tool_call_id: tc.id, name: toolName, content: JSON.stringify(await runTool(toolName, args)) })
-            setMessages([...getMessages()])
           } else {
-            // 写入:需要确认
             const ok = await new Promise<boolean>((resolve) => {
               setConfirmDialog({ tool: toolName, args, resolve })
             })
@@ -102,22 +111,22 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
               addMessage({ role: 'tool', tool_call_id: tc.id, name: toolName, content: JSON.stringify({ error: '用户拒绝了操作' }) })
             }
             setConfirmDialog(null)
-            setMessages([...getMessages()])
           }
         }
       } catch (err) {
         addMessage({ role: 'assistant', content: `连接 AI 服务失败: ${err instanceof Error ? err.message : '请检查配置和网络'}` })
-        setMessages([...getMessages()])
         return
       }
     }
-  }
+  }, [addMessage])
 
-  const handleConfirm = async (ok: boolean) => {
-    if (confirmDialog) {
-      confirmDialog.resolve(ok)
-    }
-  }
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || busy) return
+    setBusy(true)
+    addMessage({ role: 'user', content: text })
+    await processConversation()
+    setBusy(false)
+  }, [busy, addMessage, processConversation])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -126,29 +135,59 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
     }
   }
 
-  if (!aiConfig.baseUrl || !aiConfig.key) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography variant="body2" color="text.secondary">未配置 API,请在「我的」面板设置 AI 助手。</Typography>
-      </Box>
-    )
+  const getDisplayMessages = () => {
+    return activeConv ? activeConv.messages.filter((m) => m.role !== 'system') : []
   }
+
+  if (initializing) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} /></Box>
+  }
+
+  const displayMessages = getDisplayMessages()
 
   return (
     <Stack sx={{ flex: fullHeight ? '1 1 0' : '0 0 auto', height: fullHeight ? 'auto' : 400, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {/* Header: title + buttons */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider' }}>
+        <Chip
+          label={activeConv?.title ?? '对话'}
+          size="small"
+          variant="outlined"
+          sx={{ maxWidth: 160 }}
+        />
+        <Box sx={{ flex: 1 }} />
+        <Tooltip title="新对话">
+          <IconButton size="small" onClick={handleNewConversation} aria-label="新对话">
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="清空当前对话">
+          <IconButton size="small" onClick={() => clearConv()} aria-label="清空对话">
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Messages */}
       <Box ref={listRef} sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
-        {messages.slice(1).map((msg, i) => (
+        {displayMessages.map((msg, i) => (
           <AiChatMessage
             key={i}
             role={msg.role}
-            content={msg.content || null}
+            content={msg.content ?? null}
             toolName={msg.name}
             isRunning={false}
           />
         ))}
+        {displayMessages.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            新对话,发送消息开始
+          </Typography>
+        )}
         {busy && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', my: 1 }} />}
       </Box>
 
+      {/* Input */}
       <Box sx={{ display: 'flex', gap: 1, p: 1, borderTop: 1, borderColor: 'divider' }}>
         <TextField
           size="small"
@@ -171,7 +210,8 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
         </IconButton>
       </Box>
 
-      <Dialog open={confirmDialog !== null} onClose={() => handleConfirm(false)} maxWidth="xs" fullWidth>
+      {/* Confirm dialog for write operations */}
+      <Dialog open={confirmDialog !== null} onClose={() => confirmDialog?.resolve(false)} maxWidth="xs" fullWidth>
         <DialogTitle>确认操作</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
@@ -186,10 +226,22 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => handleConfirm(false)}>拒绝</Button>
-          <Button variant="contained" onClick={() => handleConfirm(true)} color={confirmDialog?.tool === 'trigger_sos' ? 'error' : 'primary'}>
+          <Button onClick={() => confirmDialog?.resolve(false)}>拒绝</Button>
+          <Button variant="contained" onClick={() => confirmDialog?.resolve(true)} color={confirmDialog?.tool === 'trigger_sos' ? 'error' : 'primary'}>
             允许
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>删除对话</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">确定删除此对话?对话记录将不可恢复。</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)}>取消</Button>
+          <Button variant="contained" color="error" onClick={confirmDelete}>删除</Button>
         </DialogActions>
       </Dialog>
     </Stack>
