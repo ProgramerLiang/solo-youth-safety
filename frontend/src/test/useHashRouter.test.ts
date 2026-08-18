@@ -27,10 +27,10 @@ describe('useHashRouter', () => {
     expect(result.current.activePageId).toBe('home')
   })
 
-  it('forces config while onboarding is incomplete', () => {
-    window.location.hash = 'home'
+  it('lands on home even when onboarding is incomplete', () => {
+    window.location.hash = ''
     const { result } = renderHook(() => useHashRouter(false))
-    expect(result.current.activePageId).toBe('config')
+    expect(result.current.activePageId).toBe('home')
   })
 
   it('ALL_PAGE_IDS includes the five new pages and omits overview', () => {

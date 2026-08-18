@@ -14,11 +14,8 @@ function parseHash(): PageId {
   return 'home'
 }
 
-export function useHashRouter(onboardingDone: boolean) {
-  const [activePageId, setActivePageId] = useState<PageId>(() => {
-    if (!onboardingDone) return 'config'
-    return parseHash()
-  })
+export function useHashRouter(_onboardingDone: boolean) {
+  const [activePageId, setActivePageId] = useState<PageId>(() => parseHash())
 
   useEffect(() => {
     const handler = () => {
@@ -27,12 +24,6 @@ export function useHashRouter(onboardingDone: boolean) {
     window.addEventListener('hashchange', handler)
     return () => window.removeEventListener('hashchange', handler)
   }, [])
-
-  useEffect(() => {
-    if (!onboardingDone) {
-      window.location.hash = 'config'
-    }
-  }, [onboardingDone])
 
   const navigate = useCallback((pageId: PageId) => {
     window.location.hash = pageId
