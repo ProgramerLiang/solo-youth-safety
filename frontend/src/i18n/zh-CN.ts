@@ -221,4 +221,22 @@ export const zhCN = {
     dataCleared: '本地数据已清空，建议刷新页面',
     importFailed: '导入失败：文件格式错误',
   },
+
+  ai: {
+    configTitle: 'AI 助手配置',
+    apiUrl: 'API 地址',
+    apiKey: 'API Key',
+    apiKeyInput: '输入 API Key',
+    model: '模型',
+    enabled: '启用 AI 助手',
+    welcome: '你好!我是你的安全助手。我可以帮你查看位置、联系人、行程信息,也可以帮你创建行程、添加联系人。需要我做什么?',
+    send: '发送',
+    typing: 'AI 思考中...',
+    error: '连接 AI 服务失败,请检查配置和网络',
+    toolConfirm: 'AI 请求执行以下操作:{action},是否允许?',
+    toolConfirmSos: 'AI 请求触发 SOS!此操作将拨打电话并发送短信。确定要触发吗?',
+    notConfigured: '未配置 API,请在「我的」面板设置 AI 助手。',
+    writeExecuted: '操作已执行',
+    writeRejected: '操作已被用户拒绝',
+  },
 }

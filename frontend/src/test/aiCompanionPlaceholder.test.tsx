@@ -1,10 +1,14 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AiCompanionPlaceholder } from '../components/AiCompanionPlaceholder'
 import { useHomeStore } from '../stores/useHomeStore'
+import { useDevModeStore } from '../stores/useDevModeStore'
+import { useAiConfigStore } from '../ai/aiConfigStore'
 
 beforeEach(() => {
   useHomeStore.setState({ companionEnabled: true })
+  useDevModeStore.setState({ enabled: false, tapProgress: 0, loaded: true })
+  useAiConfigStore.setState({ config: { baseUrl: '', key: '', model: 'gpt-4o-mini', enabled: false }, loaded: true })
 })
 
 describe('AiCompanionPlaceholder', () => {

@@ -1,8 +1,9 @@
-import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, FormControl, InputLabel, Select, MenuItem, TextField, Switch, FormControlLabel } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useUiStore } from '../stores/useUiStore'
+import { useAiConfigStore } from '../ai/aiConfigStore'
 import { HOME_SLOT_CANDIDATES } from '../types/home'
 import type { HomeSlotKey } from '../types/home'
 import type { PageId } from '../types'
@@ -17,6 +18,9 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
   const slots = useHomeStore((s) => s.slots)
   const setSlot = useHomeStore((s) => s.setSlot)
   const setScrollAnchor = useUiStore((s) => s.setScrollAnchor)
+  const config = useAiConfigStore((s) => s.config)
+  const setAiConfig = useAiConfigStore((s) => s.setConfig)
+  const toggleAi = useAiConfigStore((s) => s.toggle)
 
   const entries: { label: string; target: PageId; anchor?: string; devOnly?: boolean }[] = [
     { label: '紧急配置', target: 'config' },
@@ -46,6 +50,39 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
           </ListItemButton>
         ))}
       </List>
+      <Divider />
+      <Typography variant="overline">AI 助手配置</Typography>
+      <Stack spacing={1}>
+        <TextField
+          size="small"
+          label="API 地址"
+          value={config.baseUrl}
+          onChange={(e) => setConfig({ baseUrl: e.target.value })}
+          placeholder="https://api.openai.com/v1"
+          fullWidth
+        />
+        <TextField
+          size="small"
+          label="API Key"
+          type="password"
+          value={config.key}
+          onChange={(e) => setConfig({ key: e.target.value })}
+          placeholder="sk-..."
+          fullWidth
+        />
+        <TextField
+          size="small"
+          label="模型"
+          value={config.model}
+          onChange={(e) => setConfig({ model: e.target.value })}
+          placeholder="gpt-4o-mini"
+          fullWidth
+        />
+        <FormControlLabel
+          control={<Switch checked={config.enabled} onChange={toggleAi} />}
+          label="启用 AI 助手"
+        />
+      </Stack>
       <Divider />
       <Typography variant="overline">首页栏目自定义</Typography>
       <Stack spacing={1}>

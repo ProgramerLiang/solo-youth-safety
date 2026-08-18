@@ -1,11 +1,29 @@
 import { Card, CardContent, Typography, Button, Box } from '@mui/material'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import { useHomeStore } from '../stores/useHomeStore'
+import { useDevModeStore } from '../stores/useDevModeStore'
+import { useAiConfigStore } from '../ai/aiConfigStore'
+import { AiChatBox } from './AiChatBox'
 
 export function AiCompanionPlaceholder() {
   const companionEnabled = useHomeStore((s) => s.companionEnabled)
   const setCompanionEnabled = useHomeStore((s) => s.setCompanionEnabled)
+  const devEnabled = useDevModeStore((s) => s.enabled)
+  const aiEnabled = useAiConfigStore((s) => s.config.enabled)
 
+  // debug 模式 + AI 助手启用 → 显示完整对话 UI
+  if (devEnabled && aiEnabled) {
+    return (
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>🤖 AI 陪伴助手</Typography>
+          <AiChatBox />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // 原有占位(含 release 包)
   return (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent>
