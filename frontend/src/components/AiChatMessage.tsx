@@ -72,6 +72,11 @@ export function AiChatMessage({ role, content, toolName, isRunning }: AiChatMess
         {role === 'assistant' ? (
           <Box sx={{ '& p': { my: 0.5 }, '& code': { px: 0.5, py: 0.25, bgcolor: 'action.hover', borderRadius: 0.5, fontSize: '0.85em' }, '& pre': { p: 1, bgcolor: 'grey.200', borderRadius: 1, overflow: 'auto', fontSize: '0.85em' } }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
+            {isRunning && (
+              <Typography component="span" variant="body2" sx={{ animation: 'blink 1s step-end infinite', '@keyframes blink': { '50%': { opacity: 0 } } }}>
+                ▊
+              </Typography>
+            )}
           </Box>
         ) : (
           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
