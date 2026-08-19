@@ -176,7 +176,7 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
 
         {displayMessages.length === 0 && !isStreaming && !error && (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-            新对话，发送消息开始
+            新对话,发送消息开始
           </Typography>
         )}
       </Box>
