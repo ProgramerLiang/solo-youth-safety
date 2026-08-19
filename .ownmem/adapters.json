@@ -1,0 +1,30 @@
+{
+  "schema": "ownmem.adapters/v1",
+  "version": 1,
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "host": "claude",
+      "sha256": "11ad3473c64c94639ed54ac4db876e11321a4fc547d1e70214fcfbb6a3eb452d"
+    },
+    {
+      "path": ".claude/commands/ownmem.md",
+      "host": "claude",
+      "sha256": "aff1c875c64604cc74c32e349161bb64a606b596e1303fe2258b4d887e5a7e20"
+    },
+    {
+      "path": "AGENTS.md",
+      "host": "codex",
+      "sha256": "11ad3473c64c94639ed54ac4db876e11321a4fc547d1e70214fcfbb6a3eb452d"
+    },
+    {
+      "path": ".agents/skills/ownmem/SKILL.md",
+      "host": "codex",
+      "sha256": "b928c538080101b7ec7d5cdf78bc77356535807e204fb670255fb7c5f9876c9f"
+    }
+  ]
+}

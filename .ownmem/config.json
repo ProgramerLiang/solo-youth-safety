@@ -1,0 +1,18 @@
+{
+  "schema": "ownmem.config/v1",
+  "version": 1,
+  "memory_dir": ".ownmem",
+  "locale": "zh-CN",
+  "layers": [
+    "core",
+    "gates",
+    "compiler",
+    "dashboard"
+  ],
+  "command": "npx ownmem",
+  "adapters": [
+    "claude",
+    "codex"
+  ],
+  "hook_enabled": true
+}

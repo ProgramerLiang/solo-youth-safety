@@ -45,3 +45,4 @@ release-signing.properties
 
 # 编辑器 / IDE
 .idea/
+.local-test/

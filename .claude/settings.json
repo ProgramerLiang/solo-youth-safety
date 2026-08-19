@@ -12,7 +12,6 @@
       "Bash(file:*)",
       "Bash(stat:*)",
       "Bash(tree:*)",
-
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -22,7 +21,6 @@
       "Bash(git ls-files:*)",
       "Bash(git blame:*)",
       "Bash(git fetch:*)",
-
       "Bash(cd frontend && npm test:*)",
       "Bash(cd frontend && npm run test:*)",
       "Bash(cd frontend && npm run build:*)",
@@ -31,20 +29,17 @@
       "Bash(cd frontend && npm run android:sync:*)",
       "Bash(cd frontend && node --test:*)",
       "Bash(node --test:*)",
-
       "Bash(cd backend && python3 -m unittest:*)",
       "Bash(cd backend && python -m unittest:*)",
       "Bash(python3 -m unittest:*)",
       "Bash(python -m unittest:*)",
       "Bash(python3 -m pytest:*)",
       "Bash(python -m pytest:*)",
-
       "Bash(npm test:*)",
       "Bash(npm run test:*)",
       "Bash(npm run build:*)",
       "Bash(npm view:*)",
       "Bash(npm ls:*)",
-
       "Bash(pip show:*)",
       "Bash(pip list:*)",
       "Bash(python3 -c:*)",
@@ -59,6 +54,20 @@
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(git reset --hard:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx ownmem hook",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
