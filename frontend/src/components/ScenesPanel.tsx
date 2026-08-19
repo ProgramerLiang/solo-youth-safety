@@ -11,7 +11,7 @@ interface ScenesPanelProps {
 const SCENE_ENTRIES: { label: string; target: PageId; anchor?: string }[] = [
   { label: '智能规则', target: 'smartRules' },
   { label: '地理围栏', target: 'config', anchor: 'geofence' },
-  { label: '安全行程', target: 'home' },
+  { label: '安全行程', target: 'trip' },
   { label: '行程预设', target: 'config', anchor: 'presets' },
 ]
 

@@ -24,6 +24,7 @@ import { RuleEnginePage } from './pages/RuleEnginePage'
 import { MembershipPage } from './pages/MembershipPage'
 import { AiPage } from './pages/AiPage'
 import { AiConfigPage } from './pages/AiConfigPage'
+import { TripHistoryPage } from './pages/TripHistoryPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { PageId } from './types'
 
@@ -44,6 +45,7 @@ function pageMap(activePageId: PageId, navigate: (page: PageId) => void): React.
     case 'membership': return <MembershipPage />
     case 'ai': return <AiPage onNavigate={navigate} />
     case 'ai-config': return <AiConfigPage onNavigate={navigate} />
+    case 'trip': return <TripHistoryPage />
     case 'profile': return <div />
     default: return <HomePage onNavigate={navigate} />
   }

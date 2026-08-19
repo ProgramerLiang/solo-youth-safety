@@ -15,7 +15,7 @@ interface HomeSlotCardProps {
 }
 
 const SLOT_TARGET: Record<HomeSlotKey, PageId> = {
-  safetyTrip: 'smartRules',
+  safetyTrip: 'trip',
   contacts: 'contacts',
   trackingFreshness: 'tracking',
   smartRisk: 'smartRules',

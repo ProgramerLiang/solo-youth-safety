@@ -6,7 +6,7 @@ function parseHash(): PageId {
   const valid: PageId[] = [
     'home', 'sos', 'history', 'playback', 'tracking',
     'config', 'contacts', 'theme', 'tools', 'smartRules',
-    'messages', 'scenes', 'membership', 'profile', 'ai', 'ai-config',
+    'messages', 'scenes', 'membership', 'profile', 'ai', 'ai-config', 'trip',
   ]
   if (valid.includes(hash as PageId)) {
     return hash as PageId

@@ -15,6 +15,7 @@ export type PageId =
   | 'profile'
   | 'ai'
   | 'ai-config'
+  | 'trip'
 
 export const ALL_PAGE_IDS: PageId[] = [
   'home',
@@ -33,6 +34,7 @@ export const ALL_PAGE_IDS: PageId[] = [
   'profile',
   'ai',
   'ai-config',
+  'trip',
 ]
 
 
