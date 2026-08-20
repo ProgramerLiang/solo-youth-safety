@@ -22,8 +22,9 @@ interface ToolDefinition {
 }
 
 export interface StreamEvent {
-  type: 'content' | 'tool_call_start' | 'tool_call_delta' | 'done'
+  type: 'content' | 'reasoning' | 'tool_call_start' | 'tool_call_delta' | 'done'
   contentDelta?: string
+  reasoningDelta?: string
   toolCall?: {
     index: number
     id?: string
@@ -114,6 +115,11 @@ export async function* streamChatCompletion(
 
         if (delta.content && typeof delta.content === 'string') {
           yield { type: 'content', contentDelta: delta.content }
+        }
+
+        // 推理模型（如 deepseek-v4-flash）先流式输出 reasoning_content（思考过程）
+        if (delta.reasoning_content && typeof delta.reasoning_content === 'string') {
+          yield { type: 'reasoning', reasoningDelta: delta.reasoning_content }
         }
 
         const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined

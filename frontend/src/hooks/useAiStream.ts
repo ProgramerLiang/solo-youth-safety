@@ -13,6 +13,8 @@ export interface UseAiStreamReturn {
   streamingContent: string
   /** 是否正在流式传输中 */
   isStreaming: boolean
+  /** 流式阶段：reasoning=思考中, content=正文 */
+  streamingPhase: 'reasoning' | 'content' | null
   /** 错误信息 */
   error: string | null
   /** 中断当前流 */
@@ -30,6 +32,7 @@ export interface UseAiStreamReturn {
 export function useAiStream(): UseAiStreamReturn {
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingPhase, setStreamingPhase] = useState<'reasoning' | 'content' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingToolConfirm, setPendingToolConfirm] = useState<PendingToolConfirm | null>(null)
 
@@ -66,6 +69,7 @@ export function useAiStream(): UseAiStreamReturn {
       abortRef.current = () => abortController.abort()
 
       let currentContent = ''
+      let currentReasoning = ''
       const toolCallMap = new Map<
         number,
         { id?: string; name?: string; arguments: string }
@@ -86,7 +90,15 @@ export function useAiStream(): UseAiStreamReturn {
           switch (event.type) {
             case 'content':
               currentContent += event.contentDelta
+              setStreamingPhase('content')
               setStreamingContent(currentContent)
+              break
+
+            case 'reasoning':
+              currentReasoning += event.reasoningDelta
+              // 推理阶段：显示思考内容，让用户看到流式进行中
+              setStreamingPhase('reasoning')
+              setStreamingContent(currentReasoning)
               break
 
             case 'tool_call_start': {
@@ -117,6 +129,7 @@ export function useAiStream(): UseAiStreamReturn {
         setIsStreaming(false)
         isStreamingRef.current = false
         setStreamingContent('')
+        setStreamingPhase(null)
         abortRef.current = null
 
         // 根据完成原因处理结果
@@ -234,6 +247,7 @@ export function useAiStream(): UseAiStreamReturn {
   return {
     streamingContent,
     isStreaming,
+    streamingPhase,
     error,
     abort,
     retry,

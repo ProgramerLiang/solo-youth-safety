@@ -32,6 +32,7 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
   const {
     streamingContent,
     isStreaming,
+    streamingPhase,
     error,
     abort,
     retry,
@@ -138,12 +139,40 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
         ))}
 
         {/* 流式消息 */}
-        {isStreaming && streamingContent && (
+        {isStreaming && streamingContent && streamingPhase === 'content' && (
           <AiChatMessage
             role="assistant"
             content={streamingContent}
             isRunning={true}
           />
+        )}
+
+        {/* 推理阶段：显示思考过程（弱化样式） */}
+        {isStreaming && streamingContent && streamingPhase === 'reasoning' && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
+            <Box
+              sx={{
+                maxWidth: '80%',
+                px: 2,
+                py: 1,
+                borderRadius: 2,
+                bgcolor: 'grey.50',
+                color: 'text.secondary',
+                border: 1,
+                borderColor: 'divider',
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                🤖 安全助手 · 思考中
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.85em' }}>
+                {streamingContent}
+                <Typography component="span" variant="body2" sx={{ animation: 'blink 1s step-end infinite', '@keyframes blink': { '50%': { opacity: 0 } } }}>
+                  ▊
+                </Typography>
+              </Typography>
+            </Box>
+          </Box>
         )}
 
         {/* 流式等待占位 */}
