@@ -71,13 +71,25 @@ code (含 test / typecheck / lint / bump 版本) → commit → push → tag →
 - **重要**：上传必须绕开代理，否则失败（`proxyconnect tcp: dial tcp 127.0.0.1:7890: connect: connection refused`）
   - 用 `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy` 前缀
 
+## 硬性规则：每次修改都必须发版
+
+**除非用户明确说「不用发版」「不打包」「暂不发布」「先不放 release」等，否则每次对源码的修改（含 bug 修复、功能新增、配置调整、重构）都必须走完整的发版流程：**
+
+```
+bump → commit → push → tag → build → release
+```
+
+禁止偷懒跳过 build 或 release 步骤。
+遇到构建耗时较长（Gradle 首次启动/daemon 冷启动可达 10 分钟+）也应等待完成。
+
 ## 关键陷阱清单（易错点）
 
 1. **版本 bump 必须在 tag 之前**，且 tag 指向 bump 后的 commit
 2. **README.md 版本元数据**要同步更新（第 22/24 行），不是只改 package.json
-3. **GitHub Release ≠ git tag**：push tag 不会自动创建 Release，必须 `gh release create`
-4. **上传资产会走代理失败**，必须 `env -u` 绕开
-5. **push 主分支可能因代理超时**，需要重试循环
+4. **版本元数据不匹配** — `__APP_VERSION__` 由 Vite 在 `npm run build` 时从 `package.json` 编译进 JS 包；debug APK (`android:apk:debug`) 必须先执行 `npm run build` 再执行 gradle，否则 bundle 里的版本号是上次 build 时的旧版
+5. **GitHub Release ≠ git tag**：push tag 不会自动创建 Release，必须 `gh release create`
+6. **上传资产会走代理失败**，必须 `env -u` 绕开
+7. **push 主分支可能因代理超时**，需要重试循环
 6. **AI 回复文本中的中文逗号** `，` 会被测试期望的 ASCII `,` 卡住，保持 ASCII 逗号
 
 ## 签名资产（release 构建需要）
