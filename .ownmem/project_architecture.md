@@ -27,7 +27,7 @@ metadata:
 - 前端：React 19 + TypeScript + MUI 6 + Zustand 5 + Vite 7
 - 移动端：Capacitor 6 Android 壳
 - 后端：FastAPI + SQLite（**已弃用**，代码已移除，仅保留归档）
-- 版本：0.8.9
+- 版本：0.9.2
 
 ## 代码分层（frontend/src/）
 

@@ -8,6 +8,8 @@ export interface AiConfig {
   key: string
   model: string
   enabled: boolean
+  /** 推理努力等级：'off' | 'low' | 'medium' | 'high'，仅支持 reasoning_effort 参数的模型有效 */
+  reasoningEffort?: string
 }
 
 interface AiConfigState {
@@ -23,6 +25,7 @@ const DEFAULT_CONFIG: AiConfig = {
   key: '',
   model: 'gpt-4o-mini',
   enabled: false,
+  reasoningEffort: 'medium',
 }
 
 export const useAiConfigStore = create<AiConfigState>((set, get) => ({

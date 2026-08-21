@@ -46,33 +46,59 @@ export async function* streamChatCompletion(
   }
 
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`
-  const body: Record<string, unknown> = {
-    model: config.model,
-    messages,
-    stream: true,
-  }
-  if (tools.length > 0) {
-    body.tools = tools
-    body.tool_choice = toolChoice
+
+  // 构建请求体
+  function buildBody(withEffort: boolean): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model: config.model,
+      messages,
+      stream: true,
+    }
+    if (tools.length > 0) {
+      body.tools = tools
+      body.tool_choice = toolChoice
+    }
+    if (withEffort && config.reasoningEffort && config.reasoningEffort !== 'off') {
+      body.reasoning_effort = config.reasoningEffort
+    }
+    return body
   }
 
-  let response: Response
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.key}`,
-      },
-      body: JSON.stringify(body),
-      signal,
-    })
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err
-    throw new Error(`连接 AI 服务失败: ${err instanceof TypeError ? err.message : '网络错误'}`)
-  }
+  let response!: Response
+  let usedEffort = true
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.key}`,
+        },
+        body: JSON.stringify(buildBody(usedEffort)),
+        signal,
+      })
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') throw err
+      throw new Error(`连接 AI 服务失败: ${err instanceof TypeError ? err.message : '网络错误'}`)
+    }
+
+    if (response.ok) break
+
+    // 400 可能因模型不支持 reasoning_effort — 回退重试
+    if (response.status === 400 && usedEffort) {
+      const errorBody = await response.json().catch(() => ({}))
+      const msg = (errorBody as Record<string, unknown>).error as Record<string, unknown> | undefined
+      if (
+        msg?.message && typeof msg.message === 'string' &&
+        (msg.message.toLowerCase().includes('reasoning_effort') || msg.code === 'unsupported_parameter')
+      ) {
+        usedEffort = false
+        continue
+      }
+    }
+
+    // 非可重试错误
     const errorText = await response.text().catch(() => '')
     throw new Error(`AI 服务返回错误 (${response.status}):${errorText || response.statusText}`)
   }
