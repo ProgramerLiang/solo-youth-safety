@@ -9,6 +9,10 @@ export interface ThemePrefs {
   presetId: string | null
   customSeed: string | null
   dynamicInfo: DynamicColorInfo | null
+  /** 状态栏沉浸（内容延伸到状态栏下方） */
+  immersiveStatusBar?: boolean
+  /** 导航栏沉浸（内容延伸到导航栏下方） */
+  immersiveNavBar?: boolean
 }
 
 export async function loadThemePrefs(): Promise<ThemePrefs | null> {

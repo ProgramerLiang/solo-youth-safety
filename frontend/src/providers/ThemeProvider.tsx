@@ -44,6 +44,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [resolvedMode])
 
+  // 沉浸式设置：控制 safe-area padding
+  const immersiveStatusBar = useThemeStore((s) => s.immersiveStatusBar)
+  const immersiveNavBar = useThemeStore((s) => s.immersiveNavBar)
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root) return
+    root.style.paddingTop = immersiveStatusBar ? '0px' : 'env(safe-area-inset-top, 0px)'
+    root.style.paddingBottom = immersiveNavBar ? '0px' : 'env(safe-area-inset-bottom, 0px)'
+  }, [immersiveStatusBar, immersiveNavBar])
+
   return (
     <MuiThemeProvider theme={theme}>
       <CssBaseline />

@@ -10,12 +10,16 @@ interface ThemeState {
   customSeed: string | null
   dynamicInfo: DynamicColorInfo | null
   initialized: boolean
+  immersiveStatusBar: boolean
+  immersiveNavBar: boolean
   initialize: () => Promise<void>
   setMode: (mode: ThemeMode) => void
   setPaletteMode: (paletteMode: PaletteMode) => void
   setPresetId: (presetId: string | null) => void
   setCustomSeed: (customSeed: string | null) => void
   loadDynamic: (info: DynamicColorInfo) => void
+  setImmersiveStatusBar: (on: boolean) => void
+  setImmersiveNavBar: (on: boolean) => void
   persist: () => Promise<void>
 }
 
@@ -26,6 +30,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   customSeed: null,
   dynamicInfo: null,
   initialized: false,
+  immersiveStatusBar: false,
+  immersiveNavBar: false,
 
   initialize: async () => {
     const prefs = await loadThemePrefs()
@@ -36,6 +42,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         presetId: prefs.presetId,
         customSeed: prefs.customSeed,
         dynamicInfo: prefs.dynamicInfo,
+        immersiveStatusBar: prefs.immersiveStatusBar ?? false,
+        immersiveNavBar: prefs.immersiveNavBar ?? false,
         initialized: true,
       })
     } else {
@@ -79,8 +87,18 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().persist()
   },
 
+  setImmersiveStatusBar: (on) => {
+    set({ immersiveStatusBar: on })
+    get().persist()
+  },
+
+  setImmersiveNavBar: (on) => {
+    set({ immersiveNavBar: on })
+    get().persist()
+  },
+
   persist: async () => {
-    const { mode, paletteMode, presetId, customSeed, dynamicInfo } = get()
-    await saveThemePrefs({ mode, paletteMode, presetId, customSeed, dynamicInfo } as ThemePrefs)
+    const { mode, paletteMode, presetId, customSeed, dynamicInfo, immersiveStatusBar, immersiveNavBar } = get()
+    await saveThemePrefs({ mode, paletteMode, presetId, customSeed, dynamicInfo, immersiveStatusBar, immersiveNavBar } as ThemePrefs)
   },
 }))

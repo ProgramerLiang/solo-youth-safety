@@ -22,6 +22,8 @@ export function ThemePage() {
   const paletteMode = useThemeStore((s) => s.paletteMode)
   const presetId = useThemeStore((s) => s.presetId)
   const customSeed = useThemeStore((s) => s.customSeed)
+  const immersiveStatusBar = useThemeStore((s) => s.immersiveStatusBar)
+  const immersiveNavBar = useThemeStore((s) => s.immersiveNavBar)
 
 
   const setMode = useThemeStore((s) => s.setMode)
@@ -29,6 +31,8 @@ export function ThemePage() {
   const setPresetId = useThemeStore((s) => s.setPresetId)
   const setCustomSeed = useThemeStore((s) => s.setCustomSeed)
   const loadDynamic = useThemeStore((s) => s.loadDynamic)
+  const setImmersiveStatusBar = useThemeStore((s) => s.setImmersiveStatusBar)
+  const setImmersiveNavBar = useThemeStore((s) => s.setImmersiveNavBar)
 
   const handleDynamic = async () => {
     try {
@@ -73,6 +77,41 @@ export function ThemePage() {
               variant={mode === 'auto' ? 'filled' : 'outlined'}
               onClick={() => setMode('auto')}
             />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* 沉浸式显示设置 */}
+      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="subtitle2" gutterBottom>
+            沉浸式显示
+          </Typography>
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">状态栏沉浸</Typography>
+              <Chip
+                label={immersiveStatusBar ? '开启' : '关闭'}
+                color={immersiveStatusBar ? 'primary' : 'default'}
+                variant={immersiveStatusBar ? 'filled' : 'outlined'}
+                onClick={() => setImmersiveStatusBar(!immersiveStatusBar)}
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              开启后内容将延伸至状态栏下方，需配合深色状态栏图标使用
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2">导航栏沉浸</Typography>
+              <Chip
+                label={immersiveNavBar ? '开启' : '关闭'}
+                color={immersiveNavBar ? 'primary' : 'default'}
+                variant={immersiveNavBar ? 'filled' : 'outlined'}
+                onClick={() => setImmersiveNavBar(!immersiveNavBar)}
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              开启后内容将延伸至底部导航栏下方
+            </Typography>
           </Stack>
         </CardContent>
       </Card>
