@@ -1,5 +1,11 @@
-import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Stack, Typography, Box, IconButton, Divider, Paper, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import ShieldIcon from '@mui/icons-material/Shield'
+import PeopleIcon from '@mui/icons-material/People'
+import PaletteIcon from '@mui/icons-material/Palette'
+import LockIcon from '@mui/icons-material/Lock'
+import BuildIcon from '@mui/icons-material/Build'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useUiStore } from '../stores/useUiStore'
@@ -12,18 +18,26 @@ interface ProfilePanelProps {
   onClose: () => void
 }
 
+interface ProfileEntry {
+  label: string
+  icon: React.ReactNode
+  target: PageId
+  anchor?: string
+  devOnly?: boolean
+}
+
 export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
   const devEnabled = useDevModeStore((s) => s.enabled)
   const slots = useHomeStore((s) => s.slots)
   const setSlot = useHomeStore((s) => s.setSlot)
   const setScrollAnchor = useUiStore((s) => s.setScrollAnchor)
 
-  const entries: { label: string; target: PageId; anchor?: string; devOnly?: boolean }[] = [
-    { label: '紧急配置', target: 'config' },
-    { label: '联系人', target: 'contacts' },
-    { label: '主题', target: 'theme' },
-    { label: '隐私锁屏', target: 'config', anchor: 'privacy' },
-    { label: '数据工具', target: 'tools', devOnly: true },
+  const entries: ProfileEntry[] = [
+    { label: '紧急配置', icon: <ShieldIcon color="error" />, target: 'config' },
+    { label: '联系人', icon: <PeopleIcon color="primary" />, target: 'contacts' },
+    { label: '主题', icon: <PaletteIcon color="secondary" />, target: 'theme' },
+    { label: '隐私锁屏', icon: <LockIcon sx={{ color: 'warning.main' }} />, target: 'config', anchor: 'privacy' },
+    { label: '数据工具', icon: <BuildIcon color="action" />, target: 'tools', devOnly: true },
   ]
 
   const handle = (entry: { target: PageId; anchor?: string }) => {
@@ -41,19 +55,45 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
       </Box>
       <Divider />
 
-      {/* nav entries */}
-      <List dense disablePadding>
+      {/* nav entries as paper cards */}
+      <Stack spacing={0.5}>
         {entries.filter((e) => !e.devOnly || devEnabled).map((entry) => (
-          <ListItemButton key={entry.label} onClick={() => handle(entry)} aria-label={entry.label}>
-            <ListItemText primary={entry.label} />
-          </ListItemButton>
+          <Paper
+            key={entry.label}
+            elevation={0}
+            role="button"
+            tabIndex={0}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              px: 2,
+              py: 1.5,
+              borderRadius: 2,
+              cursor: 'pointer',
+              bgcolor: 'grey.50',
+              transition: 'all 0.15s',
+              '&:hover': { bgcolor: 'action.hover', transform: 'translateX(4px)' },
+              '&:active': { bgcolor: 'action.selected' },
+              outline: 'none',
+            }}
+            onClick={() => handle(entry)}
+            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handle(entry) }}
+            aria-label={entry.label}
+          >
+            {entry.icon}
+            <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+              {entry.label}
+            </Typography>
+            <ChevronRightIcon fontSize="small" color="disabled" />
+          </Paper>
         ))}
-      </List>
+      </Stack>
       <Divider />
 
       {/* slot customizer */}
-      <Typography variant="overline" sx={{ fontSize: '0.7rem' }}>首页栏目</Typography>
-      <Stack spacing={0.5}>
+      <Typography variant="overline" sx={{ fontSize: '0.7rem', letterSpacing: 0.5, color: 'text.secondary' }}>首页栏目</Typography>
+      <Stack spacing={1}>
         {slots.map((current, idx) => (
           <FormControl key={idx} size="small" fullWidth>
             <InputLabel>{`栏目 ${idx + 1}`}</InputLabel>
@@ -61,6 +101,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
               value={current}
               label={`栏目 ${idx + 1}`}
               onChange={(e) => setSlot(idx, e.target.value as HomeSlotKey)}
+              sx={{ borderRadius: 2, bgcolor: 'grey.50' }}
             >
               {HOME_SLOT_CANDIDATES.map((c) => (
                 <MenuItem key={c.key} value={c.key}>{c.label}</MenuItem>
