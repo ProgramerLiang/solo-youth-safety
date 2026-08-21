@@ -7,6 +7,8 @@ import ExploreIcon from '@mui/icons-material/Explore'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import StarIcon from '@mui/icons-material/Star'
 import PersonIcon from '@mui/icons-material/Person'
+import { useThemeStore } from '../stores/useThemeStore'
+import { useSafeAreaInsets } from '../hooks/useSafeArea'
 import { MessagesPanel } from './MessagesPanel'
 import { ScenesPanel } from './ScenesPanel'
 import { ProfilePanel } from './ProfilePanel'
@@ -136,6 +138,8 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const theme = useTheme()
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'))
+  const immersiveNavBar = useThemeStore((s) => s.immersiveNavBar)
+  const insets = useSafeAreaInsets()
 
   const handleTab = useCallback(
     (tab: TabDef) => {
@@ -170,12 +174,13 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
       <Paper
         sx={(theme) => ({
           position: 'fixed',
-          bottom: 0,
+          bottom: immersiveNavBar ? 0 : insets.bottom,
           left: 0,
           right: 0,
           zIndex: 1100,
           overflow: 'hidden',
           borderTop: `1px solid ${theme.palette.divider}`,
+          transition: 'bottom 0.2s ease',
         })}
         elevation={3}
         square
@@ -216,7 +221,7 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
         <Paper
           sx={{
             position: 'fixed',
-            bottom: 56, // nav height
+            bottom: immersiveNavBar ? 56 : 56 + insets.bottom, // nav height + nav bar safe area
             left: 0,
             right: 0,
             zIndex: 1099,
@@ -224,6 +229,7 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
             borderTopRightRadius: 16,
             maxHeight: '60dvh',
             overflowY: 'auto',
+            transition: 'bottom 0.2s ease',
           }}
           elevation={6}
         >

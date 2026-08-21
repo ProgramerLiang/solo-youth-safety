@@ -19,9 +19,9 @@
 
 | 项 | 当前事实 | 依据 |
 | 前端入口 | `frontend/src/main.tsx` -> `frontend/src/App.tsx` | 当前 Vite 入口 |
-| 前端 / Android 版本 | `0.10.2` | `frontend/package.json` |
+| 前端 / Android 版本 | `0.10.3` | `frontend/package.json` |
 | 本地快照导出版本 | 跟随 `frontend/package.json` 输出当前版本 | `frontend/src/data/snapshot.ts` |
-| package-lock 版本元数据 | 已收口为 `0.10.2` | `frontend/package-lock.json` |
+| package-lock 版本元数据 | 已收口为 `0.10.3` | `frontend/package-lock.json` |
 | 前端运行模式 | TS 入口以本地持久化为主 | 当前 TS 源码无远端 API 调用 |
 | 后端 / API | 已弃用；后端代码已移除；CI 不再运行后端测试，前端主线无远端 / 本地后端 shim | `backend/README.md`、`backend/data/safety.db`、`docs/api/README.md` 只作历史参考 |
 | Android 壳 | Capacitor 6，debug / release APK 与 release AAB 构建链路保留 | `frontend/android/` / 构建脚本 |
