@@ -1,4 +1,5 @@
 import { useAiConfigStore } from './aiConfigStore'
+import { buildReasoningParams, isReasoningParamError } from './reasoningParams'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -48,7 +49,7 @@ export async function* streamChatCompletion(
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`
 
   // 构建请求体
-  function buildBody(withEffort: boolean): Record<string, unknown> {
+  function buildBody(withReasoning: boolean): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: config.model,
       messages,
@@ -58,14 +59,17 @@ export async function* streamChatCompletion(
       body.tools = tools
       body.tool_choice = toolChoice
     }
-    if (withEffort && config.reasoningEffort && config.reasoningEffort !== 'off') {
-      body.reasoning_effort = config.reasoningEffort
+    if (withReasoning) {
+      const rp = buildReasoningParams(config.reasoningEffort, config.model)
+      if (rp.hasParams) {
+        Object.assign(body, rp.params)
+      }
     }
     return body
   }
 
   let response!: Response
-  let usedEffort = true
+  let useReasoning = true
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -75,7 +79,7 @@ export async function* streamChatCompletion(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${config.key}`,
         },
-        body: JSON.stringify(buildBody(usedEffort)),
+        body: JSON.stringify(buildBody(useReasoning)),
         signal,
       })
     } catch (err) {
@@ -85,15 +89,11 @@ export async function* streamChatCompletion(
 
     if (response.ok) break
 
-    // 400 可能因模型不支持 reasoning_effort — 回退重试
-    if (response.status === 400 && usedEffort) {
+    // 400 可能因模型不支持推理参数 — 回退重试
+    if (response.status === 400 && useReasoning) {
       const errorBody = await response.json().catch(() => ({}))
-      const msg = (errorBody as Record<string, unknown>).error as Record<string, unknown> | undefined
-      if (
-        msg?.message && typeof msg.message === 'string' &&
-        (msg.message.toLowerCase().includes('reasoning_effort') || msg.code === 'unsupported_parameter')
-      ) {
-        usedEffort = false
+      if (isReasoningParamError(400, errorBody)) {
+        useReasoning = false
         continue
       }
     }
