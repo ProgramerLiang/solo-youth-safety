@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { ThemeProvider as MuiThemeProvider, CssBaseline } from '@mui/material'
+import { StatusBar, Style as StatusBarStyle } from '@capacitor/status-bar'
 import { useThemeStore } from '../stores/useThemeStore'
 import { buildTheme, resolveThemeMode } from '../theme/createTheme'
 import { detectSystemDark } from '../theme/tokens'
@@ -31,6 +32,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [mode])
+
+  // 根据主题模式切换状态栏图标颜色
+  useEffect(() => {
+    try {
+      void StatusBar.setStyle({
+        style: resolvedMode === 'dark' ? StatusBarStyle.Dark : StatusBarStyle.Light,
+      })
+    } catch {
+      // 浏览器环境忽略
+    }
+  }, [resolvedMode])
 
   return (
     <MuiThemeProvider theme={theme}>

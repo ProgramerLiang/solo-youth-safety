@@ -63,7 +63,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
             elevation={0}
             role="button"
             tabIndex={0}
-            sx={{
+            sx={(theme) => ({
               display: 'flex',
               alignItems: 'center',
               gap: 1.5,
@@ -71,12 +71,12 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
               py: 1.5,
               borderRadius: 2,
               cursor: 'pointer',
-              bgcolor: 'grey.50',
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
               transition: 'all 0.15s',
               '&:hover': { bgcolor: 'action.hover', transform: 'translateX(4px)' },
               '&:active': { bgcolor: 'action.selected' },
               outline: 'none',
-            }}
+            })}
             onClick={() => handle(entry)}
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handle(entry) }}
             aria-label={entry.label}
@@ -101,7 +101,7 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
               value={current}
               label={`栏目 ${idx + 1}`}
               onChange={(e) => setSlot(idx, e.target.value as HomeSlotKey)}
-              sx={{ borderRadius: 2, bgcolor: 'grey.50' }}
+              sx={(theme) => ({ borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' })}
             >
               {HOME_SLOT_CANDIDATES.map((c) => (
                 <MenuItem key={c.key} value={c.key}>{c.label}</MenuItem>

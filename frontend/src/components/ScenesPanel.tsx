@@ -53,7 +53,7 @@ export function ScenesPanel({ onNavigate, onClose }: ScenesPanelProps) {
             elevation={0}
             role="button"
             tabIndex={0}
-            sx={{
+            sx={(theme) => ({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -62,13 +62,13 @@ export function ScenesPanel({ onNavigate, onClose }: ScenesPanelProps) {
               p: 2,
               borderRadius: 3,
               cursor: 'pointer',
-              bgcolor: 'grey.50',
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
               minHeight: 120,
               transition: 'all 0.15s',
               '&:hover': { bgcolor: 'action.hover', transform: 'translateY(-2px)', boxShadow: 1 },
               '&:active': { bgcolor: 'action.selected' },
               outline: 'none',
-            }}
+            })}
             onClick={() => handle(entry)}
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handle(entry) }}
             aria-label={entry.label}
