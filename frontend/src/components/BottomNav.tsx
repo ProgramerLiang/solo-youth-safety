@@ -216,6 +216,21 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
         </Box>
       </Paper>
 
+      {/* 导航栏背景填充 — 关闭沉浸时遮挡下方内容 */}
+      {!immersiveNavBar && insets.bottom > 0 && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: insets.bottom,
+            zIndex: 1100,
+            bgcolor: 'background.paper',
+          }}
+        />
+      )}
+
       {/* slide-up panel */}
       <Slide direction="up" in={panel !== null} mountOnEnter unmountOnExit>
         <Paper
