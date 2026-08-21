@@ -1,16 +1,10 @@
 /**
  * 推理/思考参数适配
- * 根据模型名称和用户选择的思考等级，自动选择正确的 API 参数格式
+ *
+ * 策略：发送所有已知推理参数格式，端点报错后逐步减少
+ * - reasoning_effort（OpenAI 格式）
+ * - thinking + budget_tokens（Anthropic 格式）
  */
-
-// OpenAI 推理模型（支持 reasoning_effort）
-const OPENAI_REASONING = /^(o[1-9]|o[1-9]-mini|o-mini)/i
-
-// Anthropic Claude（支持 thinking 参数）
-const ANTHROPIC_MODELS = /^claude/i
-
-// DeepSeek（不支持推理参数，但流式响应含 reasoning_content）
-const DEEPSEEK_MODELS = /^(deepseek|ds)/i
 
 // 推理努力等级 → Anthropic thinking budget 映射
 const EFFORT_TO_BUDGET: Record<string, number> = {
@@ -19,78 +13,73 @@ const EFFORT_TO_BUDGET: Record<string, number> = {
   high: 8192,
 }
 
-export interface ReasoningParamsResult {
-  /** 是否附加了 reasoning 参数 */
-  hasParams: boolean
-  /** 参数说明（用于 UI 提示） */
-  hint: string
-  /** 要附加的参数对象（可能为空） */
-  params: Record<string, unknown>
+/** 一个参数组（一组同时发送或同时移除的 params） */
+export interface ParamBundle {
+  key: string            // 唯一标识（用于错误回溯和 UI 提示）
+  label: string          // 显示用
+  params: Record<string, unknown>  // 要注入请求体的参数
 }
 
 /**
- * 根据模型名和用户配置，生成合适的推理参数
- * @param reasoningEffort 用户设置的思考等级：'off' | 'low' | 'medium' | 'high' | undefined
- * @param model 模型名
+ * 根据用户配置，构建所有可能的推理参数组
+ * 调用方先全发，遇 400 再逐个移除
  */
-export function buildReasoningParams(
+export function buildAllBundles(
   reasoningEffort: string | undefined,
-  model: string,
-): ReasoningParamsResult {
-  if (!reasoningEffort || reasoningEffort === 'off') {
-    return { hasParams: false, hint: '未启用', params: {} }
-  }
+): ParamBundle[] {
+  if (!reasoningEffort || reasoningEffort === 'off') return []
 
-  const m = (model || '').trim()
+  const bundles: ParamBundle[] = []
 
-  // Anthropic Claude → thinking 参数
-  if (ANTHROPIC_MODELS.test(m)) {
-    const budget = EFFORT_TO_BUDGET[reasoningEffort] ?? 2048
-    return {
-      hasParams: true,
-      hint: `thinking (budget=${budget})`,
-      params: { thinking: { type: 'enabled', budget_tokens: budget } },
-    }
-  }
-
-  // DeepSeek → 不支持推理参数，但始终流式输出推理过程
-  if (DEEPSEEK_MODELS.test(m)) {
-    return {
-      hasParams: false,
-      hint: 'DeepSeek 模型不支持，自动忽略',
-      params: {},
-    }
-  }
-
-  // OpenAI 推理模型 → reasoning_effort
-  if (OPENAI_REASONING.test(m)) {
-    return {
-      hasParams: true,
-      hint: `reasoning_effort=${reasoningEffort}`,
-      params: { reasoning_effort: reasoningEffort },
-    }
-  }
-
-  // 未知模型 → 尝试 reasoning_effort（带 fallback）
-  return {
-    hasParams: true,
-    hint: `reasoning_effort=${reasoningEffort}（不支持的模型会自动回退）`,
+  // 1. OpenAI format: reasoning_effort
+  bundles.push({
+    key: 'reasoning_effort',
+    label: `reasoning_effort=${reasoningEffort}`,
     params: { reasoning_effort: reasoningEffort },
+  })
+
+  // 2. Anthropic format: thinking + budget_tokens
+  const budget = EFFORT_TO_BUDGET[reasoningEffort] ?? 2048
+  bundles.push({
+    key: 'thinking',
+    label: `thinking(budget=${budget})`,
+    params: { thinking: { type: 'enabled', budget_tokens: budget } },
+  })
+
+  return bundles
+}
+
+/** 将所有 bundle 合并为一个平铺对象 */
+export function mergeBundles(bundles: ParamBundle[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const b of bundles) {
+    Object.assign(result, b.params)
   }
+  return result
+}
+
+/** bundle 标签列表（用于 UI 提示） */
+export function bundleLabels(bundles: ParamBundle[]): string {
+  if (bundles.length === 0) return '未启用'
+  return bundles.map((b) => b.label).join(' + ')
 }
 
 /**
- * 检查 400 错误是否与不支持的推理参数相关
- * 覆盖多种 API 格式的错误消息
+ * 分析 400 错误，返回应移除的参数组 key（匹配的第一个）
+ * 覆盖各种 API 错误格式
  */
-export function isReasoningParamError(status: number, errorBody: unknown): boolean {
-  if (status !== 400) return false
+export function findOffendingBundleKey(
+  status: number,
+  errorBody: unknown,
+  activeBundles: ParamBundle[],
+): string | null {
+  if (status !== 400) return null
 
   const body = errorBody as Record<string, unknown> | undefined
-  if (!body) return false
+  if (!body) return null
 
   const error = body.error as Record<string, unknown> | undefined
-  if (!error) return false
+  if (!error) return null
 
   const message = typeof error.message === 'string' ? error.message : ''
   const code = typeof error.code === 'string' ? error.code : ''
@@ -98,9 +87,17 @@ export function isReasoningParamError(status: number, errorBody: unknown): boole
 
   const combined = `${message} ${code} ${type}`.toLowerCase()
 
-  // 匹配各种 API 返回的不支持参数错误
-  const patterns = [
-    /reasoning_effort/,
+  // 按 bundle key 检查错误消息中是否提及该参数
+  for (const bundle of activeBundles) {
+    // 将 bundle key 转成错误消息中可能出现的模式
+    const keyPatterns = bundle.key.split('_')
+    for (const pat of keyPatterns) {
+      if (combined.includes(pat.toLowerCase())) return bundle.key
+    }
+  }
+
+  // 没有提及具体参数名，但匹配通用参数错误 → 移除第一个
+  const genericPatterns = [
     /unsupported.?param/,
     /unknown.?param/,
     /invalid.?param/,
@@ -113,7 +110,16 @@ export function isReasoningParamError(status: number, errorBody: unknown): boole
     /unexpected.?param/,
     /extra.?param/,
     /bad.?request.*param/,
+    /unrecognized.?param/,
+    /unknown.?field/,
+    /invalid.?field/,
+    /unexpected.?field/,
   ]
 
-  return patterns.some((p) => p.test(combined))
+  if (genericPatterns.some((p) => p.test(combined))) {
+    // 移除第一个 bundle
+    return activeBundles[0]?.key ?? null
+  }
+
+  return null
 }

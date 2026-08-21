@@ -1,7 +1,7 @@
 import { Stack, Typography, TextField, Switch, FormControlLabel, Button, Divider, Box, Select, MenuItem, FormControl, InputLabel } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useAiConfigStore } from '../ai/aiConfigStore'
-import { buildReasoningParams } from '../ai/reasoningParams'
+import { buildAllBundles, bundleLabels } from '../ai/reasoningParams'
 import type { PageId } from '../types'
 
 interface AiConfigPageProps {
@@ -13,7 +13,7 @@ export function AiConfigPage({ onNavigate }: AiConfigPageProps) {
   const setAiConfig = useAiConfigStore((s) => s.setConfig)
   const toggleAi = useAiConfigStore((s) => s.toggle)
 
-  const reasoningHint = buildReasoningParams(config.reasoningEffort, config.model)
+  const reasoningHint = bundleLabels(buildAllBundles(config.reasoningEffort))
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
@@ -72,7 +72,7 @@ export function AiConfigPage({ onNavigate }: AiConfigPageProps) {
           <MenuItem value="high">高</MenuItem>
         </Select>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-          {reasoningHint.hint}
+          {reasoningHint}
         </Typography>
       </FormControl>
 

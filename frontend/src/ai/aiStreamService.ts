@@ -1,5 +1,5 @@
 import { useAiConfigStore } from './aiConfigStore'
-import { buildReasoningParams, isReasoningParamError } from './reasoningParams'
+import { buildAllBundles, mergeBundles, findOffendingBundleKey } from './reasoningParams'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -48,8 +48,11 @@ export async function* streamChatCompletion(
 
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`
 
-  // 构建请求体
-  function buildBody(withReasoning: boolean): Record<string, unknown> {
+  // 构建所有推理参数组（先全发，遇错再减）
+  const allBundles = buildAllBundles(config.reasoningEffort)
+  let activeBundles = [...allBundles]
+
+  function buildBody(): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: config.model,
       messages,
@@ -59,19 +62,15 @@ export async function* streamChatCompletion(
       body.tools = tools
       body.tool_choice = toolChoice
     }
-    if (withReasoning) {
-      const rp = buildReasoningParams(config.reasoningEffort, config.model)
-      if (rp.hasParams) {
-        Object.assign(body, rp.params)
-      }
+    if (activeBundles.length > 0) {
+      Object.assign(body, mergeBundles(activeBundles))
     }
     return body
   }
 
   let response!: Response
-  let useReasoning = true
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -79,7 +78,7 @@ export async function* streamChatCompletion(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${config.key}`,
         },
-        body: JSON.stringify(buildBody(useReasoning)),
+        body: JSON.stringify(buildBody()),
         signal,
       })
     } catch (err) {
@@ -89,11 +88,12 @@ export async function* streamChatCompletion(
 
     if (response.ok) break
 
-    // 400 可能因模型不支持推理参数 — 回退重试
-    if (response.status === 400 && useReasoning) {
+    // 400 — 尝试移除不支持的推理参数后重试
+    if (response.status === 400 && activeBundles.length > 0) {
       const errorBody = await response.json().catch(() => ({}))
-      if (isReasoningParamError(400, errorBody)) {
-        useReasoning = false
+      const key = findOffendingBundleKey(400, errorBody, activeBundles)
+      if (key) {
+        activeBundles = activeBundles.filter((b) => b.key !== key)
         continue
       }
     }
