@@ -1,8 +1,11 @@
 import { Stack, Typography, Box, Card, CardContent, Chip, Button } from '@mui/material'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
 import { HomeSosButton } from '../components/HomeSosButton'
 import { HomeSlotCard } from '../components/HomeSlotCard'
 import { AiCompanionPlaceholder } from '../components/AiCompanionPlaceholder'
 import { useHomeStore } from '../stores/useHomeStore'
+import { useThemeStore } from '../stores/useThemeStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { useContactsStore } from '../stores/useContactsStore'
 import { zhCN } from '../i18n/zh-CN'
@@ -18,6 +21,8 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const smsNumber = useConfigStore((s) => s.smsNumber)
   const contactsCount = useContactsStore((s) => s.list.length)
   const configComplete = !!(callNumber && smsNumber && contactsCount > 0)
+  const immersiveNavBar = useThemeStore((s) => s.immersiveNavBar)
+  const setImmersiveNavBar = useThemeStore((s) => s.setImmersiveNavBar)
 
   return (
     <Stack spacing={2}>
@@ -53,6 +58,18 @@ export function HomePage({ onNavigate }: HomePageProps) {
           </Stack>
         </CardContent>
       </Card>
+
+      {/* 导航栏沉浸快捷开关 — 底栏被遮挡时使用 */}
+      <Box sx={{ textAlign: 'center' }}>
+        <Chip
+          icon={immersiveNavBar ? <FullscreenExitIcon /> : <FullscreenIcon />}
+          label={immersiveNavBar ? '导航栏沉浸已开启 · 关闭' : '导航栏沉浸已关闭 · 开启'}
+          size="small"
+          variant="outlined"
+          color={immersiveNavBar ? 'primary' : 'default'}
+          onClick={() => setImmersiveNavBar(!immersiveNavBar)}
+        />
+      </Box>
     </Stack>
   )
 }
