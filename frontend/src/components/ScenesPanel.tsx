@@ -1,10 +1,9 @@
-import { Stack, Typography, Box, IconButton, Divider, Paper } from '@mui/material'
+import { Typography, Box, IconButton, Divider, Paper } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import MapIcon from '@mui/icons-material/Map'
 import RouteIcon from '@mui/icons-material/Route'
 import BookmarkIcon from '@mui/icons-material/Bookmark'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { useUiStore } from '../stores/useUiStore'
 import type { PageId } from '../types'
 
@@ -38,16 +37,16 @@ export function ScenesPanel({ onNavigate, onClose }: ScenesPanelProps) {
   }
 
   return (
-    <Stack sx={{ p: 2, minWidth: 260, maxWidth: 320 }} spacing={1.5}>
+    <Box sx={{ p: 2, width: '100%', boxSizing: 'border-box' }}>
       {/* header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="subtitle1">场景</Typography>
         <IconButton size="small" onClick={onClose} aria-label="关闭场景面板"><CloseIcon fontSize="small" /></IconButton>
       </Box>
-      <Divider />
+      <Divider sx={{ mb: 2 }} />
 
-      {/* scene entries as paper cards */}
-      <Stack spacing={0.5}>
+      {/* 2x2 grid layout */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
         {SCENE_ENTRIES.map((entry) => (
           <Paper
             key={entry.label}
@@ -56,15 +55,17 @@ export function ScenesPanel({ onNavigate, onClose }: ScenesPanelProps) {
             tabIndex={0}
             sx={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: 1.5,
-              px: 2,
-              py: 1.5,
-              borderRadius: 2,
+              justifyContent: 'center',
+              gap: 1,
+              p: 2,
+              borderRadius: 3,
               cursor: 'pointer',
               bgcolor: 'grey.50',
+              minHeight: 120,
               transition: 'all 0.15s',
-              '&:hover': { bgcolor: 'action.hover', transform: 'translateX(4px)' },
+              '&:hover': { bgcolor: 'action.hover', transform: 'translateY(-2px)', boxShadow: 1 },
               '&:active': { bgcolor: 'action.selected' },
               outline: 'none',
             }}
@@ -72,19 +73,18 @@ export function ScenesPanel({ onNavigate, onClose }: ScenesPanelProps) {
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handle(entry) }}
             aria-label={entry.label}
           >
-            {entry.icon}
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {entry.label}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {entry.desc}
-              </Typography>
+            <Box sx={{ '& .MuiSvgIcon-root': { fontSize: 36 } }}>
+              {entry.icon}
             </Box>
-            <ChevronRightIcon fontSize="small" color="disabled" />
+            <Typography variant="body2" sx={{ fontWeight: 600, textAlign: 'center' }}>
+              {entry.label}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', lineHeight: 1.3 }}>
+              {entry.desc}
+            </Typography>
           </Paper>
         ))}
-      </Stack>
-    </Stack>
+      </Box>
+    </Box>
   )
 }
