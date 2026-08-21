@@ -92,6 +92,13 @@ export const useAiConversationStore = create<AiConversationState>((set, get) => 
     const updated = structuredClone(conv)
     updated.messages = [...conv.messages, msg]
     updated.updatedAt = Date.now()
+
+    // 自动命名：首条用户消息设为对话标题
+    if (msg.role === 'user' && msg.content && conv.title === DEFAULT_TITLE) {
+      const trimmed = msg.content.replace(/\s+/g, ' ').trim()
+      updated.title = trimmed.length > 30 ? trimmed.slice(0, 30) + '…' : trimmed
+    }
+
     const next = state.conversations.map((c) => c.id === updated.id ? updated : c)
     set({ conversations: next })
     storage.setJson(CONVERSATIONS_KEY, next)

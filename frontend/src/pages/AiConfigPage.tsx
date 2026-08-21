@@ -18,7 +18,7 @@ export function AiConfigPage({ onNavigate }: AiConfigPageProps) {
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => onNavigate('profile')} aria-label="返回">
+        <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => onNavigate('ai')} aria-label="返回">
           返回
         </Button>
         <Typography variant="h6">AI 助手设置</Typography>

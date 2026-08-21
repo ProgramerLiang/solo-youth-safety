@@ -1,9 +1,8 @@
-import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, Switch, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Stack, Typography, Box, IconButton, Divider, List, ListItemButton, ListItemText, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { useDevModeStore } from '../stores/useDevModeStore'
 import { useHomeStore } from '../stores/useHomeStore'
 import { useUiStore } from '../stores/useUiStore'
-import { useAiConfigStore } from '../ai/aiConfigStore'
 import { HOME_SLOT_CANDIDATES } from '../types/home'
 import type { HomeSlotKey } from '../types/home'
 import type { PageId } from '../types'
@@ -18,15 +17,12 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
   const slots = useHomeStore((s) => s.slots)
   const setSlot = useHomeStore((s) => s.setSlot)
   const setScrollAnchor = useUiStore((s) => s.setScrollAnchor)
-  const config = useAiConfigStore((s) => s.config)
-  const toggleAi = useAiConfigStore((s) => s.toggle)
 
   const entries: { label: string; target: PageId; anchor?: string; devOnly?: boolean }[] = [
     { label: '紧急配置', target: 'config' },
     { label: '联系人', target: 'contacts' },
     { label: '主题', target: 'theme' },
     { label: '隐私锁屏', target: 'config', anchor: 'privacy' },
-    { label: 'AI 助手设置', target: 'ai-config' },
     { label: '数据工具', target: 'tools', devOnly: true },
   ]
 
@@ -53,13 +49,6 @@ export function ProfilePanel({ onNavigate, onClose }: ProfilePanelProps) {
           </ListItemButton>
         ))}
       </List>
-      <Divider />
-
-      {/* AI toggle */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body2">AI 助手</Typography>
-        <Switch size="small" checked={config.enabled} onChange={toggleAi} />
-      </Box>
       <Divider />
 
       {/* slot customizer */}

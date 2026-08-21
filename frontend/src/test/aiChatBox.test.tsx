@@ -29,6 +29,7 @@ describe('AiChatBox', () => {
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: '查看我的位置' } })
     fireEvent.click(screen.getByRole('button', { name: /发送/ }))
-    expect(screen.getByText('查看我的位置')).toBeInTheDocument()
+    // 标题自动命名 + 消息气泡都会包含这个文本
+    expect(screen.getAllByText('查看我的位置').length).toBeGreaterThanOrEqual(1)
   })
 })

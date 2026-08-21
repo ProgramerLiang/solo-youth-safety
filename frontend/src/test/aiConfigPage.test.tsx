@@ -30,6 +30,6 @@ describe('AiConfigPage', () => {
     const onNavigate = vi.fn()
     render(<AiConfigPage onNavigate={onNavigate} />)
     fireEvent.click(screen.getByRole('button', { name: /返回/ }))
-    expect(onNavigate).toHaveBeenCalledWith('profile')
+    expect(onNavigate).toHaveBeenCalledWith('ai')
   })
 })
