@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { Box, Paper, Slide, useMediaQuery, useTheme } from '@mui/material'
+import { Box, Paper, Slide, useMediaQuery, useTheme, IconButton, Tooltip } from '@mui/material'
 import { keyframes } from '@emotion/react'
 import HomeIcon from '@mui/icons-material/Home'
 import NotificationsIcon from '@mui/icons-material/Notifications'
@@ -7,6 +7,9 @@ import ExploreIcon from '@mui/icons-material/Explore'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import StarIcon from '@mui/icons-material/Star'
 import PersonIcon from '@mui/icons-material/Person'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
+import { useThemeStore } from '../stores/useThemeStore'
 import { MessagesPanel } from './MessagesPanel'
 import { ScenesPanel } from './ScenesPanel'
 import { ProfilePanel } from './ProfilePanel'
@@ -209,6 +212,11 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
             </Box>
           ))}
         </Box>
+
+        {/* 导航栏沉浸开关 */}
+        <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center' }}>
+          <BottomNavToggle />
+        </Box>
       </Paper>
 
       {/* slide-up panel */}
@@ -233,5 +241,18 @@ export function BottomNav({ activePageId, onNavigate }: BottomNavProps) {
         </Paper>
       </Slide>
     </>
+  )
+}
+
+/** 底部导航栏沉浸开关 — 当底栏被系统导航栏遮挡时轻触切换 */
+function BottomNavToggle() {
+  const navImmersive = useThemeStore((s) => s.immersiveNavBar)
+  const setNavImmersive = useThemeStore((s) => s.setImmersiveNavBar)
+  return (
+    <Tooltip title={navImmersive ? '关闭沉浸（底栏避开系统导航栏）' : '开启沉浸（底栏延伸到系统导航栏下方）'}>
+      <IconButton size="small" onClick={() => setNavImmersive(!navImmersive)} aria-label="导航栏沉浸切换">
+        {navImmersive ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+      </IconButton>
+    </Tooltip>
   )
 }

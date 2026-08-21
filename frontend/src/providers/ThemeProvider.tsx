@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { ThemeProvider as MuiThemeProvider, CssBaseline } from '@mui/material'
 import { StatusBar, Style as StatusBarStyle } from '@capacitor/status-bar'
 import { useThemeStore } from '../stores/useThemeStore'
+import { useSafeAreaInsets } from '../hooks/useSafeArea'
 import { buildTheme, resolveThemeMode } from '../theme/createTheme'
 import { detectSystemDark } from '../theme/tokens'
 
@@ -44,15 +45,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [resolvedMode])
 
-  // 沉浸式设置：控制 safe-area padding
+  // 沉浸式设置：控制 safe-area padding（使用实测值）
   const immersiveStatusBar = useThemeStore((s) => s.immersiveStatusBar)
   const immersiveNavBar = useThemeStore((s) => s.immersiveNavBar)
+  const insets = useSafeAreaInsets()
   useEffect(() => {
     const root = document.getElementById('root')
     if (!root) return
-    root.style.paddingTop = immersiveStatusBar ? '0px' : 'env(safe-area-inset-top, 0px)'
-    root.style.paddingBottom = immersiveNavBar ? '0px' : 'env(safe-area-inset-bottom, 0px)'
-  }, [immersiveStatusBar, immersiveNavBar])
+    root.style.paddingTop = immersiveStatusBar ? '0px' : `${insets.top}px`
+    root.style.paddingBottom = immersiveNavBar ? '0px' : `${insets.bottom}px`
+  }, [immersiveStatusBar, immersiveNavBar, insets.top, insets.bottom])
 
   return (
     <MuiThemeProvider theme={theme}>
