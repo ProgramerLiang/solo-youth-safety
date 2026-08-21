@@ -59,18 +59,21 @@ export function AiChatMessage({ role, content, toolName, isRunning }: AiChatMess
   return (
     <Box sx={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', mb: 1 }}>
       <Box
-        sx={{
+        sx={(theme) => ({
           maxWidth: '80%',
           px: 2,
           py: 1,
           borderRadius: 2,
-          bgcolor: isUser ? 'primary.main' : 'grey.100',
+          bgcolor: isUser ? 'primary.main' : (theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100'),
           color: isUser ? 'primary.contrastText' : 'text.primary',
-        }}
+        })}
       >
         {!isUser && <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>🤖 安全助手</Typography>}
         {role === 'assistant' ? (
-          <Box sx={{ '& p': { my: 0.5 }, '& code': { px: 0.5, py: 0.25, bgcolor: 'action.hover', borderRadius: 0.5, fontSize: '0.85em' }, '& pre': { p: 1, bgcolor: 'grey.200', borderRadius: 1, overflow: 'auto', fontSize: '0.85em' } }}>
+          <Box sx={[
+            { '& p': { my: 0.5 }, '& code': { px: 0.5, py: 0.25, bgcolor: 'action.hover', borderRadius: 0.5, fontSize: '0.85em' } },
+            (theme) => ({ '& pre': { p: 1, bgcolor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.200', borderRadius: 1, overflow: 'auto', fontSize: '0.85em' } }),
+          ]}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
             {isRunning && (
               <Typography component="span" variant="body2" sx={{ animation: 'blink 1s step-end infinite', '@keyframes blink': { '50%': { opacity: 0 } } }}>

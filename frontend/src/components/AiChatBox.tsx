@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Stack, Box, TextField, IconButton, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress, Tooltip, Chip } from '@mui/material'
+import { Stack, Box, TextField, IconButton, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress, Tooltip, Chip, useTheme } from '@mui/material'
 import SendIcon from '@mui/icons-material/Send'
 import StopIcon from '@mui/icons-material/Stop'
 import RefreshIcon from '@mui/icons-material/Refresh'
@@ -28,6 +28,8 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
   const initialize = useAiConversationStore((s) => s.initialize)
   const loaded = useAiConversationStore((s) => s.loaded)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  const theme = useTheme()
 
   const {
     streamingContent,
@@ -156,7 +158,7 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
                 px: 2,
                 py: 1,
                 borderRadius: 2,
-                bgcolor: 'grey.50',
+                bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
                 color: 'text.secondary',
                 border: 1,
                 borderColor: 'divider',
@@ -256,7 +258,7 @@ export function AiChatBox({ fullHeight }: AiChatBoxProps) {
           {pendingToolConfirm?.args && Object.keys(pendingToolConfirm.args).length > 0 && (
             <Box
               component="pre"
-              sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1, fontSize: 'caption.fontSize' }}
+              sx={(theme) => ({ mt: 1, p: 1, bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100', borderRadius: 1, fontSize: 'caption.fontSize' })}
             >
               {JSON.stringify(pendingToolConfirm.args, null, 2)}
             </Box>
